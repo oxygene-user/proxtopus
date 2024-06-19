@@ -56,11 +56,7 @@ void handler_ss::worker(netkit::pipe* raw_pipe)
 	signed_t port = ((signed_t)packet[0]) << 8 | packet[1];
 	ep.set_port(port);
 
-	netkit::pipe_ptr outcon = connect(ep, false);
-	if (outcon)
-	{
-		bridge(/*ep,*/ p_enc, outcon);
-		outcon = nullptr;
-	}
+	if (netkit::pipe_ptr outcon = connect(ep, false))
+		bridge(/*ep,*/ std::move(p_enc), std::move(outcon));
 }
 

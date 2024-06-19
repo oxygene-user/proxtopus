@@ -104,12 +104,6 @@ namespace netkit
 		AT_TCP_RESLOVED,
 	};
 
-	struct exception_fail_mask : public std::exception
-	{
-		exception_fail_mask(u64 fm) :mask(fm) {}
-		u64 mask;
-	};
-
 	void wait_socket(SOCKET s, long microsec);
 
 #ifdef _WIN32
@@ -151,7 +145,7 @@ namespace netkit
 		u64 reg(pipe* p);
 		void unreg_last();
 
-		u64 wait(long microsec); // after wait return, waiter is in empty state
+		std::tuple<u64, u64> wait(long microsec); // after wait return, waiter is in empty state
 		void signal();
 	};
 
@@ -269,7 +263,7 @@ namespace netkit
 			if (_socket.wsaevent == nullptr)
 			{
 				_socket.wsaevent = WSACreateEvent();
-				WSAEventSelect(_socket.s, _socket.wsaevent, FD_READ);
+				WSAEventSelect(_socket.s, _socket.wsaevent, FD_READ|FD_CLOSE);
 			}
 			return &_socket;
 		}

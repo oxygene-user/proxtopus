@@ -361,18 +361,18 @@ namespace netkit
 	}
 
 
-	u64 pipe_waiter::wait(long microsec)
+	std::tuple<u64, u64> pipe_waiter::wait(long microsec)
 	{
 		if (readymask != 0)
 		{
 			u64 rm = readymask;
 			readymask = 0;
 			numw = 0;
-			return rm;
+			return { rm, 0 };
 		}
 
 		if (numw == 0)
-			return 0;
+			return { 0, 0 };
 
 		if (sig == NULL_WAITABLE)
 		{
@@ -387,7 +387,7 @@ namespace netkit
 		{
 			readymask = 0;
 			numw = 0;
-			return 0;
+			return { 0, 0 };
 		}
 
 		if (rslt == WSA_WAIT_EVENT_0 + numw)
@@ -396,32 +396,37 @@ namespace netkit
 			WSAResetEvent(sig);
 			readymask = 0;
 			numw = 0;
-			return 0;
+			return { 0, 0 };
 		}
 
 		if (rslt >= WSA_WAIT_EVENT_0 && (rslt-WSA_WAIT_EVENT_0) < numw)
 		{
 			signed_t i = (rslt - WSA_WAIT_EVENT_0);
 
-			u64 mask = 0;
+			u64 mask_read = 0;
+			u64 mask_close = 0;
 			WSANETWORKEVENTS e;
 			for (; i < numw; ++i)
 			{
 				WSAEnumNetworkEvents(soks[i], www[i], &e);
+				if (0 != (e.lNetworkEvents & FD_CLOSE))
+				{
+					mask_close |= 1ull << i;
+				}
 				if (0 != (e.lNetworkEvents & FD_READ))
 				{
-					mask |= 1ull << i;
+					mask_read |= 1ull << i;
 				}
 			}
 
 			readymask = 0;
 			numw = 0;
-			return mask;
+			return { mask_read, mask_close };
 		}
 
 		readymask = 0;
 		numw = 0;
-		return 0;
+		return { 0, 0 };
 	}
 
 	void pipe_waiter::signal()

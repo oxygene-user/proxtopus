@@ -24,7 +24,7 @@ protected:
 			}
 			return true;
 		}
-		u64 process(u8* data, u64 mask);
+		bool process(u8* data, u64 &mask_ready, u64 &mask_close);
 	};
 
 	class processing_thread
@@ -49,6 +49,7 @@ protected:
 		}
 
 	public:
+		void forward(processing_thread* to);
 		processing_thread* get_next()
 		{
 			return next.get();
@@ -86,6 +87,11 @@ protected:
 			}
 			return 0;
 		}
+		signed_t check()
+		{
+			spinlock::auto_simple_lock s(sync);
+			return numslots < 0 ? -1 : 0;
+		}
 		bool tick(u8 *data); // returns true 2 continue
 	};
 
@@ -102,7 +108,7 @@ protected:
 	listener* owner;
 	std::vector<const proxy*> proxychain;
 
-	void bridge(/*const netkit::endpoint &ep,*/ netkit::pipe* pipe1, netkit::pipe* pipe2); // either does job in current thread or forwards job to another thread with same endpoint
+	void bridge(/*const netkit::endpoint &ep,*/ netkit::pipe_ptr &&pipe1, netkit::pipe_ptr &&pipe2); // either does job in current thread or forwards job to another thread with same endpoint
 	void bridge(processing_thread *npt);
 
 public:

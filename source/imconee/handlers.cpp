@@ -1,7 +1,6 @@
 #include "pch.h"
 
 #define BRIDGE_BUFFER_SIZE 65535
-#define BRIDGE_ERROR (0xffffffffffffffffull)
 
 handler* handler::build(loader& ldr, listener *owner, const asts& bb)
 {
@@ -61,13 +60,17 @@ handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 	}
 }
 
-void handler::bridge(/*const netkit::endpoint& ep,*/ netkit::pipe* pipe1, netkit::pipe* pipe2)
+void handler::bridge(/*const netkit::endpoint& ep,*/ netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 {
+	ASSERT(!pipe1->is_multi_ref()); // avoid memory leak! bridge is now owner of pipe1 and pipe2
+	ASSERT(!pipe2->is_multi_ref());
+
 	auto st = state.lock_write();
 	std::unique_ptr<processing_thread>* ptr = &st().pth;
+	bool check_only = false;
 	for (processing_thread* t = ptr->get(); t;)
 	{
-		signed_t x = t->try_add_bridge(/*ep,*/ pipe1, pipe2);
+		signed_t x = check_only ? t->check() : t->try_add_bridge(/*ep,*/ pipe1, pipe2);
 		if (x < 0)
 		{
 			t = t->get_next_and_release();
@@ -76,11 +79,14 @@ void handler::bridge(/*const netkit::endpoint& ep,*/ netkit::pipe* pipe1, netkit
 				break;
 		}
 		if (x > 0)
-			return;
+			check_only = true;
 
 		ptr = t->get_next_ptr();
 		t = t->get_next();
 	}
+
+	if (check_only)
+		return;
 
 	ASSERT(ptr->get() == nullptr);
 
@@ -93,36 +99,42 @@ void handler::bridge(/*const netkit::endpoint& ep,*/ netkit::pipe* pipe1, netkit
 	pipe2->close(true);
 }
 
-u64 handler::bridged::process(u8* data, u64 mask)
+bool handler::bridged::process(u8* data, u64 &mask_ready, u64 &mask_close)
 {
-	u64 unmask = 0;
-	if (0 != (mask1 & mask))
+	if (0 != (mask1 & mask_close) || 0 != (mask2 & mask_close))
 	{
+		mask_close &= ~(mask1 | mask2);
+		return true;
+	}
+
+	if (0 != (mask1 & mask_ready))
+	{
+		mask_ready &= ~mask1;
 		signed_t sz = pipe1->recv(data, BRIDGE_BUFFER_SIZE);
 		if (sz < 0)
-			return BRIDGE_ERROR;
+			return true;
 		
 		if (sz > 0)
 		{
 			if (!pipe2->send(data, sz))
-				return BRIDGE_ERROR;
+				return true;
 		}
-		unmask = mask1;
 	}
-	if (0 != (mask2 & mask))
+	if (0 != (mask2 & mask_ready))
 	{
+		mask_ready &= ~mask2;
+
 		signed_t sz = pipe2->recv(data, BRIDGE_BUFFER_SIZE);
 		if (sz < 0)
-			return BRIDGE_ERROR;
+			return true;
 		if (sz > 0)
 		{
 			if (!pipe1->send(data, sz))
-				return BRIDGE_ERROR;
+				return true;
 		}
-		unmask |= mask2;
 	}
 
-	return mask ^ unmask;
+	return false;
 
 }
 
@@ -149,54 +161,40 @@ bool handler::processing_thread::tick(u8* data)
 
 	bool cont_inue = false;
 
-	try
+	auto mask = waiter.wait(-1);
+	if (std::get<0>(mask) == 0 && std::get<1>(mask) == 0)
+		return true;
+
+	spinlock::simple_lock(sync);
+	signed_t fixed_numslots = numslots;
+	spinlock::simple_unlock(sync);
+
+	signed_t cur_numslots = fixed_numslots;
+
+	for (signed_t i = cur_numslots - 1; i >= 0 && (std::get<0>(mask)|std::get<1>(mask)) != 0; --i)
 	{
-		u64 mask = waiter.wait(-1);
-		if (mask == 0)
-			return true;
-
-		spinlock::simple_lock(sync);
-		signed_t fixed_numslots = numslots;
-		spinlock::simple_unlock(sync);
-
-		signed_t cur_numslots = fixed_numslots;
-
-		for (signed_t i = cur_numslots - 1; i >= 0 && mask != 0; --i)
+		if (slots[i].process(data, std::get<0>(mask), std::get<1>(mask)))
 		{
-			u64 newmask = slots[i].process(data, mask);
-			if (newmask == BRIDGE_ERROR)
-			{
-				--cur_numslots;
-				moveslot(i, cur_numslots);
-
-			}
-			else
-				mask = newmask;
+			--cur_numslots;
+			moveslot(i, cur_numslots);
 		}
+	}
 
-		spinlock::simple_lock(sync);
+	spinlock::simple_lock(sync);
 		
-		if (fixed_numslots < numslots)
-		{
-			// looks like new slots were filled during process
-			for (signed_t i = fixed_numslots; i < numslots; ++i)
-				moveslot(cur_numslots++, i);
-		}
-		numslots = cur_numslots;
-		cont_inue = numslots > 0;
-		if (!cont_inue)
-			numslots = -1; // lock this thread
-
-		spinlock::simple_unlock(sync);
-
-
-
-
-	}
-	catch (const netkit::exception_fail_mask&)
+	if (fixed_numslots < numslots)
 	{
-
+		// looks like new slots were filled during process
+		for (signed_t i = fixed_numslots; i < numslots; ++i)
+			moveslot(cur_numslots++, i);
 	}
+	numslots = cur_numslots;
+	cont_inue = numslots > 0;
+	if (!cont_inue)
+		numslots = -1; // lock this thread
+
+	spinlock::simple_unlock(sync);
+
 
 	return cont_inue;
 }
@@ -208,6 +206,12 @@ void handler::bridge(processing_thread *npt)
 	{
 		if (!npt->tick(data))
 			break;
+
+		auto st = state.lock_write();
+		if (processing_thread* next = npt->get_next())
+			npt->forward( next );
+		st.unlock();
+
 		Sleep(10);
 	}
 }
@@ -272,6 +276,24 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 		pp = proxychain[i]->prepare(pp, na);
 	}
 	return std::move(pp);
+}
+
+void handler::processing_thread::forward(processing_thread* n)
+{
+	spinlock::simple_lock(sync);
+
+	ASSERT(numslots > 0);
+	bridged& brlast = slots[numslots - 1];
+
+	if (n->try_add_bridge(brlast.pipe1, brlast.pipe2) > 0)
+	{
+		--numslots;
+		slots[numslots].pipe1 = nullptr;
+		slots[numslots].pipe2 = nullptr;
+	}
+
+	spinlock::simple_unlock(sync);
+
 }
 
 void handler::processing_thread::close()
@@ -362,16 +384,10 @@ void handler_direct::worker(netkit::pipe* pipe)
 {
 	// now try to connect to out
 
-	netkit::pipe_ptr keep_pipe(pipe); // keep pointer until exit
+	netkit::pipe_ptr p(pipe);
 	netkit::endpoint ep(to_addr);
-
-	netkit::pipe_ptr outcon = connect(ep, false);
-	if (outcon)
-	{
-		bridge(/*ep,*/ pipe, outcon);
-		outcon = nullptr;
-		return;
-	}
+	if (netkit::pipe_ptr outcon = connect(ep, false))
+		bridge(/*ep,*/ std::move(p), std::move(outcon));
 }
 
 
@@ -419,8 +435,6 @@ void handler_socks::on_pipe(netkit::pipe* pipe)
 
 void handler_socks::handshake(netkit::pipe* pipe)
 {
-	netkit::pipe_ptr keep_pipe(pipe); // keep pointer until exit
-
 	u8 packet[8];
 	signed_t rb = pipe->recv(packet, -1);
 	if (rb != 1)
@@ -658,12 +672,12 @@ void handler_socks::worker(netkit::pipe* pipe, const netkit::endpoint &inf, send
 {
 	// now try to connect to out
 
-	netkit::pipe_ptr outcon = connect(inf, false);
-	if (outcon)
+	netkit::pipe_ptr p(pipe);
+	if (netkit::pipe_ptr outcon = connect(inf, false))
 	{
 		answ( pipe, EC_GRANTED );
 
-		bridge(/*inf,*/ pipe, outcon);
+		bridge(/*inf,*/ std::move(p), std::move(outcon));
 		outcon = nullptr;
 		return;
 
