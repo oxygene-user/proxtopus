@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <IntDir>$(GARBAGE)\#garbage\$(MSBuildToolsVersion)\$(ProjectName)_$(Configuration)_$(Platform)\</IntDir>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectName)d64</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectName)d</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectName)64</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectName)</TargetName>
+    <UseOfMfc>false</UseOfMfc>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;SODIUM_STATIC;_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;_HAS_EXCEPTIONS=0;WINVER=0x05010100;_WIN32_WINNT=0x05010100;_WINSOCK_DEPRECATED_NO_WARNINGS</PreprocessorDefinitions>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
+      <ProgramDataBaseFileName>$(IntDir)vc$(PlatformToolset).pdb</ProgramDataBaseFileName>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <ExceptionHandling>false</ExceptionHandling>
+      <WarningLevel>Level4</WarningLevel>
+      <StringPooling>true</StringPooling>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <StructMemberAlignment>16Bytes</StructMemberAlignment>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <EnableEnhancedInstructionSet Condition="'$(Platform)'!='x64'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>$(OutDir)$(ProjectName).bsc</OutputFile>
+    </Bscmake>
+
+    <Lib>
+      <TargetMachine Condition="'$(Platform)'=='Win32'">MachineX86</TargetMachine>
+      <TargetMachine Condition="'$(Platform)'=='x64'">MachineX64</TargetMachine>
+    </Lib>
+
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PreprocessorDefinitions>_DEBUG;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>Disabled</Optimization>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <SmallerTypeCheck>true</SmallerTypeCheck>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+    </ClCompile>
+    <Link>
+      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <IgnoreSpecificDefaultLibraries>LIBCMT.lib</IgnoreSpecificDefaultLibraries>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions>_RELEASE;NDEBUG;_CRASH_HANDLER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <SmallerTypeCheck>false</SmallerTypeCheck>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <OmitFramePointers>true</OmitFramePointers>
+    </ClCompile>
+    <Lib>
+      <LinkTimeCodeGeneration>true</LinkTimeCodeGeneration>
+    </Lib>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapFileName>$(IntDir)$(TargetName).map</MapFileName>
+      <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
+    </Link>
+  </ItemDefinitionGroup>
+
+
+  <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>WIN64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+</Project>

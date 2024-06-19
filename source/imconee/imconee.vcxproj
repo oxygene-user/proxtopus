@@ -1,0 +1,407 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{f0ccf8fb-7ace-4699-b8bf-e1914b5e6bfd}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>imconee</RootNamespace>
+    <ProjectName>imconee</ProjectName>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)\solution.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup>
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup>
+    <OutDir>$(GARBAGE)\bin\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)libext;$(SolutionDir)lib</AdditionalIncludeDirectories>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Async</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Async</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Async</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Async</ExceptionHandling>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalLibraryDirectories>$(GARBAGE)\libs\</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\botan\aead.h" />
+    <ClInclude Include="..\botan\allocator.h" />
+    <ClInclude Include="..\botan\assert.h" />
+    <ClInclude Include="..\botan\auto_rng.h" />
+    <ClInclude Include="..\botan\block_cipher.h" />
+    <ClInclude Include="..\botan\botan.h" />
+    <ClInclude Include="..\botan\buf_comp.h" />
+    <ClInclude Include="..\botan\build.h" />
+    <ClInclude Include="..\botan\cipher_mode.h" />
+    <ClInclude Include="..\botan\compiler.h" />
+    <ClInclude Include="..\botan\concepts.h" />
+    <ClInclude Include="..\botan\data_snk.h" />
+    <ClInclude Include="..\botan\data_src.h" />
+    <ClInclude Include="..\botan\entropy_src.h" />
+    <ClInclude Include="..\botan\exceptn.h" />
+    <ClInclude Include="..\botan\filter.h" />
+    <ClInclude Include="..\botan\filters.h" />
+    <ClInclude Include="..\botan\hash.h" />
+    <ClInclude Include="..\botan\hex.h" />
+    <ClInclude Include="..\botan\hmac_drbg.h" />
+    <ClInclude Include="..\botan\internal\aes.h" />
+    <ClInclude Include="..\botan\internal\alignment_buffer.h" />
+    <ClInclude Include="..\botan\internal\bit_ops.h" />
+    <ClInclude Include="..\botan\internal\bswap.h" />
+    <ClInclude Include="..\botan\internal\chacha.h" />
+    <ClInclude Include="..\botan\internal\chacha20poly1305.h" />
+    <ClInclude Include="..\botan\internal\charset.h" />
+    <ClInclude Include="..\botan\internal\cpuid.h" />
+    <ClInclude Include="..\botan\internal\ctr.h" />
+    <ClInclude Include="..\botan\internal\ct_utils.h" />
+    <ClInclude Include="..\botan\internal\donna128.h" />
+    <ClInclude Include="..\botan\internal\dyn_load.h" />
+    <ClInclude Include="..\botan\internal\fmt.h" />
+    <ClInclude Include="..\botan\internal\gcm.h" />
+    <ClInclude Include="..\botan\internal\ghash.h" />
+    <ClInclude Include="..\botan\internal\hkdf.h" />
+    <ClInclude Include="..\botan\internal\hmac.h" />
+    <ClInclude Include="..\botan\internal\int_utils.h" />
+    <ClInclude Include="..\botan\internal\keccak_perm.h" />
+    <ClInclude Include="..\botan\internal\keccak_perm_round.h" />
+    <ClInclude Include="..\botan\internal\loadstor.h" />
+    <ClInclude Include="..\botan\internal\md5.h" />
+    <ClInclude Include="..\botan\internal\mdx_hash.h" />
+    <ClInclude Include="..\botan\internal\mul128.h" />
+    <ClInclude Include="..\botan\internal\os_utils.h" />
+    <ClInclude Include="..\botan\internal\out_buf.h" />
+    <ClInclude Include="..\botan\internal\parsing.h" />
+    <ClInclude Include="..\botan\internal\poly1305.h" />
+    <ClInclude Include="..\botan\internal\rotate.h" />
+    <ClInclude Include="..\botan\internal\salsa20.h" />
+    <ClInclude Include="..\botan\internal\scan_name.h" />
+    <ClInclude Include="..\botan\internal\sha1.h" />
+    <ClInclude Include="..\botan\internal\sha2_32.h" />
+    <ClInclude Include="..\botan\internal\sha2_32_f.h" />
+    <ClInclude Include="..\botan\internal\sha2_64.h" />
+    <ClInclude Include="..\botan\internal\sha2_64_f.h" />
+    <ClInclude Include="..\botan\internal\sha3.h" />
+    <ClInclude Include="..\botan\internal\simd_32.h" />
+    <ClInclude Include="..\botan\internal\simd_avx2.h" />
+    <ClInclude Include="..\botan\internal\simd_avx512.h" />
+    <ClInclude Include="..\botan\internal\stl_util.h" />
+    <ClInclude Include="..\botan\internal\stream_mode.h" />
+    <ClInclude Include="..\botan\kdf.h" />
+    <ClInclude Include="..\botan\mac.h" />
+    <ClInclude Include="..\botan\mem_ops.h" />
+    <ClInclude Include="..\botan\mutex.h" />
+    <ClInclude Include="..\botan\pipe.h" />
+    <ClInclude Include="..\botan\rng.h" />
+    <ClInclude Include="..\botan\secmem.h" />
+    <ClInclude Include="..\botan\stateful_rng.h" />
+    <ClInclude Include="..\botan\stream_cipher.h" />
+    <ClInclude Include="..\botan\strong_type.h" />
+    <ClInclude Include="..\botan\symkey.h" />
+    <ClInclude Include="..\botan\sym_algo.h" />
+    <ClInclude Include="..\botan\system_rng.h" />
+    <ClInclude Include="..\botan\types.h" />
+    <ClInclude Include="cipher_ss.h" />
+    <ClInclude Include="cmdline.h" />
+    <ClInclude Include="connect.h" />
+    <ClInclude Include="engine.h" />
+    <ClInclude Include="fsys.h" />
+    <ClInclude Include="handlers.h" />
+    <ClInclude Include="handler_ss.h" />
+    <ClInclude Include="listener.h" />
+    <ClInclude Include="loader.h" />
+    <ClInclude Include="logger.h" />
+    <ClInclude Include="netkit.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="proxy.h" />
+    <ClInclude Include="proxy_ss.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="str_helpers.h" />
+    <ClInclude Include="sts.h" />
+    <ClInclude Include="tools.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\botan\aead.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\aes.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\aes_ni.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\aes_vperm.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\allocator.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\auto_rng.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\block_cipher.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\chacha.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\chacha20poly1305.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\chacha_avx2.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\chacha_avx512.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\chacha_simd32.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\charset.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\cipher_mode.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\cpuid.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\cpuid_x86.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\ctr.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\dyn_load.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\entropy_srcs.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\exceptn.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\filter.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\gcm.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\ghash.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\ghash_cpu.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\ghash_vperm.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\hash.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\hex.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\hkdf.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\hmac.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\hmac_drbg.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\kdf.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\keccak_perm.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\keccak_perm_bmi2.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\mac.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\md5.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\mem_ops.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\os_utils.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\parsing.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\poly1305.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\rng.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\salsa20.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\scan_name.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha1.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha1_sse2.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha1_x86.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha2_32.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha2_32_bmi2.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha2_32_x86.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha2_64.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha2_64_bmi2.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sha3.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\stateful_rng.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\stream_cipher.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\symkey.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\sym_algo.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="..\botan\system_rng.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
+    </ClCompile>
+    <ClCompile Include="cipher_ss.cpp" />
+    <ClCompile Include="cmdline.cpp" />
+    <ClCompile Include="connect.cpp" />
+    <ClCompile Include="engine.cpp" />
+    <ClCompile Include="fsys.cpp" />
+    <ClCompile Include="handlers.cpp" />
+    <ClCompile Include="handler_ss.cpp" />
+    <ClCompile Include="listener.cpp" />
+    <ClCompile Include="loader.cpp" />
+    <ClCompile Include="logger.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="netkit.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="proxy.cpp" />
+    <ClCompile Include="proxy_ss.cpp" />
+    <ClCompile Include="sts.cpp" />
+    <ClCompile Include="tools.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="imconee.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\imconee.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="imconee.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

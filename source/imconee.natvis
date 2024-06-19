@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+	<Type Name="netkit::ip4">
+		<DisplayString>ipv4={S_un.S_un_b.s_b1,nvo}.{S_un.S_un_b.s_b2,nvo}.{S_un.S_un_b.s_b3,nvo}.{S_un.S_un_b.s_b4,nvo}</DisplayString>
+		<Expand>
+			<Item Name="u32">S_un.S_addr</Item>
+		</Expand>
+	</Type>
+
+
+</AutoVisualizer>

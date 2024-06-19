@@ -1,0 +1,73 @@
+listeners {
+
+	// simple port mapper
+	// used with upstream proxy localsocks5 (see proxy section)
+	test-pm {
+		type=tcp
+		port=110
+		bind=127.0.0.1
+		handler {
+			type=direct
+			to=`tcp://10.10.10.11:110`
+			proxychain=localsocks5
+			//proxychain=localsocks5,shadowss
+		}
+	}
+
+	// shadowsocks client
+	// start socks server on 1080 port
+	// use shadowsocks upstream proxy 
+	shadowscl {
+		type=tcp
+		port=1180
+		bind=127.0.0.1
+		handler {
+			type=socks
+			proxychain=shadowss
+		}
+
+	}
+
+	// run shadowsocks server on 8989 port
+	shadow-serv {
+		type=tcp
+		port=8989
+		bind=127.0.0.1
+		handler {
+			type=shadowsocks
+			method=chacha20-ietf-poly1305
+			
+			//method=xchacha20-ietf-poly1305
+			//method=aes-256-gcm
+			//method=aes-192-gcm
+			//method=aes-128-gcm
+
+			password=sspass
+		}
+
+	}
+
+}
+
+
+proxy {
+
+
+	localsocks {
+		type=socks4
+		addr=127.0.0.1:5000
+		//userid=blabla
+	}
+	localsocks5 {
+		type=socks5
+		addr=localhost:5000
+		auth=admin:bigsecret
+	}
+	shadowss {
+		type=shadowsocks
+		addr=127.0.0.1:8989
+		method=chacha20-ietf-poly1305
+		password=sspass
+	}
+
+}
