@@ -60,7 +60,7 @@ handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 	}
 }
 
-void handler::bridge(/*const netkit::endpoint& ep,*/ netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
+void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 {
 	ASSERT(!pipe1->is_multi_ref()); // avoid memory leak! bridge is now owner of pipe1 and pipe2
 	ASSERT(!pipe2->is_multi_ref());
@@ -94,9 +94,27 @@ void handler::bridge(/*const netkit::endpoint& ep,*/ netkit::pipe_ptr &&pipe1, n
 	ptr->reset(npt);
 	st.unlock();
 
-	npt->try_add_bridge(/*ep, */ pipe1, pipe2);
+	npt->try_add_bridge(pipe1, pipe2);
 	bridge(npt);
-	pipe2->close(true);
+
+	pipe1 = nullptr;
+	pipe2 = nullptr;
+
+	st = state.lock_write();
+	ptr = &st().pth;
+	for (processing_thread* t = ptr->get(); t;)
+	{
+		if (t == npt)
+		{
+			t = t->get_next_and_release();
+			ptr->reset(t); // it now deletes previous t
+			break;
+		}
+		ptr = t->get_next_ptr();
+		t = t->get_next();
+	}
+	st.unlock();
+
 }
 
 bool handler::bridged::process(u8* data, u64 &mask_ready, u64 &mask_close)
@@ -207,6 +225,9 @@ void handler::bridge(processing_thread *npt)
 		if (!npt->tick(data))
 			break;
 
+		if (engine::is_stop())
+			break;
+
 		auto st = state.lock_write();
 		if (processing_thread* next = npt->get_next())
 			npt->forward( next );
@@ -280,7 +301,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 
 void handler::processing_thread::forward(processing_thread* n)
 {
-	spinlock::simple_lock(sync);
+	spinlock::auto_simple_lock a(sync);
 
 	ASSERT(numslots > 0);
 	bridged& brlast = slots[numslots - 1];
@@ -292,14 +313,13 @@ void handler::processing_thread::forward(processing_thread* n)
 		slots[numslots].pipe2 = nullptr;
 	}
 
-	spinlock::simple_unlock(sync);
-
 }
 
 void handler::processing_thread::close()
 {
+	signal();
 	{
-		netkit::pipe_ptr ptrs[MAXIMUM_SLOTS * 2];
+		std::array<netkit::pipe_ptr, MAXIMUM_SLOTS * 2> ptrs;
 		signed_t n = 0;
 
 		spinlock::simple_lock(sync);
@@ -319,6 +339,7 @@ void handler::processing_thread::close()
 void handler::stop()
 {
 	auto ss = state.lock_write();
+
 	if (ss().need_stop)
 		return;
 	
@@ -331,30 +352,6 @@ void handler::stop()
 		Sleep(100);
 }
 
-/*
-void handler::enpipe(netkit::pipe* pipe)
-{
-	auto ss = state.lock_write();
-	ss().pipes.emplace_back(pipe);
-	ss.unlock();
-}
-
-void handler::depipe(netkit::pipe* pipe)
-{
-	auto ss = state.lock_write();
-	for (signed_t i = 0, sz = ss().pipes.size(); i < sz; ++i)
-	{
-		if (ss().pipes[i].get() == pipe)
-		{
-			if (i < sz - 1)
-				ss().pipes[i] = std::move(ss().pipes[sz - 1]);
-			ss().pipes.resize(sz - 1);
-			break;
-		}
-	}
-
-}
-*/
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -387,7 +384,7 @@ void handler_direct::worker(netkit::pipe* pipe)
 	netkit::pipe_ptr p(pipe);
 	netkit::endpoint ep(to_addr);
 	if (netkit::pipe_ptr outcon = connect(ep, false))
-		bridge(/*ep,*/ std::move(p), std::move(outcon));
+		bridge(std::move(p), std::move(outcon));
 }
 
 
@@ -677,7 +674,7 @@ void handler_socks::worker(netkit::pipe* pipe, const netkit::endpoint &inf, send
 	{
 		answ( pipe, EC_GRANTED );
 
-		bridge(/*inf,*/ std::move(p), std::move(outcon));
+		bridge(std::move(p), std::move(outcon));
 		outcon = nullptr;
 		return;
 

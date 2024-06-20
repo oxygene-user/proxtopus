@@ -31,10 +31,8 @@ protected:
 	{
 		volatile spinlock::long3264 sync = 0;
 		netkit::pipe_waiter waiter;
-		bridged slots[MAXIMUM_SLOTS];
-		signed_t id = 0;
+		std::array<bridged, MAXIMUM_SLOTS> slots;
 		signed_t numslots = 0;
-		//netkit::endpoint ep;
 		std::unique_ptr<processing_thread> next;
 
 		void moveslot(signed_t to, signed_t from)
@@ -49,6 +47,10 @@ protected:
 		}
 
 	public:
+		void signal()
+		{
+			waiter.signal();
+		}
 		void forward(processing_thread* to);
 		processing_thread* get_next()
 		{

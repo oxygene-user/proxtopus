@@ -82,6 +82,9 @@ namespace netkit
 		if (INVALID_SOCKET == s)
 			return nullptr;
 
+		if (engine::is_stop())
+			return nullptr;
+
 		return new tcp_pipe(s, addr);
 	}
 

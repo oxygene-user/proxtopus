@@ -32,6 +32,7 @@
 #include <shared_mutex>
 #include <functional>
 #include <charconv>
+#include <array>
 
 #include "tools.h"
 #include "cmdline.h"

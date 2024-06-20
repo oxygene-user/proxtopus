@@ -118,11 +118,10 @@ void tcp_listener::prepare(netkit::ip4 bind2, signed_t port)
 	if (state.lock_read()().stage == IDLE)
 		return;
 
-	hand->stop();
 	state.lock_write()().need_stop = true;
+	hand->stop();
 
-	closesocket(sock());
-	_socket = INVALID_SOCKET;
+	close(false);
 
 	while (state.lock_read()().stage != IDLE)
 		Sleep(100);
