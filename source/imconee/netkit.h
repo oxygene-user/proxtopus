@@ -104,19 +104,30 @@ namespace netkit
 		AT_TCP_RESLOVED,
 	};
 
-	void wait_socket(SOCKET s, long microsec);
+	enum wrslt
+	{
+		WR_TIMEOUT,
+		WR_READY4READ,
+		WR_CLOSED,
+	};
 
 #ifdef _WIN32
 	struct waitable_data
 	{
 		WSAEVENT wsaevent = nullptr;
 		SOCKET s = INVALID_SOCKET;
+		signed_t ready = 0; // |1 if WSAEnumNetworkEvents already returns FD_READ for socket
 		void operator=(SOCKET s_) { s = s_; }
 	};
 	using WAITABLE = waitable_data*;
+	inline bool is_ready(WAITABLE w) { return w->ready != 0; }
+	inline void make_ready(WAITABLE w, signed_t mask) { w->ready |= mask; }
+	inline void clear_ready(WAITABLE w, signed_t mask) { w->ready &= ~mask; }
 #define NULL_WAITABLE ((netkit::WAITABLE)nullptr)
 #define MAXIMUM_WAITABLES (MAXIMUM_WAIT_OBJECTS - 2)
 #endif
+
+	wrslt wait(WAITABLE s, long microsec);
 
 	struct pipe;
 	class pipe_waiter
@@ -290,7 +301,7 @@ namespace netkit
 
 		virtual bool send(const u8* data, signed_t datasize) = 0;
 		virtual signed_t recv(u8* data, signed_t maxdatasz) = 0;
-		virtual std::tuple<WAITABLE, bool> get_waitable() = 0;
+		virtual WAITABLE get_waitable() = 0;
 		virtual void close(bool flush_before_close) = 0;
 	};
 
@@ -374,7 +385,7 @@ namespace netkit
 
 
 		bool rcv_all(); // receive all, but stops when buffer size reaches 64k
-		/*virtual*/ std::tuple<WAITABLE, bool> get_waitable() override;
+		/*virtual*/ WAITABLE get_waitable() override;
 
 		void cpdone(signed_t psz) // current packet done
 		{

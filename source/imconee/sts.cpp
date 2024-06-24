@@ -102,6 +102,8 @@ template <typename TCHARACTER> int sts_t<TCHARACTER>::get_current_line(const TCH
 			else if (*t == TCHARACTER('\n')) line++;
 		return line;
 	}
+#else
+	(void)s;
 #endif
 	return -1;
 }

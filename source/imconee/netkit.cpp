@@ -44,7 +44,7 @@ namespace netkit
 
 	bool socket::tcp_listen(const ip4& bind2, int port)
 	{
-		_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+		_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == sock())
 			return false;
 
@@ -158,7 +158,7 @@ namespace netkit
 					if (!rcv_all())
 						return -1;
 					if (rcvbuf_sz < maxdatasz)
-						wait_socket(sock(), LOOP_PERIOD);
+						wait(get_waitable(), LOOP_PERIOD);
 				}
 				memcpy(data, rcvbuf, maxdatasz);
 				cpdone(maxdatasz);
@@ -167,8 +167,6 @@ namespace netkit
 			catch (const std::exception&) {}
 			return -1;
 		}
-
-
 
 		if (rcvbuf_sz < maxdatasz)
 			if (!rcv_all())
@@ -183,10 +181,10 @@ namespace netkit
 		return 0;
 	}
 
-	/*virtual*/ std::tuple<WAITABLE, bool> tcp_pipe::get_waitable()
+	/*virtual*/ WAITABLE tcp_pipe::get_waitable()
 	{
 #ifdef _WIN32
-		return { socket::get_waitable(), false };
+		return socket::get_waitable();
 #endif
 	}
 
@@ -197,16 +195,8 @@ namespace netkit
 
 		for (;;)
 		{
-			fd_set rs;
-			rs.fd_count = 1;
-			rs.fd_array[0] = sock();
-
-			TIMEVAL tv;
-			tv.tv_sec = 0;
-			tv.tv_usec = 0;
-
-			signed_t n = ::select((int)sock()+1, &rs, nullptr, nullptr, &tv);
-			if (n == 1)
+			wrslt r = wait(get_waitable(), 0);
+			if (WR_READY4READ == r)
 			{
 				signed_t buf_free_space = sizeof(rcvbuf) - rcvbuf_sz;
 				if (buf_free_space > 1300)
@@ -222,13 +212,16 @@ namespace netkit
 						close(false);
 						return false;
 					}
+
+					clear_ready(get_waitable(), 1);
+
 					rcvbuf_sz += _bytes;
 					if ((sizeof(rcvbuf) - rcvbuf_sz) < 1300)
 						break;
 					continue;
 				}
 			}
-			else if (n == SOCKET_ERROR)
+			else if (WR_CLOSED == r)
 			{
 				close(false);
 				return false;
@@ -317,8 +310,51 @@ namespace netkit
 		return ip4();
 	}
 
-	void wait_socket(SOCKET s, long microsec)
+	wrslt wait(WAITABLE s, long microsec)
 	{
+#ifdef _WIN32
+
+		if (is_ready(s))
+			return WR_READY4READ;
+
+		if (microsec == 0)
+		{
+			WSANETWORKEVENTS e;
+			WSAEnumNetworkEvents(s->s, s->wsaevent, &e);
+			if (0 != (e.lNetworkEvents & FD_CLOSE))
+				return WR_CLOSED;
+
+			if (0 != (e.lNetworkEvents & FD_READ))
+			{
+				s->ready |= 1;
+				return WR_READY4READ;
+			}
+
+			return WR_TIMEOUT;
+		}
+		
+		u32 rslt = WSAWaitForMultipleEvents(1, &s->wsaevent, TRUE, microsec < 0 ? WSA_INFINITE : (microsec / 1000), FALSE);
+		if (WSA_WAIT_TIMEOUT == rslt)
+			return WR_TIMEOUT;
+
+		if (rslt == WSA_WAIT_EVENT_0)
+		{
+			WSANETWORKEVENTS e;
+			WSAEnumNetworkEvents(s->s, s->wsaevent, &e);
+			if (0 != (e.lNetworkEvents & FD_CLOSE))
+				return WR_CLOSED;
+
+			if (0 != (e.lNetworkEvents & FD_READ))
+			{
+				s->ready |= 1;
+				return WR_READY4READ;
+			}
+
+			return WR_CLOSED;
+		}
+#endif
+#ifdef _NIX
+
 		fd_set rs = {};
 		rs.fd_array[0] = s;
 		rs.fd_count = 1;
@@ -327,10 +363,11 @@ namespace netkit
 		tv.tv_sec = 0;
 		tv.tv_usec = microsec;
 
-		/*signed_t n =*/ ::select((int)(s + 1), &rs, nullptr, nullptr, microsec >= 0 ? &tv : nullptr);
-		//if (n == SOCKET_ERROR)
-			//return;
-
+		signed_t n = ::select((int)(s + 1), &rs, nullptr, nullptr, microsec >= 0 ? &tv : nullptr);
+		if (n == SOCKET_ERROR)
+			return WR_CLOSED;
+#endif
+		return WR_READY4READ;
 	}
 
 	u64 pipe_waiter::reg(pipe* p)
@@ -339,17 +376,16 @@ namespace netkit
 		pipes[numw] = p;
 
 		auto x = p->get_waitable();
-		if (std::get<0>(x) == NULL_WAITABLE)
+		if (x == NULL_WAITABLE)
 			return 0;
 
 #ifdef _WIN32
-		www[numw] = std::get<0>(x)->wsaevent;
-		soks[numw] = std::get<0>(x)->s;
+		www[numw] = x->wsaevent;
+		soks[numw] = x->s;
 #else
 		todo
 #endif
-
-		if (std::get<1>(x))
+		if (is_ready(x))
 			readymask |= mask;
 
 		++numw;
@@ -368,6 +404,34 @@ namespace netkit
 	{
 		if (readymask != 0)
 		{
+			u32 rslt = WSAWaitForMultipleEvents(tools::as_dword(numw), www, FALSE, 0, FALSE);
+
+			if (rslt >= WSA_WAIT_EVENT_0 && (rslt - WSA_WAIT_EVENT_0) < numw)
+			{
+				signed_t i = (rslt - WSA_WAIT_EVENT_0);
+
+				u64 mask_read = readymask;
+				u64 mask_close = 0;
+				WSANETWORKEVENTS e;
+				for (; i < numw; ++i)
+				{
+					WSAEnumNetworkEvents(soks[i], www[i], &e);
+					if (0 != (e.lNetworkEvents & FD_CLOSE))
+					{
+						mask_close |= 1ull << i;
+					}
+					if (0 != (e.lNetworkEvents & FD_READ))
+					{
+						mask_read |= 1ull << i;
+						make_ready(pipes[i]->get_waitable(), 1);
+					}
+				}
+
+				readymask = 0;
+				numw = 0;
+				return { mask_read, mask_close };
+			}
+
 			u64 rm = readymask;
 			readymask = 0;
 			numw = 0;
@@ -419,6 +483,7 @@ namespace netkit
 				if (0 != (e.lNetworkEvents & FD_READ))
 				{
 					mask_read |= 1ull << i;
+					make_ready(pipes[i]->get_waitable(), 1);
 				}
 			}
 

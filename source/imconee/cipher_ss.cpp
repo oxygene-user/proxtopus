@@ -277,7 +277,10 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 		crypto->init_decryptor(skey);
 	}
 
-	for (bool do_recv = decrypted_data.empty();; do_recv = true)
+	bool do_recv = decrypted_data.empty();
+	if (do_recv)
+		clear_ready(get_waitable(), 2);
+	for (;; do_recv = true)
 	{
 		signed_t sz = do_recv ? pipe->recv(temp, sizeof(temp)) : 0;
 		if (sz < 0)
@@ -323,17 +326,19 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	return rv;
 }
 
-/*virtual*/ std::tuple<netkit::WAITABLE, bool> ss::core::crypto_pipe::get_waitable()
+/*virtual*/ netkit::WAITABLE ss::core::crypto_pipe::get_waitable()
 {
 	if (!pipe)
-		return { NULL_WAITABLE, false };
+		return NULL_WAITABLE;
 
 	incdec ddd(busy, this);
-	if (ddd) return { NULL_WAITABLE, false };
+	if (ddd) return NULL_WAITABLE;
 
 	auto r = pipe->get_waitable();
 	if (decrypted_data.size() != 0)
-		std::get<1>(r) = true;
+		netkit::make_ready(r, 2);
+	else
+		netkit::clear_ready(r, 2);
 	return r;
 }
 /*virtual*/ void ss::core::crypto_pipe::close(bool flush_before_close)
