@@ -59,6 +59,10 @@ namespace conn
 
 			netkit::tcp_pipe* con = new netkit::tcp_pipe();
 			con->set_address(addr);
+
+			//if (addr.domain() != "play.google.com")
+				//return nullptr;
+
 			if (con->connect())
 				return con;
 			delete con;

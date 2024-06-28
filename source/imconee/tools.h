@@ -909,4 +909,139 @@ namespace str
 	}
 }
 
+namespace tools
+{
+	template<signed_t size> class circular_buffer
+	{
+		u8 data[size];
+		signed_t start = 0, end = 0;
+	public:
+		circular_buffer() {}
+		circular_buffer(circular_buffer&& x)
+		{
+			end = x.peek(data, size);
+		}
+		void operator=(circular_buffer&& x)
+		{
+			start = 0;
+			end = x.peek(data, size);
+		}
+
+		bool is_full() const
+		{
+			return (start == 0 && end == size) || (end + 1 == start);
+		}
+
+		void clear()
+		{
+			start = 0;
+			end = 0;
+		}
+		signed_t datasize() const { return (start <= end) ? (end - start) : ((size - start) + end); }
+		signed_t get_free_size() const
+		{
+			if (start <= end)
+			{
+				signed_t sz1 = size - end;
+				signed_t sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+				return sz1 + sz2;
+			}
+			signed_t sz = start - end - 1; if (sz < 0) sz = 0;
+			return sz;
+		}
+
+		using tank = std::span<u8>;
+
+		tank get_1st_free()
+		{
+			if (start <= end)
+			{
+				signed_t sz1 = size - end;
+				signed_t sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+				if (sz1 == 0)
+					return tank(data, sz2);
+				return tank(data + end, sz1); // , tank(data, sz2)
+			}
+			signed_t sz = start - end - 1; if (sz < 0) sz = 0;
+			return tank(data + end, sz); // , tank(nullptr, 0)
+		}
+		void confirm(signed_t sz)
+		{
+			if (start <= end)
+			{
+				signed_t sz1 = size - end;
+#ifdef _DEBUG
+				signed_t sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+				ASSERT(sz <= (sz1 + sz2));
+#endif
+				if (sz <= sz1)
+				{
+					end += sz;
+					return;
+				}
+
+				end = sz - sz1;
+				return;
+			}
+
+
+#ifdef _DEBUG
+			signed_t sz0 = start - end - 1; if (sz < 0) sz = 0;
+			ASSERT(sz <= sz0);
+#endif
+			end += sz;
+		}
+
+		signed_t peek(u8* output, signed_t outsize)
+		{
+			if (start <= end)
+			{
+				// continuous block
+				signed_t blocksize = end - start;
+				if (outsize <= blocksize)
+				{
+					memcpy(output, data + start, outsize);
+					start += outsize;
+					if (start == end)
+						clear();
+					return outsize;
+				}
+				memcpy(output, data + start, blocksize);
+				start += blocksize;
+				if (start == end)
+					clear();
+				return blocksize;
+
+			}
+
+			// two blocks: from start to size and from 0 to end
+			signed_t sz1 = size - start;
+			signed_t sz2 = end;
+
+			if (outsize <= sz1)
+			{
+				memcpy(output, data + start, outsize);
+				start += outsize;
+				if (start == size)
+					start = 0;
+				return outsize;
+			}
+			memcpy(output, data + start, sz1);
+			outsize -= sz1;
+
+			if (outsize < sz2)
+			{
+				memcpy(output + sz1, data, outsize);
+				start = outsize;
+				return sz1 + outsize;
+			}
+
+			memcpy(output + sz1, data, sz2);
+			start = sz2;
+			return sz1 + sz2;
+
+		}
+	};
+}
+
 #include "fsys.h"

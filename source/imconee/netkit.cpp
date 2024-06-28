@@ -92,7 +92,7 @@ namespace netkit
 	bool tcp_pipe::connect()
 	{
 		if (connected())
-			closesocket(sock());
+			close(false);
 
 		_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == sock())
@@ -112,37 +112,65 @@ namespace netkit
 			return false;
 		}
 
-		if (SOCKET_ERROR == ::connect(sock(), (LPSOCKADDR)&addr, sizeof(addr)))
+		while (SOCKET_ERROR == ::connect(sock(), (LPSOCKADDR)&addr, sizeof(addr)))
 		{
 			close(false);
-			//error_ = WSAGetLastError();
-			//if (WSAEWOULDBLOCK != error_)
 			return false;
 		}
+
+		// non-blocking mode
+		u_long one(1);
+		ioctlsocket(sock(), FIONBIO, (u_long*)&one);
 
 		// LOG connected
 
 		return true;
 	}
 
-	bool tcp_pipe::send(const u8* data, signed_t datasize)
+	pipe::sendrslt tcp_pipe::send(const u8* data, signed_t datasize)
 	{
-		const u8* d2s = data;
-		signed_t sent = 0;
+		if (data == nullptr)
+			return outbuf.size() > 0 ? SEND_BUFFERFULL : SEND_OK;
 
-		do
+		if (outbuf.size() > 0)
 		{
-			int iRetVal = ::send(sock(), (const char*)(d2s + sent), int(datasize - sent), 0);
-			if (iRetVal == SOCKET_ERROR)
+			if (datasize > 0)
 			{
-				return false;
+				auto d = std::span<const u8>(data, datasize);
+				outbuf.insert(outbuf.end(), d.begin(), d.end());
 			}
-			if (iRetVal == 0)
-				__debugbreak();
-			sent += iRetVal;
-		} while (sent < datasize);
+			int iRetVal = ::send(sock(), (const char*)outbuf.data(), int(outbuf.size()), 0);
+			if (iRetVal == int(outbuf.size()))
+			{
+#ifdef _WIN32
+				WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ|FD_CLOSE);
+#endif
 
-		return true;
+				outbuf.clear();
+				return SEND_OK;
+			}
+			outbuf.erase(outbuf.begin(), outbuf.begin() + iRetVal);
+			return SEND_BUFFERFULL;
+		}
+
+		if (datasize == 0)
+			return SEND_OK;
+
+		int iRetVal = ::send(sock(), (const char*)data, int(datasize), 0);
+		if (iRetVal == SOCKET_ERROR)
+			return SEND_FAIL;
+
+		if (iRetVal < datasize)
+		{
+#ifdef _WIN32
+			WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ|FD_WRITE|FD_CLOSE);
+#endif
+			auto d = std::span<const u8>(data+iRetVal, datasize-iRetVal);
+			outbuf.insert(outbuf.end(), d.begin(), d.end());
+			return SEND_BUFFERFULL;
+		}
+
+		return SEND_OK;
 	}
 
 	/*virtual*/ signed_t tcp_pipe::recv(u8* data, signed_t maxdatasz)
@@ -153,31 +181,25 @@ namespace netkit
 			{
 				// need exactly -maxdatasz bytes
 				maxdatasz = -maxdatasz;
-				for (; rcvbuf_sz < maxdatasz;)
+				for (; rcvbuf.datasize() < maxdatasz;)
 				{
 					if (!rcv_all())
 						return -1;
-					if (rcvbuf_sz < maxdatasz)
+					if (rcvbuf.datasize() < maxdatasz)
 						wait(get_waitable(), LOOP_PERIOD);
 				}
-				memcpy(data, rcvbuf, maxdatasz);
-				cpdone(maxdatasz);
+				rcvbuf.peek(data, maxdatasz);
 				return maxdatasz;
 			}
 			catch (const std::exception&) {}
 			return -1;
 		}
 
-		if (rcvbuf_sz < maxdatasz)
+		if (rcvbuf.datasize() < maxdatasz)
 			if (!rcv_all())
 				return -1;
-		if (rcvbuf_sz > 0)
-		{
-			signed_t mds = math::minv(rcvbuf_sz, maxdatasz);
-			memcpy(data, rcvbuf, mds);
-			cpdone(mds);
-			return mds;
-		}
+		if (rcvbuf.datasize() > 0)
+			return rcvbuf.peek(data, maxdatasz);
 		return 0;
 	}
 
@@ -190,23 +212,40 @@ namespace netkit
 
 	bool tcp_pipe::rcv_all()
 	{
-		if (rcvbuf_sz >= sizeof(rcvbuf))
+		if (rcvbuf.is_full())
 			return true;
 
 		for (;;)
 		{
-			wrslt r = wait(get_waitable(), 0);
-			if (WR_READY4READ == r)
+			u_long rb = 0;
+			int er = ioctlsocket(sock(), FIONREAD, (u_long*)&rb);
+			if (er == SOCKET_ERROR)
 			{
-				signed_t buf_free_space = sizeof(rcvbuf) - rcvbuf_sz;
-				if (buf_free_space > 1300)
-				{
-					signed_t reqread = 65536;
-					if (buf_free_space < reqread)
-						reqread = buf_free_space;
+				close(false);
+				return false;
+			}
 
-					signed_t _bytes = ::recv(sock(), (char*)rcvbuf + rcvbuf_sz, (int)reqread, 0);
-					if (_bytes == 0 || _bytes == SOCKET_ERROR)
+			if (rb == 0 && is_ready(get_waitable())) // check ready bit for complex pipes (like crypto pipe)
+				rb = 1;
+
+			if (rb > 0)
+			{
+				if (rcvbuf.get_free_size() > 1300)
+				{
+					auto tank = rcvbuf.get_1st_free();
+
+					signed_t _bytes = ::recv(sock(), (char*)tank.data(), (int)(math::minv(tank.size(), 65536)), 0);
+					if (_bytes == SOCKET_ERROR)
+					{
+						if (WSAGetLastError() == WSAEWOULDBLOCK)
+						{
+							// nothing to read for now
+							break;
+						}
+						close(false);
+						return false;
+					}
+					if (_bytes == 0)
 					{
 						// connection closed
 						close(false);
@@ -214,17 +253,11 @@ namespace netkit
 					}
 
 					clear_ready(get_waitable(), 1);
-
-					rcvbuf_sz += _bytes;
-					if ((sizeof(rcvbuf) - rcvbuf_sz) < 1300)
+					rcvbuf.confirm(_bytes);
+					if (rcvbuf.get_free_size() < 1300)
 						break;
 					continue;
 				}
-			}
-			else if (WR_CLOSED == r)
-			{
-				close(false);
-				return false;
 			}
 
 			break;
@@ -400,8 +433,9 @@ namespace netkit
 	}
 
 
-	std::tuple<u64, u64> pipe_waiter::wait(long microsec)
+	pipe_waiter::mask pipe_waiter::wait(long microsec)
 	{
+#ifdef _WIN32
 		if (readymask != 0)
 		{
 			u32 rslt = WSAWaitForMultipleEvents(tools::as_dword(numw), www, FALSE, 0, FALSE);
@@ -410,42 +444,44 @@ namespace netkit
 			{
 				signed_t i = (rslt - WSA_WAIT_EVENT_0);
 
-				u64 mask_read = readymask;
-				u64 mask_close = 0;
+				mask m(readymask);
+
 				WSANETWORKEVENTS e;
 				for (; i < numw; ++i)
 				{
 					WSAEnumNetworkEvents(soks[i], www[i], &e);
 					if (0 != (e.lNetworkEvents & FD_CLOSE))
 					{
-						mask_close |= 1ull << i;
+						m.add_close(1ull << i);
 					}
 					if (0 != (e.lNetworkEvents & FD_READ))
 					{
-						mask_read |= 1ull << i;
+						m.add_read(1ull << i);
 						make_ready(pipes[i]->get_waitable(), 1);
+					}
+					if (0 != (e.lNetworkEvents & FD_WRITE))
+					{
+						m.add_write(1ull << i);
 					}
 				}
 
 				readymask = 0;
 				numw = 0;
-				return { mask_read, mask_close };
+				return m;
 			}
 
 			u64 rm = readymask;
 			readymask = 0;
 			numw = 0;
-			return { rm, 0 };
+			return mask(rm);
 		}
 
 		if (numw == 0)
-			return { 0, 0 };
+			return mask();
 
 		if (sig == NULL_WAITABLE)
 		{
-#ifdef _WIN32
 			sig = WSACreateEvent();
-#endif
 		}
 
 		www[numw] = sig;
@@ -454,7 +490,7 @@ namespace netkit
 		{
 			readymask = 0;
 			numw = 0;
-			return { 0, 0 };
+			return mask();
 		}
 
 		if (rslt == WSA_WAIT_EVENT_0 + numw)
@@ -463,38 +499,42 @@ namespace netkit
 			WSAResetEvent(sig);
 			readymask = 0;
 			numw = 0;
-			return { 0, 0 };
+			return mask();
 		}
 
 		if (rslt >= WSA_WAIT_EVENT_0 && (rslt-WSA_WAIT_EVENT_0) < numw)
 		{
 			signed_t i = (rslt - WSA_WAIT_EVENT_0);
 
-			u64 mask_read = 0;
-			u64 mask_close = 0;
+			mask m;
 			WSANETWORKEVENTS e;
 			for (; i < numw; ++i)
 			{
 				WSAEnumNetworkEvents(soks[i], www[i], &e);
 				if (0 != (e.lNetworkEvents & FD_CLOSE))
 				{
-					mask_close |= 1ull << i;
+					m.add_close(1ull << i);
 				}
 				if (0 != (e.lNetworkEvents & FD_READ))
 				{
-					mask_read |= 1ull << i;
+					m.add_read(1ull << i);
 					make_ready(pipes[i]->get_waitable(), 1);
+				}
+				if (0 != (e.lNetworkEvents & FD_WRITE))
+				{
+					m.add_write(1ull << i);
 				}
 			}
 
 			readymask = 0;
 			numw = 0;
-			return { mask_read, mask_close };
+			return m;
 		}
 
 		readymask = 0;
 		numw = 0;
-		return { 0, 0 };
+		return mask();
+#endif
 	}
 
 	void pipe_waiter::signal()

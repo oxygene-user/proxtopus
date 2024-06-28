@@ -241,19 +241,22 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 
 }
 
-/*virtual*/ bool ss::core::crypto_pipe::send(const u8* data, signed_t datasize)
+/*virtual*/ netkit::pipe::sendrslt ss::core::crypto_pipe::send(const u8* data, signed_t datasize)
 {
 	if (!pipe)
-		return false;
+		return SEND_FAIL;
 
 	incdec ddd(busy, this);
-	if (ddd) return false;
+	if (ddd) return SEND_FAIL;
+
+	if (data == nullptr)
+		return pipe->send(nullptr, 0); // check allow send
 
 	crypto->encipher(std::span<const u8>(data, datasize), encrypted_data);
-	bool ok = pipe->send(encrypted_data.data(), encrypted_data.size());
+	sendrslt rslt = pipe->send(encrypted_data.data(), encrypted_data.size());
 	encrypted_data.clear(); // IMPORTANT: clear after send, not before (due encrypted_data contains salt before 1st send)
 
-	return ok;
+	return rslt;
 }
 
 /*virtual*/ signed_t ss::core::crypto_pipe::recv(u8* data, signed_t maxdatasz)

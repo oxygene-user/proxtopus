@@ -145,6 +145,57 @@ namespace netkit
 		static_assert(MAXIMUM_WAITABLES <= 64);
 
 	public:
+
+		class mask
+		{
+			u64 readm = 0;
+			u64 closem = 0;
+			u64 writem = 0;
+
+		public:
+			mask(u64 readmask = 0):readm(readmask)
+			{
+			}
+
+			bool have_read(u64 m)
+			{
+				if ((readm & m) != 0)
+				{
+					readm &= ~m;
+					return true;
+				}
+				return false;
+			}
+			bool have_closed(u64 m)
+			{
+				if ((closem & m) != 0)
+				{
+					closem &= ~m;
+					return true;
+				}
+				return false;
+			}
+			bool have_write(u64 m)
+			{
+				if ((writem & m) != 0)
+				{
+					writem &= ~m;
+					return true;
+				}
+				return false;
+			}
+
+			void add_read(u64 m) { readm |= m; }
+			void add_close(u64 m) { closem |= m; }
+			void add_write(u64 m) { writem |= m; }
+
+			void remove_read(u64 m) { readm &= ~m; }
+			void remove_close(u64 m) { closem &= ~m; }
+			void remove_write(u64 m) { writem &= ~m; }
+
+			bool is_empty() const { return readm == 0 && closem == 0 && writem == 0; }
+		};
+
 		~pipe_waiter()
 		{
 #ifdef _WIN32
@@ -156,7 +207,7 @@ namespace netkit
 		u64 reg(pipe* p);
 		void unreg_last();
 
-		std::tuple<u64, u64> wait(long microsec); // after wait return, waiter is in empty state
+		mask wait(long microsec); // after wait return, waiter is in empty state
 		void signal();
 	};
 
@@ -293,13 +344,20 @@ namespace netkit
 
 	struct pipe : public ptr::sync_shared_object
 	{
+		enum sendrslt
+		{
+			SEND_OK,
+			SEND_FAIL,
+			SEND_BUFFERFULL,
+		};
+
 		pipe() {}
 		virtual ~pipe() {}
 
 		pipe(const tcp_pipe&) = delete;
 		pipe(tcp_pipe&&) = delete;
 
-		virtual bool send(const u8* data, signed_t datasize) = 0;
+		virtual sendrslt send(const u8* data, signed_t datasize) = 0;
 		virtual signed_t recv(u8* data, signed_t maxdatasz) = 0;
 		virtual WAITABLE get_waitable() = 0;
 		virtual void close(bool flush_before_close) = 0;
@@ -311,8 +369,9 @@ namespace netkit
 	{
 		sockaddr_in addr = {};
 		signed_t creationtime = 0;
-		u8 rcvbuf[65536 * 2];
-		signed_t rcvbuf_sz = 0;
+
+		tools::circular_buffer<65536 * 2> rcvbuf;
+		std::vector<u8> outbuf;
 
 		tcp_pipe() { creationtime = chrono::ms(); }
 		tcp_pipe(SOCKET s, const sockaddr_in& addr) :addr(addr) { _socket = s; creationtime = chrono::ms(); }
@@ -325,7 +384,7 @@ namespace netkit
 
 		/*virtual*/ void close(bool flush_before_close) override
 		{
-			rcvbuf_sz = 0;
+			rcvbuf.clear();
 			socket::close(flush_before_close);
 		}
 
@@ -351,17 +410,18 @@ namespace netkit
 
 		tcp_pipe& operator=(tcp_pipe&& p)
 		{
-			if (connected()) closesocket(sock());
+			if (connected())
+				close(false);
+
 			_socket = p._socket; p._socket = INVALID_SOCKET;
 			addr = p.addr;
-			if (p.rcvbuf_sz) memcpy(rcvbuf, p.rcvbuf, p.rcvbuf_sz);
-			rcvbuf_sz = p.rcvbuf_sz;
+			rcvbuf = std::move(p.rcvbuf);
 			return *this;
 		}
 
 		bool connected() const { return ready(); }
 
-		/*virtual*/ bool send(const u8* data, signed_t datasize) override;
+		/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 		/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
 
 		enum read_result : u8
@@ -373,20 +433,23 @@ namespace netkit
 
 		template<signed_t N> using ret_t = std::tuple<vbv<N>, read_result>;
 
+		/*
 		template<signed_t N> ret_t<N> read(signed_t shift)
 		{
 			rcv_all();
-			if (rcvbuf_sz >= N + shift)
+			if (rcvbuf.datasize() >= N + shift)
 			{
 				return { vbv<N>(rcvbuf + shift), OK };
 			}
 			return { vbv<N>(), connected() ? NOT_YET_READY : DEAD };
 		}
+		*/
 
 
 		bool rcv_all(); // receive all, but stops when buffer size reaches 64k
 		/*virtual*/ WAITABLE get_waitable() override;
 
+		/*
 		void cpdone(signed_t psz) // current packet done
 		{
 			if (rcvbuf_sz == psz)
@@ -397,6 +460,7 @@ namespace netkit
 				memcpy(rcvbuf, rcvbuf + psz, rcvbuf_sz);
 			}
 		}
+		*/
 	};
 
 

@@ -98,7 +98,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const
 		pg.push(addr2.get_ip4(false));
 		pg.push16(addr2.port());
 
-		if (!p_enc->send(packet, pg.sz))
+		if (p_enc->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();
 	}
 	else
@@ -109,7 +109,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const
 		pg.pushs(addr2.domain());
 		pg.push16(addr2.port());
 
-		if (!p_enc->send(packet, pg.sz))
+		if (p_enc->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();
 	}
 

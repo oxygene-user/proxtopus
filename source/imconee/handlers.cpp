@@ -117,40 +117,60 @@ void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 
 }
 
-bool handler::bridged::process(u8* data, u64 &mask_ready, u64 &mask_close)
+bool handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
 {
-	if (0 != (mask1 & mask_close) || 0 != (mask2 & mask_close))
-	{
-		mask_close &= ~(mask1 | mask2);
+	if (masks.have_closed(mask1 | mask2))
 		return true;
-	}
 
-	if (0 != (mask1 & mask_ready))
+	if (masks.have_read(mask1))
 	{
-		mask_ready &= ~mask1;
-		signed_t sz = pipe1->recv(data, BRIDGE_BUFFER_SIZE);
+		signed_t rcvsize = pipe2->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL ? 1 : BRIDGE_BUFFER_SIZE;
+
+		signed_t sz = pipe1->recv(data, rcvsize);
 		if (sz < 0)
 			return true;
 		
 		if (sz > 0)
 		{
-			if (!pipe2->send(data, sz))
+			netkit::pipe::sendrslt r = pipe2->send(data, sz);
+			if (r == netkit::pipe::SEND_FAIL)
 				return true;
+
+			if (r == netkit::pipe::SEND_OK)
+				masks.remove_write(mask2);
 		}
 	}
-	if (0 != (mask2 & mask_ready))
+	if (masks.have_read(mask2))
 	{
-		mask_ready &= ~mask2;
+		signed_t rcvsize = pipe1->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL ? 1 : BRIDGE_BUFFER_SIZE;
 
-		signed_t sz = pipe2->recv(data, BRIDGE_BUFFER_SIZE);
+		signed_t sz = pipe2->recv(data, rcvsize);
 		if (sz < 0)
 			return true;
 		if (sz > 0)
 		{
-			if (!pipe1->send(data, sz))
+			netkit::pipe::sendrslt r = pipe1->send(data, sz);
+			if (r == netkit::pipe::SEND_FAIL)
 				return true;
+
+			if (r == netkit::pipe::SEND_OK)
+				masks.remove_write(mask1);
 		}
 	}
+
+	if (masks.have_write(mask1))
+	{
+		netkit::pipe::sendrslt r = pipe1->send(data, 0); // just send unsent buffer
+		if (r == netkit::pipe::SEND_FAIL)
+			return true;
+	}
+	if (masks.have_write(mask2))
+	{
+		netkit::pipe::sendrslt r = pipe2->send(data, 0); // just send unsent buffer
+		if (r == netkit::pipe::SEND_FAIL)
+			return true;
+	}
+
 
 	return false;
 
@@ -177,10 +197,9 @@ bool handler::processing_thread::tick(u8* data)
 
 	spinlock::simple_unlock(sync);
 
-	bool cont_inue = false;
 
 	auto mask = waiter.wait(-1);
-	if (std::get<0>(mask) == 0 && std::get<1>(mask) == 0)
+	if (mask.is_empty())
 		return true;
 
 	spinlock::simple_lock(sync);
@@ -189,9 +208,9 @@ bool handler::processing_thread::tick(u8* data)
 
 	signed_t cur_numslots = fixed_numslots;
 
-	for (signed_t i = cur_numslots - 1; i >= 0 && (std::get<0>(mask)|std::get<1>(mask)) != 0; --i)
+	for (signed_t i = cur_numslots - 1; i >= 0 && !mask.is_empty(); --i)
 	{
-		if (slots[i].process(data, std::get<0>(mask), std::get<1>(mask)))
+		if (slots[i].process(data, mask))
 		{
 			--cur_numslots;
 			moveslot(i, cur_numslots);
@@ -207,12 +226,11 @@ bool handler::processing_thread::tick(u8* data)
 			moveslot(cur_numslots++, i);
 	}
 	numslots = cur_numslots;
-	cont_inue = numslots > 0;
+	bool cont_inue = numslots > 0;
 	if (!cont_inue)
 		numslots = -1; // lock this thread
 
 	spinlock::simple_unlock(sync);
-
 
 	return cont_inue;
 }
@@ -232,30 +250,34 @@ void handler::bridge(processing_thread *npt)
 		if (processing_thread* next = npt->get_next())
 			npt->forward( next );
 		st.unlock();
-
-		Sleep(10);
 	}
 }
 
 netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 {
+	static spinlock::long3264 tag = 1;
+
 	if (direct || proxychain.size() == 0)
 	{
-		if (proxychain.size() == 0)
-		{
-			LOG_N("Connecting to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
-		}
-
 		if (netkit::pipe* pipe = conn::connect(addr))
 		{
+			if (proxychain.size() == 0)
+			{
+				LOG_N("Connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
+			}
+
 			netkit::pipe_ptr pp(pipe);
 			return std::move(pipe);
+		}
+
+		if (proxychain.size() == 0)
+		{
+			LOG_N("Not connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
 		}
 
 		return netkit::pipe_ptr();
 	}
 
-	static spinlock::long3264 tag = 1;
 	spinlock::long3264 t = spinlock::increment(tag);
 	std::string stag(ASTR("[")); stag.append(std::to_string(t)); stag.append(ASTR("] "));
 
@@ -546,7 +568,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 
 	packet[0] = 5;
 	packet[1] = rauth;
-	if (!pipe->send(packet, 2) || rauth == 0xff)
+	if (pipe->send(packet, 2) == netkit::pipe::SEND_FAIL || rauth == 0xff)
 		return;
 
 	if (rauth == 2)
@@ -673,11 +695,7 @@ void handler_socks::worker(netkit::pipe* pipe, const netkit::endpoint &inf, send
 	if (netkit::pipe_ptr outcon = connect(inf, false))
 	{
 		answ( pipe, EC_GRANTED );
-
 		bridge(std::move(p), std::move(outcon));
-		outcon = nullptr;
-		return;
-
 	}
 	else {
 		answ(pipe, EC_REMOTE_HOST_UNRCH);

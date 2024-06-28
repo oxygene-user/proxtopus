@@ -24,7 +24,7 @@ protected:
 			}
 			return true;
 		}
-		bool process(u8* data, u64 &mask_ready, u64 &mask_close);
+		bool process(u8* data, netkit::pipe_waiter::mask &masks);
 	};
 
 	class processing_thread
@@ -67,20 +67,18 @@ protected:
 			return &next;
 		}
 		void close();
-		signed_t try_add_bridge(/*const netkit::endpoint& ep1,*/ netkit::pipe* pipe1, netkit::pipe* pipe2)
+		signed_t try_add_bridge(netkit::pipe* pipe1, netkit::pipe* pipe2)
 		{
 			spinlock::auto_simple_lock s(sync);
 			if (numslots < 0)
 				return -1;
-			//if (numslots == 0 || (numslots < MAXIMUM_SLOTS && ep == ep1))
 			if (numslots < MAXIMUM_SLOTS)
 			{
 				slots[numslots].pipe1 = pipe1;
 				slots[numslots].pipe2 = pipe2;
 				slots[numslots].mask1 = 0;
 				slots[numslots].mask2 = 0;
-				//if (ep.port() == 0 || ep1.type() == netkit::AT_TCP_RESLOVED)
-					//ep = ep1;
+
 				ASSERT(numslots < MAXIMUM_SLOTS);
 				++numslots;
 				s.unlock();
@@ -110,7 +108,7 @@ protected:
 	listener* owner;
 	std::vector<const proxy*> proxychain;
 
-	void bridge(/*const netkit::endpoint &ep,*/ netkit::pipe_ptr &&pipe1, netkit::pipe_ptr &&pipe2); // either does job in current thread or forwards job to another thread with same endpoint
+	void bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr &&pipe2); // either does job in current thread or forwards job to another thread with same endpoint
 	void bridge(processing_thread *npt);
 
 public:

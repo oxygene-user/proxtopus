@@ -213,7 +213,7 @@ namespace ss
 		public:
 			crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, std::string masterKey, crypto_par cp);
 
-			/*virtual*/ bool send(const u8* data, signed_t datasize) override;
+			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
 			/*virtual*/ netkit::WAITABLE get_waitable() override;
 			/*virtual*/ void close(bool flush_before_close) override;

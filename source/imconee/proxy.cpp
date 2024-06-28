@@ -116,7 +116,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	memcpy(pd + 1, userid.c_str(), userid.length());
 	((u8*)pd)[dsz - 1] = 0;
 
-	if (!pipe_to_proxy->send((u8*)pd, dsz))
+	if (pipe_to_proxy->send((u8*)pd, dsz) == netkit::pipe::SEND_FAIL)
 	{
 		return netkit::pipe_ptr();
 	}
@@ -171,7 +171,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	packet[1] = 1;
 	packet[2] = authpacket.empty() ? 0 : 2;
 
-	if (!pipe_to_proxy->send(packet, 3))
+	if (pipe_to_proxy->send(packet, 3) == netkit::pipe::SEND_FAIL)
 		return netkit::pipe_ptr();
 
 	signed_t rb = pipe_to_proxy->recv(packet, -2);
@@ -181,7 +181,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 
 	if (!authpacket.empty())
 	{
-		if (!pipe_to_proxy->send(authpacket.data(), authpacket.size()))
+		if (pipe_to_proxy->send(authpacket.data(), authpacket.size()) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();
 
 		signed_t rb1 = pipe_to_proxy->recv(packet, -2);
@@ -200,7 +200,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 		pg.push(addr2.get_ip4(false));
 		pg.push16(addr2.port());
 
-		if (!pipe_to_proxy->send(packet, pg.sz))
+		if (pipe_to_proxy->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();
 	}
 	else
@@ -214,7 +214,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 		pg.pushs(addr2.domain());
 		pg.push16(addr2.port());
 
-		if (!pipe_to_proxy->send(packet, pg.sz))
+		if (pipe_to_proxy->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();
 	}
 
