@@ -266,7 +266,48 @@ namespace netkit
 	}
 
 
+#ifdef _WIN32
+	bool dnsresolve(const std::string& host, ip4& addr)
+	{
+		ADDRINFOEXA* result = nullptr;
 
+		ADDRINFOEXA hints = {};
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+
+		DWORD dwRetval = GetAddrInfoExA(host.c_str(), nullptr, NS_ALL, nullptr, &hints, &result, nullptr, nullptr, nullptr, nullptr);
+
+		if (dwRetval != NO_ERROR) {
+
+			std::string message = "getaddrinfo() for [" + host + "] failed. WSAGetLastError: " + std::to_string(::WSAGetLastError());
+			LOG_W(message.c_str());
+			return false;
+		}
+
+		for (ADDRINFOEXA* ptr = result; ptr != nullptr; ptr = ptr->ai_next)
+		{
+
+			switch (ptr->ai_family)
+			{
+			case AF_UNSPEC:
+				continue;
+			case AF_INET:
+				addr = (struct sockaddr_in*)ptr->ai_addr;
+				break;
+			case AF_INET6:
+				continue;
+			}
+		}
+
+#undef FreeAddrInfoEx
+		FreeAddrInfoEx(result);
+
+		return true;
+
+	}
+#endif
+#ifdef _NIX
 	bool dnsresolve(const std::string& host, ip4& addr)
 	{
 		struct addrinfo hints;
@@ -279,13 +320,7 @@ namespace netkit
 		int status = getaddrinfo(host.c_str(), nullptr, &hints, &res);
 		if (status != 0)
 		{
-			std::string message = "getaddrinfo() for [" + host + "] failed. "
-#if defined( _WIN32 ) && !defined( __SYMBIAN32__ )
-				"WSAGetLastError: " + std::to_string(::WSAGetLastError());
-#else
-				+ strerror(err) + " (errno: " + std::to_string(errno) + ")";
-#endif
-
+			std::string message = "getaddrinfo() for [" + host + "] failed. "+ strerror(err) + " (errno: " + std::to_string(errno) + ")";
 			LOG_W(message.c_str());
 			return false;
 		}
@@ -294,7 +329,7 @@ namespace netkit
 		return true;
 
 	}
-
+#endif
 
 	netkit::endpoint::endpoint(const std::string& a_raw)
 	{

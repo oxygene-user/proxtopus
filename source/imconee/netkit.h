@@ -54,6 +54,12 @@ namespace netkit
 			}
 		}
 
+		void operator=(const sockaddr_in* ipv4)
+		{
+			S_un.S_addr = 0;
+			this->S_un = ipv4->sin_addr.S_un;
+		}
+
 		void operator=(const addrinfo *addr)
 		{
 			S_un.S_addr = 0;

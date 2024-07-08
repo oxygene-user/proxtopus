@@ -24,7 +24,15 @@ protected:
 			}
 			return true;
 		}
-		bool process(u8* data, netkit::pipe_waiter::mask &masks);
+
+		enum process_result
+		{
+			SLOT_DEAD,
+			SLOT_PROCESSES,
+			SLOT_SKIPPED,
+		};
+
+		process_result process(u8* data, netkit::pipe_waiter::mask& masks); // returns: -1 - dead slot, 0 - slot not processed, 1 - slot processed
 	};
 
 	class processing_thread
@@ -51,7 +59,7 @@ protected:
 		{
 			waiter.signal();
 		}
-		void forward(processing_thread* to);
+		void forward(signed_t slot, processing_thread* to);
 		processing_thread* get_next()
 		{
 			return next.get();
@@ -92,7 +100,7 @@ protected:
 			spinlock::auto_simple_lock s(sync);
 			return numslots < 0 ? -1 : 0;
 		}
-		bool tick(u8 *data); // returns true 2 continue
+		signed_t tick(u8 *data); // returns -1 to stop, 0..numslots - inactive slot index (4 forward), >MAXIMUM_SLOTS - do nothing
 	};
 
 

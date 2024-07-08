@@ -117,10 +117,12 @@ void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 
 }
 
-bool handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
+handler::bridged::process_result handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
 {
 	if (masks.have_closed(mask1 | mask2))
-		return true;
+		return SLOT_DEAD;
+
+	process_result rv = SLOT_SKIPPED;
 
 	if (masks.have_read(mask1))
 	{
@@ -128,17 +130,18 @@ bool handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
 
 		signed_t sz = pipe1->recv(data, rcvsize);
 		if (sz < 0)
-			return true;
+			return SLOT_DEAD;
 		
 		if (sz > 0)
 		{
 			netkit::pipe::sendrslt r = pipe2->send(data, sz);
 			if (r == netkit::pipe::SEND_FAIL)
-				return true;
+				return SLOT_DEAD;
 
 			if (r == netkit::pipe::SEND_OK)
 				masks.remove_write(mask2);
 		}
+		rv = SLOT_PROCESSES;
 	}
 	if (masks.have_read(mask2))
 	{
@@ -146,37 +149,39 @@ bool handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
 
 		signed_t sz = pipe2->recv(data, rcvsize);
 		if (sz < 0)
-			return true;
+			return SLOT_DEAD;
 		if (sz > 0)
 		{
 			netkit::pipe::sendrslt r = pipe1->send(data, sz);
 			if (r == netkit::pipe::SEND_FAIL)
-				return true;
+				return SLOT_DEAD;
 
 			if (r == netkit::pipe::SEND_OK)
 				masks.remove_write(mask1);
 		}
+		rv = SLOT_PROCESSES;
 	}
 
 	if (masks.have_write(mask1))
 	{
 		netkit::pipe::sendrslt r = pipe1->send(data, 0); // just send unsent buffer
 		if (r == netkit::pipe::SEND_FAIL)
-			return true;
+			return SLOT_DEAD;
+		rv = SLOT_PROCESSES;
 	}
 	if (masks.have_write(mask2))
 	{
 		netkit::pipe::sendrslt r = pipe2->send(data, 0); // just send unsent buffer
 		if (r == netkit::pipe::SEND_FAIL)
-			return true;
+			return SLOT_DEAD;
+		rv = SLOT_PROCESSES;
 	}
 
-
-	return false;
+	return rv;
 
 }
 
-bool handler::processing_thread::tick(u8* data)
+signed_t handler::processing_thread::tick(u8* data)
 {
 	spinlock::simple_lock(sync);
 	for (signed_t i = 0; i < numslots; ++i)
@@ -192,34 +197,42 @@ bool handler::processing_thread::tick(u8* data)
 	{
 		numslots = -1;
 		spinlock::simple_unlock(sync);
-		return false;
+		return -1;
 	}
 
 	spinlock::simple_unlock(sync);
 
 
-	auto mask = waiter.wait(-1);
+	auto mask = waiter.wait(10 * 1000 * 1000 /*10 sec*/);
 	if (mask.is_empty())
-		return true;
+		return numslots-1;
 
 	spinlock::simple_lock(sync);
 	signed_t fixed_numslots = numslots;
 	spinlock::simple_unlock(sync);
 
 	signed_t cur_numslots = fixed_numslots;
-
-	for (signed_t i = cur_numslots - 1; i >= 0 && !mask.is_empty(); --i)
+	signed_t rv = MAXIMUM_SLOTS + 1;
+	for (signed_t i = 0; i < cur_numslots && !mask.is_empty();)
 	{
-		if (slots[i].process(data, mask))
+		bridged::process_result pr = slots[i].process(data, mask);
+		
+		if (bridged::SLOT_DEAD == pr)
 		{
 			--cur_numslots;
 			moveslot(i, cur_numslots);
+			continue;
 		}
+
+		if (bridged::SLOT_SKIPPED == pr)
+			rv = i;
+
+		++i;
 	}
 
 	spinlock::simple_lock(sync);
 		
-	if (fixed_numslots < numslots)
+	if (fixed_numslots < numslots && cur_numslots < fixed_numslots)
 	{
 		// looks like new slots were filled during process
 		for (signed_t i = fixed_numslots; i < numslots; ++i)
@@ -232,24 +245,30 @@ bool handler::processing_thread::tick(u8* data)
 
 	spinlock::simple_unlock(sync);
 
-	return cont_inue;
+	return cont_inue ? rv : -1;
 }
 
 void handler::bridge(processing_thread *npt)
 {
 	u8 data[BRIDGE_BUFFER_SIZE];
+	netkit::pipe_waiter::mask mask;
 	for (; !state.lock_read()().need_stop;)
 	{
-		if (!npt->tick(data))
+		signed_t r = npt->tick(data);
+		if (r < 0)
 			break;
 
 		if (engine::is_stop())
 			break;
 
-		auto st = state.lock_write();
-		if (processing_thread* next = npt->get_next())
-			npt->forward( next );
-		st.unlock();
+		//if (r < MAXIMUM_SLOTS)
+		if (false) // don't forward slots for now, looks like it bad for performance
+		{
+			auto st = state.lock_write();
+			if (processing_thread* next = npt->get_next())
+				npt->forward(r, next);
+			st.unlock();
+		}
 	}
 }
 
@@ -321,18 +340,17 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 	return std::move(pp);
 }
 
-void handler::processing_thread::forward(processing_thread* n)
+void handler::processing_thread::forward(signed_t slot, processing_thread* n)
 {
 	spinlock::auto_simple_lock a(sync);
 
-	ASSERT(numslots > 0);
-	bridged& brlast = slots[numslots - 1];
+	ASSERT(slot < numslots);
+	bridged& br = slots[slot];
 
-	if (n->try_add_bridge(brlast.pipe1, brlast.pipe2) > 0)
+	if (n->try_add_bridge(br.pipe1, br.pipe2) > 0)
 	{
 		--numslots;
-		slots[numslots].pipe1 = nullptr;
-		slots[numslots].pipe2 = nullptr;
+		moveslot(slot, numslots);
 	}
 
 }
