@@ -616,7 +616,7 @@ public:
     /**
     * Constructor. Custom initialization for protected variable
     */
-    syncvar(const VARTYPE &v): m_lock(0), m_var(v)
+    explicit syncvar(const VARTYPE &v): m_lock(0), m_var(v)
     {
     }
     /**
@@ -624,6 +624,7 @@ public:
     */
     syncvar():m_lock(0)
     {
+        m_var = {};
     }
     /**
     * Destructor

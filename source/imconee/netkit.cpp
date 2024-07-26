@@ -158,7 +158,13 @@ namespace netkit
 
 		int iRetVal = ::send(sock(), (const char*)data, int(datasize), 0);
 		if (iRetVal == SOCKET_ERROR)
-			return SEND_FAIL;
+		{
+			if (WSAGetLastError() != WSAEWOULDBLOCK)
+			{
+				return SEND_FAIL;
+			}
+			iRetVal = 0;
+		}
 
 		if (iRetVal < datasize)
 		{
@@ -234,7 +240,7 @@ namespace netkit
 				{
 					auto tank = rcvbuf.get_1st_free();
 
-					signed_t _bytes = ::recv(sock(), (char*)tank.data(), (int)(math::minv(tank.size(), 65536)), 0);
+					signed_t _bytes = ::recv(sock(), (char*)tank.data(), (int)(math::minv(tank.size(), 16384)), 0);
 					if (_bytes == SOCKET_ERROR)
 					{
 						if (WSAGetLastError() == WSAEWOULDBLOCK)

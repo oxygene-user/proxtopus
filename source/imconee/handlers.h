@@ -14,6 +14,20 @@ protected:
 		netkit::pipe_ptr pipe2;
 		size_t mask1 = 0;
 		size_t mask2 = 0;
+
+		void clear()
+		{
+			pipe1 = nullptr;
+			pipe2 = nullptr;
+			mask1 = 0;
+			mask2 = 0;
+		}
+
+		bool is_empty() const
+		{
+			return pipe1 == nullptr || pipe2 == nullptr;
+		}
+
 		bool prepare_wait(netkit::pipe_waiter& w)
 		{
 			mask1 = w.reg(pipe1); if (mask1 == 0) return false;
@@ -37,10 +51,10 @@ protected:
 
 	class processing_thread
 	{
-		volatile spinlock::long3264 sync = 0;
+		//volatile spinlock::long3264 sync = 0;
+		spinlock::syncvar<signed_t> numslots;
 		netkit::pipe_waiter waiter;
 		std::array<bridged, MAXIMUM_SLOTS> slots;
-		signed_t numslots = 0;
 		std::unique_ptr<processing_thread> next;
 
 		void moveslot(signed_t to, signed_t from)
@@ -49,9 +63,9 @@ protected:
 			if (to < from)
 			{
 				slots[to] = std::move(slots[from]);
-				slots[from].pipe1 = nullptr;
-				slots[from].pipe2 = nullptr;
 			}
+			slots[from].pipe1 = nullptr;
+			slots[from].pipe2 = nullptr;
 		}
 
 	public:
@@ -77,19 +91,21 @@ protected:
 		void close();
 		signed_t try_add_bridge(netkit::pipe* pipe1, netkit::pipe* pipe2)
 		{
-			spinlock::auto_simple_lock s(sync);
-			if (numslots < 0)
+			auto ns = numslots.lock_write();
+			if (ns() < 0)
 				return -1;
-			if (numslots < MAXIMUM_SLOTS)
+			if (ns() < MAXIMUM_SLOTS)
 			{
-				slots[numslots].pipe1 = pipe1;
-				slots[numslots].pipe2 = pipe2;
-				slots[numslots].mask1 = 0;
-				slots[numslots].mask2 = 0;
+				ASSERT(slots[ns()].pipe1 == nullptr);
+				ASSERT(slots[ns()].pipe2 == nullptr);
 
-				ASSERT(numslots < MAXIMUM_SLOTS);
-				++numslots;
-				s.unlock();
+				slots[ns()].pipe1 = pipe1;
+				slots[ns()].pipe2 = pipe2;
+				slots[ns()].mask1 = 0;
+				slots[ns()].mask2 = 0;
+
+				++ns();
+				ns.unlock();
 				waiter.signal();
 				return 1;
 			}
@@ -97,8 +113,7 @@ protected:
 		}
 		signed_t check()
 		{
-			spinlock::auto_simple_lock s(sync);
-			return numslots < 0 ? -1 : 0;
+			return numslots.lock_read()() < 0 ? -1 : 0;
 		}
 		signed_t tick(u8 *data); // returns -1 to stop, 0..numslots - inactive slot index (4 forward), >MAXIMUM_SLOTS - do nothing
 	};

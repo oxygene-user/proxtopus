@@ -913,7 +913,7 @@ namespace tools
 {
 	template<signed_t size> class circular_buffer
 	{
-		u8 data[size];
+		u8 data[(size + 15) & (~15)];
 		signed_t start = 0, end = 0;
 	public:
 		circular_buffer() {}
