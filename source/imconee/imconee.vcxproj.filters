@@ -27,6 +27,9 @@
     <Filter Include="botan\h">
       <UniqueIdentifier>{e47a0337-56c1-49a1-ba56-e1ea2ad1b01d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\botan">
+      <UniqueIdentifier>{a6c7ab8b-015e-440d-b735-e642f492cb84}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\imconee.natvis" />
@@ -80,28 +83,16 @@
     <ClCompile Include="..\botan\md5.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\auto_rng.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
     <ClCompile Include="..\botan\rng.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\entropy_srcs.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
     <ClCompile Include="..\botan\stateful_rng.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\mac.cpp">
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\os_utils.cpp">
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\hmac_drbg.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\scan_name.cpp">
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\mem_ops.cpp">
@@ -113,9 +104,6 @@
     <ClCompile Include="..\botan\parsing.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\charset.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
     <ClCompile Include="..\botan\allocator.cpp">
       <Filter>botan</Filter>
     </ClCompile>
@@ -123,9 +111,6 @@
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\hkdf.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\kdf.cpp">
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\sha1.cpp">
@@ -161,9 +146,6 @@
     <ClCompile Include="..\botan\hmac.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\hash.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
     <ClCompile Include="..\botan\sha3.cpp">
       <Filter>botan</Filter>
     </ClCompile>
@@ -182,19 +164,7 @@
     <ClCompile Include="..\botan\filter.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\symkey.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\hex.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\aead.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
     <ClCompile Include="..\botan\chacha20poly1305.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\cipher_mode.cpp">
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\gcm.cpp">
@@ -210,9 +180,6 @@
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\ghash_vperm.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\botan\stream_cipher.cpp">
       <Filter>botan</Filter>
     </ClCompile>
     <ClCompile Include="..\botan\salsa20.cpp">
@@ -242,14 +209,17 @@
     <ClCompile Include="..\botan\aes_vperm.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\block_cipher.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
     <ClCompile Include="cipher_ss.cpp">
       <Filter>src\engine\shadowsocks</Filter>
     </ClCompile>
     <ClCompile Include="handler_ss.cpp">
       <Filter>src\handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="botan.cpp">
+      <Filter>src\botan</Filter>
+    </ClCompile>
+    <ClCompile Include="rndgen.cpp">
+      <Filter>src\botan</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -538,6 +508,9 @@
       <Filter>src\handlers</Filter>
     </ClInclude>
     <ClInclude Include="resource.h" />
+    <ClInclude Include="rndgen.h">
+      <Filter>src\botan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="imconee.rc">

@@ -130,26 +130,35 @@ namespace netkit
 	pipe::sendrslt tcp_pipe::send(const u8* data, signed_t datasize)
 	{
 		if (data == nullptr)
-			return outbuf.size() > 0 ? SEND_BUFFERFULL : SEND_OK;
+			return outbuf.is_empty() ? SEND_OK : SEND_BUFFERFULL;
 
-		if (outbuf.size() > 0)
+		if (!outbuf.is_empty())
 		{
 			if (datasize > 0)
 			{
 				auto d = std::span<const u8>(data, datasize);
-				outbuf.insert(outbuf.end(), d.begin(), d.end());
+				outbuf.append(d);
 			}
-			int iRetVal = ::send(sock(), (const char*)outbuf.data(), int(outbuf.size()), 0);
-			if (iRetVal == int(outbuf.size()))
+			auto d2s = outbuf.get_1st_chunk();
+
+			int iRetVal = ::send(sock(), (const char*)d2s.data(), int(d2s.size()), 0);
+			if (iRetVal == SOCKET_ERROR)
 			{
+				if (WSAGetLastError() == WSAEWOULDBLOCK)
+					return SEND_BUFFERFULL;
+				return SEND_FAIL;
+			}
+
+			outbuf.skip(iRetVal);
+			if (outbuf.is_empty())
+			{
+
 #ifdef _WIN32
 				WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ|FD_CLOSE);
 #endif
-
-				outbuf.clear();
 				return SEND_OK;
 			}
-			outbuf.erase(outbuf.begin(), outbuf.begin() + iRetVal);
+
 			return SEND_BUFFERFULL;
 		}
 
@@ -172,7 +181,7 @@ namespace netkit
 			WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ|FD_WRITE|FD_CLOSE);
 #endif
 			auto d = std::span<const u8>(data+iRetVal, datasize-iRetVal);
-			outbuf.insert(outbuf.end(), d.begin(), d.end());
+			outbuf.append(d);
 			return SEND_BUFFERFULL;
 		}
 

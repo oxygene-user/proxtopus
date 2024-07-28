@@ -377,7 +377,7 @@ namespace netkit
 		signed_t creationtime = 0;
 
 		tools::circular_buffer<65536 * 2> rcvbuf;
-		std::vector<u8> outbuf;
+		tools::chunk_buffer<16384> outbuf;
 
 		tcp_pipe() { creationtime = chrono::ms(); }
 		tcp_pipe(SOCKET s, const sockaddr_in& addr) :addr(addr) { _socket = s; creationtime = chrono::ms(); }

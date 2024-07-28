@@ -98,6 +98,7 @@ HMAC_DRBG::HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf) :
    clear();
 }
 
+#if 0 /// IMCONEE
 HMAC_DRBG::HMAC_DRBG(std::string_view hmac_hash) :
       Stateful_RNG(),
       m_mac(MessageAuthenticationCode::create_or_throw(fmt("HMAC({})", hmac_hash))),
@@ -105,6 +106,7 @@ HMAC_DRBG::HMAC_DRBG(std::string_view hmac_hash) :
       m_security_level(hmac_drbg_security_level(m_mac->output_length())) {
    clear();
 }
+#endif
 
 void HMAC_DRBG::clear_state() {
    if(m_V.empty()) {

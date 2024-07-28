@@ -145,15 +145,12 @@
     <ClInclude Include="proxy.h" />
     <ClInclude Include="proxy_ss.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="rndgen.h" />
     <ClInclude Include="str_helpers.h" />
     <ClInclude Include="sts.h" />
     <ClInclude Include="tools.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\botan\aead.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
     <ClCompile Include="..\botan\aes.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
@@ -167,14 +164,6 @@
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
     <ClCompile Include="..\botan\allocator.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\auto_rng.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\block_cipher.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
@@ -198,14 +187,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
-    <ClCompile Include="..\botan\charset.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\cipher_mode.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
     <ClCompile Include="..\botan\cpuid.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
@@ -219,10 +200,6 @@
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
     <ClCompile Include="..\botan\dyn_load.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\entropy_srcs.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
@@ -250,14 +227,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
-    <ClCompile Include="..\botan\hash.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\hex.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
     <ClCompile Include="..\botan\hkdf.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
@@ -270,19 +239,11 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
-    <ClCompile Include="..\botan\kdf.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
     <ClCompile Include="..\botan\keccak_perm.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
     <ClCompile Include="..\botan\keccak_perm_bmi2.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\mac.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
@@ -311,10 +272,6 @@
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
     <ClCompile Include="..\botan\salsa20.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\scan_name.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
@@ -358,14 +315,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
-    <ClCompile Include="..\botan\stream_cipher.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
-    <ClCompile Include="..\botan\symkey.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
-    </ClCompile>
     <ClCompile Include="..\botan\sym_algo.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
@@ -377,6 +326,7 @@
     <ClCompile Include="cipher_ss.cpp" />
     <ClCompile Include="cmdline.cpp" />
     <ClCompile Include="connect.cpp" />
+    <ClCompile Include="botan.cpp" />
     <ClCompile Include="engine.cpp" />
     <ClCompile Include="fsys.cpp" />
     <ClCompile Include="handlers.cpp" />
@@ -391,6 +341,7 @@
     </ClCompile>
     <ClCompile Include="proxy.cpp" />
     <ClCompile Include="proxy_ss.cpp" />
+    <ClCompile Include="rndgen.cpp" />
     <ClCompile Include="sts.cpp" />
     <ClCompile Include="tools.cpp" />
   </ItemGroup>

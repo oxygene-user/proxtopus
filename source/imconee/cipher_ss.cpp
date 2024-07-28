@@ -108,7 +108,7 @@ void ss::keyed_filter::setup(std::unique_ptr<Botan::Cipher_Mode>&& m, std::span<
 {
 	mode = std::move(m);
 	mode->set_key(k);
-	iv.raw().resize(NonceSize, 0);
+	iv.resize(NonceSize, 0);
 
 	ASSERT(m_next.size() == 1);
 	m_next[0] = ciph;
@@ -230,7 +230,7 @@ void ss::core::load(loader& ldr, const std::string& name, const asts& bb)
 
 ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, std::string masterKey, crypto_par cp) :pipe(pipe), masterKey(masterKey), cp(cp)
 {
-	Botan::AutoSeeded_RNG rng;
+	randomgen rng;
 	encrypted_data.resize(cp.KeySize);
 	rng.random_vec(encrypted_data); // make initial salt as starting sequence
 

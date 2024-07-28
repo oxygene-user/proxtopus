@@ -11,13 +11,20 @@
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/loadstor.h>
 
+#include <botan/internal/chacha.h> /// IMCONEE
+#include <botan/internal/poly1305.h> /// IMCONEE
+
 namespace Botan {
 
 ChaCha20Poly1305_Mode::ChaCha20Poly1305_Mode() :
-      m_chacha(StreamCipher::create("ChaCha")), m_poly1305(MessageAuthenticationCode::create("Poly1305")) {
+      //m_chacha(StreamCipher::create("ChaCha")), m_poly1305(MessageAuthenticationCode::create("Poly1305")) {
+        m_chacha(std::make_unique<ChaCha>(20)), m_poly1305(std::make_unique<Poly1305>()) { /// IMCONEE
+    /// IMCONEE
+    /*
    if(!m_chacha || !m_poly1305) {
       throw Algorithm_Not_Found("ChaCha20Poly1305");
    }
+   */
 }
 
 bool ChaCha20Poly1305_Mode::valid_nonce_length(size_t n) const {

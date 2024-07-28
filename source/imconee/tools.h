@@ -911,6 +911,82 @@ namespace str
 
 namespace tools
 {
+	template<signed_t size> class chunk_buffer
+	{
+	public:
+		enum {
+			SIZE = size
+		};
+	private:
+		struct chunk
+		{
+			std::unique_ptr<chunk> next;
+			signed_t size = 0;
+			u8 data[SIZE];
+		};
+
+		std::unique_ptr<chunk> first;
+		chunk* last = nullptr;
+		signed_t first_skip = 0;
+
+	public:
+
+		void append(std::span<const u8> data)
+		{
+			if (!first)
+			{
+				first.reset(new chunk());
+				last = first.get();
+			}
+
+			for (;data.size() > 0;)
+			{
+				signed_t ost = SIZE - last->size;
+				signed_t cpy = math::minv(ost, data.size());
+				memcpy(last->data, data.data(), cpy);
+				last->size += cpy;
+				data = std::span<const u8>( data.data() + cpy, data.size() - cpy );
+				if (last->size == SIZE)
+				{
+					last->next.reset( new chunk() );
+					last = last->next.get();
+				}
+			}
+		}
+
+		std::span<const u8> get_1st_chunk()
+		{
+			if (!first)
+				return std::span<const u8>();
+			return std::span<const u8>(first->data + first_skip, first->size - first_skip);
+		}
+
+		void skip(signed_t sv)
+		{
+			first_skip += sv;
+			for (; first_skip >= first->size; )
+			{
+				first_skip -= first->size;
+				chunk* next = first->next.get();
+				first->next.release();
+				first.reset(next);
+				if (!next)
+				{
+					last = nullptr;
+					ASSERT(first_skip == 0);
+					break;
+				}
+			}
+		}
+
+		bool is_empty() const
+		{
+			return first == nullptr || first->size == 0;
+		}
+
+
+	};
+
 	template<signed_t size> class circular_buffer
 	{
 		u8 data[(size + 15) & (~15)];

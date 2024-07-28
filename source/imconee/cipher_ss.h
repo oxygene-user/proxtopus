@@ -31,11 +31,11 @@ namespace ss
 	class keyed_filter : public Botan::Keyed_Filter
 	{
 		std::unique_ptr<Botan::Cipher_Mode> mode;
-		Botan::InitializationVector iv;
+		std::vector<u8> iv;
 		std::vector<u8> buffer;
 		void incnonce()
 		{
-			nonceIncrement(iv.raw().data(), iv.raw().size());
+			nonceIncrement(iv.data(), iv.size());
 		}
 
 	public:

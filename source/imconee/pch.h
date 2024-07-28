@@ -34,6 +34,8 @@
 #include <charconv>
 #include <array>
 
+#include "rndgen.h"
+
 #include "tools.h"
 #include "cmdline.h"
 #include "loader.h"
