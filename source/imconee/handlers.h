@@ -73,7 +73,7 @@ protected:
 		{
 			waiter.signal();
 		}
-		void forward(signed_t slot, processing_thread* to);
+		bool forward(signed_t slot, processing_thread* to);
 		processing_thread* get_next()
 		{
 			return next.get();

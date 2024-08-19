@@ -1,8 +1,8 @@
 #include "pch.h"
 
-listener* listener::build(loader &ldr, const std::string& name, const asts& bb)
+listener* listener::build(loader &ldr, const str::astr& name, const asts& bb)
 {
-	std::string t = bb.get_string(ASTR("type"));
+	str::astr t = bb.get_string(ASTR("type"));
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
@@ -27,12 +27,12 @@ listener* listener::build(loader &ldr, const std::string& name, const asts& bb)
 	return nullptr;
 }
 
-listener::listener(loader& /*ldr*/, const std::string& name, const asts& /*bb*/)
+listener::listener(loader& /*ldr*/, const str::astr& name, const asts& /*bb*/)
 {
 	this->name = name;
 }
 
-tcp_listener::tcp_listener(loader& ldr, const std::string& name, const asts& bb):listener(ldr, name, bb)
+tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb):listener(ldr, name, bb)
 {
 	signed_t port = bb.get_int(ASTR("port"));
 	if (0 == port)
@@ -56,7 +56,7 @@ tcp_listener::tcp_listener(loader& ldr, const std::string& name, const asts& bb)
 
 	hand.reset(h);
 
-	std::string bs = bb.get_string(ASTR("bind"));
+	str::astr bs = bb.get_string(ASTR("bind"));
 	netkit::ip4 bindaddr = netkit::ip4::parse(bs);
 	prepare(bindaddr, port);
 
@@ -121,10 +121,32 @@ void tcp_listener::prepare(netkit::ip4 bind2, signed_t port)
 	state.lock_write()().need_stop = true;
 	hand->stop();
 
+	// holly stupid linux behaviour...
+	// we have to make a fake connection to the listening socket so that the damn [accept] will deign to give control.
+	// There is no such crap in Windows
+
+#ifdef _NIX
+	auto st = state.lock_read();
+	netkit::ip4 cnct(127,0,0,1);
+	if (st().bind != 0)
+        cnct = st().bind;
+    signed_t port = st().port;
+    st.unlock();
+    sockaddr_in addr = {};
+
+    addr.sin_family = AF_INET;
+    addr.sin_addr = cnct;
+    addr.sin_port = netkit::to_ne((u16)port);
+
+    SOCKET s = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    ::connect(s, (const sockaddr *)&addr, sizeof(addr));
+    closesocket(s);
+#endif
+
 	close(false);
 
 	while (state.lock_read()().stage != IDLE)
-		Sleep(100);
+        Sleep(100);
 
 	state.lock_write()().need_stop = false;
 }

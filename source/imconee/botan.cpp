@@ -33,8 +33,37 @@ namespace Botan
 
 	size_t Entropy_Sources::poll(RandomNumberGenerator& /*rng*/, size_t /*poll_bits*/, std::chrono::milliseconds /*timeout*/) {
 
-		__debugbreak();
+		DEBUGBREAK();
 		return 0;
 	}
 
+    void assertion_failure(const char* expr_str,
+		const char* assertion_made,
+		const char* func,
+		const char* file,
+		int line)
+	{
+		ERRORM(file, line, "assertion (%s) (%s) (%s)", assertion_made, func, expr_str);
+		for(;;);
+	}
+
+	void throw_invalid_argument(const char* /*message*/,
+		const char* /*func*/,
+		const char* /*file*/)
+	{
+		SMART_DEBUG_BREAK;
+		for(;;);
+	}
+
+	void throw_invalid_state(const char* /*expr*/,
+		const char* /*func*/,
+		const char* /*file*/)
+	{
+		SMART_DEBUG_BREAK;
+		for(;;);
+	}
+
 }
+
+
+

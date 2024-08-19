@@ -15,8 +15,8 @@ template<class T> inline void SWAP(T& first, T& second)
 
 template <typename TCHARACTER=char> class sts_t
 {
-    typedef std::basic_string<TCHARACTER> string_type;
-	typedef std::basic_string_view<TCHARACTER> string_view_type;
+    typedef str::xstr<TCHARACTER> string_type;
+	typedef str::xstr_view<TCHARACTER> string_view_type;
 
 	static string_type static_name_comment;
 
@@ -32,11 +32,11 @@ template <typename TCHARACTER=char> class sts_t
 
 	int get_current_line(const TCHARACTER *s);
 
-	template<typename T> void _to_string(std::string& v, T t)
+	template<typename T> void _to_string(str::astr& v, T t)
 	{
 		v = std::to_string(t);
 	}
-	template<typename T> void _to_string(std::wstring& v, T t)
+	template<typename T> void _to_string(str::wstr& v, T t)
 	{
 		v = std::to_wstring(t);
 	}
@@ -46,7 +46,7 @@ public:
     sts_t(sts_t *parent) : parent(parent) {}
 	sts_t() {}
 
-    sts_t(sts_t *parent, const sts_t &oth): parent(parent), value(oth.value), double_value_cache(oth.double_value_cache)
+    sts_t(sts_t *parent, const sts_t &oth): parent(parent), double_value_cache(oth.double_value_cache), value(oth.value)
     {
         for (auto it = oth.begin(); it; ++it)
             add_block(it.name(), *it);
@@ -164,7 +164,7 @@ public:
 		{
 #ifdef _DEBUG
 			if (it->second) return it->second;
-			
+
 			//WARNING("duplicate block get attempt");
 			__debugbreak();
 
@@ -351,4 +351,5 @@ public:
 };
 
 typedef sts_t<char> asts;
-typedef sts_t<wchar_t> wsts;
+// no need
+//typedef sts_t<wchar> wsts;

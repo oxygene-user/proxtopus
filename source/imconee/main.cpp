@@ -6,25 +6,53 @@
 
 #define SERVICENAME WSTR("imconee")
 static SERVICE_STATUS_HANDLE hSrv = nullptr;
-static std::wstring path_config;
 
 static BOOL WINAPI consoleHandler(DWORD signal)
 {
 	if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
 	{
-		LOG_N("Stop machine");
+		LOG_I("imconeee has been received stop signal");
 		engine::stop();
 	}
 	return TRUE;
 }
-
 #endif
+#ifdef _NIX
+#include <signal.h>
+#include <termios.h>
+
+static void handle_signal(int sig) {
+    switch(sig)
+    {
+        case SIGINT:
+        case SIGTERM:
+		LOG_I("imconeee has been received stop signal");
+		engine::stop();
+
+        struct termios t;
+        tcgetattr(STDIN_FILENO,&t);
+        t.c_lflag |= ECHO;
+        tcsetattr(STDIN_FILENO, TCSANOW, &t);
+
+        break;
+    }
+}
+#endif // _NIX
+
+static FN path_config;
+
 
 static void shapka()
 {
-	Print("Imconee v0.0\n");
 
-	//([]()->bool { Print(FOREGROUND_RED, "%s\n", "zzz"); return false; })();
+#ifdef _NIX
+    struct termios t;
+    tcgetattr(STDIN_FILENO,&t);
+    t.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#endif
+
+	Print("Imconee v0.1\n");
 }
 
 
@@ -44,6 +72,22 @@ int run_engine(bool as_service)
 		}
 	}
 #endif
+#ifdef _NIX
+    struct sigaction sa = { 0 };
+
+    sa.sa_handler = handle_signal;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGINT, &sa, nullptr) == -1) {
+        LOG_E("Could not set control handler");
+        return EXIT_FAIL_CTLHANDLE;
+    }
+    if (sigaction(SIGTERM, &sa, nullptr) == -1) {
+        LOG_E("Could not set control handler");
+        return EXIT_FAIL_CTLHANDLE;
+    }
+#endif // _NIX
 
 	for (;;)
 	{
@@ -51,7 +95,7 @@ int run_engine(bool as_service)
 		if (ms < 0)
 			break;
 
-		Sleep((DWORD)ms);
+		Sleep((int)ms);
 	}
 
 	return e.exit_code;
@@ -62,18 +106,18 @@ int run_engine(bool as_service)
 
 #include <shellapi.h>
 
-static int elevate(const std::vector<std::wstring>& parar)
+static int elevate(const std::vector<str::wstr>& parar)
 {
 	LOG_N("Elevating...");
 
-	std::wstring exe = get_exec_full_name();
+	FN exe = get_exec_full_name();
 
-	std::wstring prms;
+	str::wstr prms;
 	for (signed_t i = 1, cnt = parar.size(); i < cnt; ++i)
 	{
 		if (!prms.empty())
 			prms.push_back(' ');
-		if (parar[i].find(' ') != std::wstring::npos)
+		if (parar[i].find(' ') != str::wstr::npos)
 		{
 			prms.push_back('\"');
 			prms.append(parar[i]);
@@ -84,7 +128,7 @@ static int elevate(const std::vector<std::wstring>& parar)
 	}
 
 
-	std::wstring path = get_path(exe);
+	FN path = get_path(exe);
 
 	SHELLEXECUTEINFOW shExInfo = {};
 	shExInfo.cbSize = sizeof(shExInfo);
@@ -149,7 +193,7 @@ static void __stdcall CommandHandler(DWORD dwCommand)
 
 void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVectors*/)
 {
-	std::wstring sn(SERVICENAME);
+	str::wstr sn(SERVICENAME);
 	hSrv = RegisterServiceCtrlHandlerW(sn.c_str(), (LPHANDLER_FUNCTION)CommandHandler);
 	if (hSrv == nullptr) return;
 
@@ -160,8 +204,6 @@ void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVe
 	int ecode = run_engine(true);
 	SetStatus(SERVICE_STOPPED, ecode, 0);
 }
-
-#endif
 
 static int error_openservice()
 {
@@ -181,17 +223,19 @@ static int error_startservice()
 	return EXIT_FAIL_STARTSERVICE;
 
 }
+#endif
 
-static int handle_command_line()
+static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 {
-	commandline cmdl;
+	commandline cmdl NIXONLY((std::move(args)));
 
 	if (cmdl.help())
 		return EXIT_OK_EXIT;
 
 	path_config = cmdl.path_config();
 
-	std::wstring sn(SERVICENAME);
+#ifdef _WIN32
+	str::wstr sn(SERVICENAME);
 
 	if (cmdl.service())
 	{
@@ -220,8 +264,8 @@ static int handle_command_line()
 			return error_openmgr();
 		}
 
-		std::wstring dn(WSTR("Imconee service"));
-		std::wstring snas(WSTR("\"")); snas.append(get_exec_full_name()); snas.append(WSTR("\" service"));
+		str::wstr dn(WSTR("Imconee service"));
+		FN snas(MAKEFN("\"")); snas.append(get_exec_full_name()); snas.append(MAKEFN("\" service"));
 
 		sch = CreateServiceW(sch, sn.c_str(), dn.c_str(), GENERIC_EXECUTE, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_IGNORE, snas.c_str(), nullptr, nullptr, nullptr, nullptr, nullptr);
 		if (!sch)
@@ -310,7 +354,7 @@ static int handle_command_line()
 			if (GetLastError() == ERROR_ACCESS_DENIED)
 				return elevate(cmdl.parar());
 
-			
+
 			return error_openservice();
 		}
 
@@ -319,18 +363,27 @@ static int handle_command_line()
 
 		return EXIT_OK_EXIT;
 	}
-
+#endif
 
 	return EXIT_OK;
 }
 
+#ifdef _NIX
+std::vector<FN> makepa(int argc, char* argv[])
+{
+	std::vector<FN> pa;
+	for (int i = 0; i < argc; ++i)
+		pa.push_back(argv[i]);
+	return pa;
+}
+#endif
 
-int main()
+int main(NIXONLY(int argc, char* argv[]))
 {
 	set_start_path();
 	shapka();
 
-	int ercode = handle_command_line();
+	int ercode = handle_command_line(NIXONLY(std::move(makepa(argc, argv))));
 	if (ercode > 0)
 		return ercode;
 

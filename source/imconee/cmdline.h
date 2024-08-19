@@ -25,49 +25,53 @@ enum AppExitCode
 	EXIT_FAIL_ELEVATION = 98,
 	EXIT_FAIL_CTLHANDLE = 99,
 
+#ifdef _WIN32
 	EXIT_FAIL_OPENMGR = 100,
 	EXIT_FAIL_OPENSERVICE = 101,
 	EXIT_FAIL_CREATESERVICE = 102,
 	EXIT_FAIL_STARTSERVICE = 103,
 	EXIT_FAIL_DELETESERVICE = 104,
+#endif
 
 };
 
 class commandline
 {
-	std::vector<std::wstring> parar_;
+	std::vector<FN> parar_;
 public:
-	commandline();
+	commandline(NIXONLY(std::vector<FN>&& mas));
 	~commandline() {}
 
-	const std::vector<std::wstring>& parar() const
+	const std::vector<FN>& parar() const
 	{
 		return parar_;
 	}
 
 	bool help() const;
 
+#ifdef _WIN32
 	bool install() const
 	{
-		return parar_.size() > 1 ? parar_[1] == WSTR("install") : false;
+		return parar_.size() > 1 ? parar_[1] == MAKEFN("install") : false;
 	}
 	bool remove() const
 	{
-		return parar_.size() > 1 ? parar_[1] == WSTR("remove") : false;
+		return parar_.size() > 1 ? parar_[1] == MAKEFN("remove") : false;
 	}
 	bool start() const
 	{
-		return parar_.size() > 1 ? parar_[1] == WSTR("start") : false;
+		return parar_.size() > 1 ? parar_[1] == MAKEFN("start") : false;
 	}
 	bool stop() const
 	{
-		return parar_.size() > 1 ? parar_[1] == WSTR("stop") : false;
+		return parar_.size() > 1 ? parar_[1] == MAKEFN("stop") : false;
 	}
 	bool service() const
 	{
-		return parar_.size() > 1 ? parar_[1] == WSTR("service") : false;
+		return parar_.size() > 1 ? parar_[1] == MAKEFN("service") : false;
 	}
+#endif
 	
 
-	std::wstring path_config() const;
+	FN path_config() const;
 };

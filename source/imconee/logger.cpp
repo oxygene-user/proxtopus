@@ -43,8 +43,11 @@ void logger::newline(int sev, const std::string& s)
 	case SEV_WARNING:
 		Print(FOREGROUND_RED | FOREGROUND_GREEN, "warning: %s\n", s.c_str());
 		break;
+    case SEV_IMPORTANT:
+		Print(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY, "beep: %s\n", s.c_str());
+		break;
 	case SEV_ERROR:
-		Print(FOREGROUND_RED, "error: %s\n", s.c_str());
+		Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "error: %s\n", s.c_str());
 		break;
 	default:
 		Print("note: %s\n", s.c_str());

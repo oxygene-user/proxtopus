@@ -4,7 +4,7 @@
 /*
 class jpipe : public netkit::pipe
 {
-	std::vector<u8> buf;
+	buffer buf;
 public:
 	jpipe* opipe = nullptr;;
 
@@ -43,7 +43,7 @@ public:
 };
 */
 
-proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const std::string& name, const asts& bb) :proxy(ldr, name, bb)
+proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
 {
 	core.load(ldr, name, bb);
 
@@ -56,16 +56,16 @@ proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const std::string& name, const
 	netkit::pipe_ptr pp1(new crypto_pipe(p1, std::move(cb()), masterKey, cp, botan_cifer));
 	netkit::pipe_ptr pp2(new crypto_pipe(p2, std::move(cb()), masterKey, cp, botan_cifer));
 
-	std::string abc("aAbBcC777");
+	str::astr abc("aAbBcC777");
 	char rxc[1024] = {};
 	pp1->send((u8 *)abc.data(), abc.length());
 	pp2->recv((u8 *)rxc, 1024);
 
-	std::string abcxx("Build shadowsocks-libev v3.0.8 with cygwin on Windows");
+	str::astr abcxx("Build shadowsocks-libev v3.0.8 with cygwin on Windows");
 	pp1->send((u8*)abcxx.data(), abcxx.length());
 	pp2->recv((u8*)rxc, 1024);
 
-	std::string abc2("blablablatest");
+	str::astr abc2("blablablatest");
 	pp2->send((u8*)abc2.data(), abc2.length());
 	pp1->recv((u8*)rxc, 1024);
 

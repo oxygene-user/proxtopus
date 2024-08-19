@@ -13,7 +13,9 @@ typedef ptrdiff_t signed_t;
 
 #include <emmintrin.h>
 #include <immintrin.h>
+#ifdef _MSC_VER
 #include <intrin.h>
+#endif
 #include <sstream>
 #include <string>
 #include <span>
@@ -28,19 +30,35 @@ public:
 	static constexpr bool big = std::endian::native == std::endian::big;
 };
 
-
-#define DEBUG_BREAK() __debugbreak()
-#ifndef _DEBUG
-#define SMART_DEBUG_BREAK (is_debugger_present() ? DEBUG_BREAK(), false : false)
-#else
-#define SMART_DEBUG_BREAK DEBUG_BREAK() // always break in debug
+#ifdef _MSC_VER
+#define DEBUGBREAK() __debugbreak()
+#define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
+#define NIXONLY(...)
 #endif
 
+#ifdef _NIX
+#define DEBUGBREAK() __builtin_trap()
+#define NOWARNING(n,...) __VA_ARGS__
+#define NIXONLY(...) __VA_ARGS__
+
+#define MB_OK 1
+#define MB_ICONWARNING 2
+#define FOREGROUND_RED 4
+#define FOREGROUND_GREEN 2
+#define FOREGROUND_BLUE 1
+#define FOREGROUND_INTENSITY 8
+#endif
+
+#ifndef _DEBUG
+#define SMART_DEBUG_BREAK (is_debugger_present() ? DEBUGBREAK(), false : false)
+#else
+#define SMART_DEBUG_BREAK DEBUGBREAK() // always break in debug
+#endif
 
 #define SLASSERT ASSERT
-#define ERRORM(fn, ln, ...) (([&]()->bool { Print(FOREGROUND_RED, "%s\n", str::build_string_d(fn, ln, __VA_ARGS__).c_str()); return true; })())
-#define SLERROR(...) do {ERRORM(__FILE__, __LINE__, __VA_ARGS__); __debugbreak(); } while(false)
-#define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, __VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
+#define ERRORM(fn, ln, ...) (([&]()->bool { Print(FOREGROUND_RED, "%s\n", str::build_string_d(fn, ln, ##__VA_ARGS__).c_str()); return true; })())
+#define SLERROR(...) do {ERRORM(__FILE__, __LINE__, ##__VA_ARGS__); DEBUGBREAK(); } while(false)
+#define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, ##__VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
 
 
 #define INLINE __inline
@@ -65,10 +83,10 @@ bool messagebox(const char* s1, const char* s2, int options);
 template <typename T> INLINE T* BREAK_ON_NULL(T* ptr, const char* file, int line) { if (ptr == nullptr) { WARNING("nullptr pointer conversion: %s:%i", file, line); } return ptr; }
 #define NOT_NULL( x ) BREAK_ON_NULL(x, __FILE__, __LINE__)
 template<typename PTRT, typename TF> INLINE PTRT ptr_cast(TF* p) { if (!p) return nullptr; return NOT_NULL(dynamic_cast<PTRT>(p)); }
-#define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
 
 void Print(const char* format, ...);
 void Print(signed_t color, const char* format, ...);
+void Print(const std::vector<char> &txt);
 
 #include "spinlock.h"
 #include "logger.h"
@@ -83,10 +101,18 @@ void Print(signed_t color, const char* format, ...);
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned long u32;
-typedef unsigned __int64 u64;
 typedef long i32;
-typedef __int64 i64;
-#ifdef _MSC_VER
+
+#if defined(_MSC_VER)
+typedef signed __int64		i64;
+typedef unsigned __int64	u64;
+#elif defined(__GNUC__)
+typedef int64_t	i64;
+typedef uint64_t u64;
+using WORD = uint16_t;
+#endif
+
+
 #ifdef MODE64
 struct u128
 {
@@ -131,16 +157,25 @@ struct u128
     }
 	u128& operator+=(u64 v)
 	{
-        _addcarry_u64(_addcarry_u64(0, low, v, &low), hi, 0, &hi);
+#ifdef _MSC_VER
+		_addcarry_u64(_addcarry_u64(0, low, v, &low), hi, 0, &hi);
+#endif
+#ifdef __GNUC__
+		DEBUGBREAK();
+#endif
 		return *this;
 	}
 	u128& operator+=(const u128 &v)
 	{
+#ifdef _MSC_VER
 		_addcarry_u64(_addcarry_u64(0, low, v.low, &low), hi, v.hi, &hi);
+#endif
+#ifdef __GNUC__
+		DEBUGBREAK();
+#endif
 		return *this;
 	}
 };
-#endif
 #endif
 
 #ifdef MODE64
@@ -178,6 +213,21 @@ template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t1, const 
 	ASSERT(((u8*)&t1) + sizeof(Tin) == (u8*)&t2);
 	return *(const Tout*)&t1;
 }
+
+#ifdef _NIX
+inline int timeGetTime()
+{
+	struct timespec monotime;
+#if defined(__linux__) && defined(CLOCK_MONOTONIC_RAW)
+	clock_gettime(CLOCK_MONOTONIC_RAW, &monotime);
+#else
+	clock_gettime(CLOCK_MONOTONIC, &monotime);
+#endif
+	uint64_t time = 1000ULL * monotime.tv_sec + (monotime.tv_nsec / 1000000ULL);
+	return time & 0xffffffff;
+}
+#define _time64 time
+#endif
 
 namespace chrono
 {
@@ -350,7 +400,7 @@ namespace tools
 #ifdef MODE64
 	u8 INLINE as_byte(u128 b) { return as_byte((u64)b); }
 #endif
-    wchar_t INLINE as_wchar(size_t x) { return static_cast<wchar_t>(x & 0xFFFF); }
+    wchar INLINE as_wchar(size_t x) { return static_cast<wchar>(x & 0xFFFF); }
 	u32 INLINE as_dword(size_t x) { return static_cast<u32>(x & 0xFFFFFFFF); }
 	u16 INLINE as_word(size_t x) { return static_cast<u16>(x & 0xFFFF); }
 
@@ -920,16 +970,61 @@ namespace tools
 	private:
 		struct chunk
 		{
-			std::unique_ptr<chunk> next;
-			signed_t size = 0;
 			u8 data[SIZE];
+			std::unique_ptr<chunk> next;
 		};
 
 		std::unique_ptr<chunk> first;
 		chunk* last = nullptr;
 		signed_t first_skip = 0;
+		signed_t last_size = 0;
 
 	public:
+
+		void assign(std::span<const u8> data)
+		{
+			if (data.size() == 0)
+			{
+				first.reset();
+				last = nullptr;
+				first_skip = 0;
+				last_size = 0;
+				return;
+			}
+
+			if (!first)
+			{
+				first.reset(new chunk());
+				last = first.get();
+				last_size = 0;
+			}
+			else
+			{
+				first_skip = 0;
+			}
+
+			for (chunk *ch = first.get(); data.size() > 0;)
+			{
+				signed_t cpy = math::minv(SIZE, data.size());
+				memcpy(ch->data, data.data(), cpy);
+				last_size = cpy;
+				data = std::span<const u8>(data.data() + cpy, data.size() - cpy);
+
+				if (data.size() > 0)
+				{
+					if (!ch->next)
+						ch->next.reset(new chunk());
+					ch = ch->next.get();
+					last = ch;
+					continue;
+				}
+				else
+				{
+					ch->next.reset();
+					break;
+				}
+			}
+		}
 
 		void append(std::span<const u8> data)
 		{
@@ -937,17 +1032,19 @@ namespace tools
 			{
 				first.reset(new chunk());
 				last = first.get();
+				last_size = 0;
 			}
 
 			for (;data.size() > 0;)
 			{
-				signed_t ost = SIZE - last->size;
+				signed_t ost = SIZE - last_size;
 				signed_t cpy = math::minv(ost, data.size());
-				memcpy(last->data, data.data(), cpy);
-				last->size += cpy;
+				memcpy(last->data + last_size, data.data(), cpy);
+				last_size += cpy;
 				data = std::span<const u8>( data.data() + cpy, data.size() - cpy );
-				if (last->size == SIZE)
+				if (last_size == SIZE)
 				{
+					last_size = 0;
 					last->next.reset( new chunk() );
 					last = last->next.get();
 				}
@@ -958,15 +1055,19 @@ namespace tools
 		{
 			if (!first)
 				return std::span<const u8>();
-			return std::span<const u8>(first->data + first_skip, first->size - first_skip);
+			return std::span<const u8>(first->data + first_skip, (first.get() == last ? last_size : SIZE) - first_skip);
 		}
 
 		void skip(signed_t sv)
 		{
 			first_skip += sv;
-			for (; first_skip >= first->size; )
+			for (;;)
 			{
-				first_skip -= first->size;
+				signed_t fsz = first.get() == last ? last_size : SIZE;
+				if (first_skip < fsz)
+					break;
+
+				first_skip -= fsz;
 				chunk* next = first->next.get();
 				first->next.release();
 				first.reset(next);
@@ -979,11 +1080,78 @@ namespace tools
 			}
 		}
 
-		bool is_empty() const
+		signed_t peek(u8 * out, signed_t sv) // like skip with data get
 		{
-			return first == nullptr || first->size == 0;
+			signed_t total_peeked = 0;
+			for (;first && sv > 0;)
+			{
+				auto fc = get_1st_chunk();
+				signed_t cpy = math::minv(sv, fc.size());
+				memcpy(out, fc.data(), cpy);
+				sv -= cpy;
+				out += cpy;
+				skip(cpy);
+				total_peeked += cpy;
+			}
+			return total_peeked;
 		}
 
+		signed_t peek(u8* out) // peek all
+		{
+			signed_t total_peeked = 0;
+			for (; first;)
+			{
+				auto fc = get_1st_chunk();
+				memcpy(out, fc.data(), fc.size());
+				out += fc.size();
+				total_peeked += fc.size();
+
+				first_skip = 0;
+				chunk* next = first->next.get();
+				first->next.release();
+				first.reset(next);
+				if (!next)
+				{
+					last = nullptr;
+					ASSERT(first_skip == 0);
+					break;
+				}
+
+			}
+			return total_peeked;
+		}
+
+
+		bool is_empty() const
+		{
+			return first == nullptr || (first.get() == last && last_size == 0);
+		}
+
+		bool enough(signed_t sz) const // is buffer contain at least sz bytes
+		{
+			signed_t csz = -first_skip;
+			for (chunk* ch = first.get(); ch; ch = ch->next.get())
+			{
+				signed_t fcsh = ch == last ? last_size : SIZE;
+				csz += fcsh;
+				if (csz >= sz)
+					return true;
+			}
+			return csz >= sz;
+		}
+
+		bool enough_for(signed_t sz) const // is sz bytes enough to fit current buffer data
+		{
+			signed_t csz = -first_skip;
+			for (chunk* ch = first.get(); ch; ch = ch->next.get())
+			{
+				signed_t fcsh = ch == last ? last_size : SIZE;
+				csz += fcsh;
+				if (csz > sz)
+					return false;
+			}
+			return csz <= sz;
+		}
 
 	};
 
@@ -1119,5 +1287,9 @@ namespace tools
 		}
 	};
 }
+
+#ifdef _NIX
+void Sleep(int ms);
+#endif
 
 #include "fsys.h"

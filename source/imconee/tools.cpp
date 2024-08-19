@@ -1,4 +1,39 @@
 #include "pch.h"
+#ifdef _NIX
+#include <iconv.h>
+#include <iostream>
+
+void Sleep(int ms)
+{
+	if (0 == ms)
+	{
+		sched_yield();
+		return;
+	}
+	struct timespec req;
+	req.tv_sec = ms >= 1000 ? (ms / 1000) : 0;
+	req.tv_nsec = (ms - req.tv_sec * 1000) * 1000000;
+
+	// Loop until we've slept long enough
+	do
+	{
+		// Store remainder back on top of the original required time
+		if (0 != nanosleep(&req, &req))
+		{
+			/* If any error other than a signal interrupt occurs, return an error */
+			if (errno != EINTR)
+				return;
+		}
+		else
+		{
+			// nanosleep succeeded, so exit the loop
+			break;
+		}
+	} while (req.tv_sec > 0 || req.tv_nsec > 0);
+}
+
+
+#endif
 
 namespace
 {
@@ -6,7 +41,7 @@ namespace
 	{
 	public:
 		RWLOCK lockp = 0;
-		std::unique_ptr<std::map<std::string, std::string>> printables;
+		std::unique_ptr<std::map<str::astr, str::astr>> printables;
 		tools_init()
 		{
 		}
@@ -20,8 +55,10 @@ namespace
 	static tools_init ti;
 
 
+
 	struct console_buffer
 	{
+#ifdef _WIN32
 		HANDLE hout;
 		WORD restorea = 0;
 		console_buffer()
@@ -50,6 +87,65 @@ namespace
 		{
 			SetConsoleTextAttribute(hout, c);
 		}
+		void restore_attr()
+		{
+			set_attr(restorea);
+		}
+#endif
+#ifdef _NIX
+
+		const str::astr_view get_textcolor_code(const int textcolor) {
+			switch (textcolor) {
+			case  0: return str::astr_view("\033[30m"); // color_black      0
+			case  1: return str::astr_view("\033[34m"); // color_dark_blue  1
+			case  2: return str::astr_view("\033[32m"); // color_dark_green 2
+			case  3: return str::astr_view("\033[36m"); // color_light_blue 3
+			case  4: return str::astr_view("\033[31m"); // color_dark_red   4
+			case  5: return str::astr_view("\033[35m"); // color_magenta    5
+			case  6: return str::astr_view("\033[33m"); // color_orange     6
+			case  7: return str::astr_view("\033[37m"); // color_light_gray 7
+			case  8: return str::astr_view("\033[90m"); // color_gray       8
+			case  9: return str::astr_view("\033[94m"); // color_blue       9
+			case 10: return str::astr_view("\033[92m"); // color_green     10
+			case 11: return str::astr_view("\033[96m"); // color_cyan      11
+			case 12: return str::astr_view("\033[91m"); // color_red       12
+			case 13: return str::astr_view("\033[95m"); // color_pink      13
+			case 14: return str::astr_view("\033[93m"); // color_yellow    14
+			case 15: return str::astr_view("\033[97m"); // color_white     15
+			default: return str::astr_view("\033[37m");
+			}
+		}
+
+		WORD current = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE;
+		console_buffer()
+		{
+		    std::cout << get_textcolor_code(current);
+		}
+		WORD get_attr()
+		{
+			return current;
+		}
+
+		void write(const char* s, signed_t sl)
+		{
+			std::cout << std::string_view(s, sl);
+		}
+
+		void set_text_color(signed_t c)
+		{
+			current = tools::as_word((c | (current & 0xF0)));
+			std::cout << get_textcolor_code(current&0xf);
+		}
+		void set_attr(WORD c)
+		{
+			current = c;
+			std::cout << get_textcolor_code(current & 0xf); // todo background
+		}
+		void restore_attr()
+		{
+			std::cout << "\033[0m";
+		}
+#endif
 
 	};
 
@@ -64,7 +160,7 @@ namespace
 		}
 		~set_console_color()
 		{
-			set_attr(restorea);
+			restore_attr();
 		}
 	};
 
@@ -125,8 +221,10 @@ void Print(signed_t color, const char* format, ...)
 	char buf[2048];
 	va_list arglist;
 	va_start(arglist, format);
-	signed_t sl = vsprintf_s(buf, sizeof(buf), format, arglist);
+	signed_t sl = vsnprintf(buf, sizeof(buf), format, arglist);
+#ifdef _WIN32
 	CharToOemBuffA(buf, buf, tools::as_dword(sl));
+#endif
 	cprintf(&cc, buf, sl);
 }
 
@@ -135,10 +233,28 @@ void Print(const char* format, ...)
 	va_list arglist;
 	char buf[2048];
 	va_start(arglist, format);
-	signed_t sl = vsprintf_s(buf, sizeof(buf), format, arglist);
+	signed_t sl = vsnprintf(buf, sizeof(buf), format, arglist);
+#ifdef _WIN32
 	CharToOemBuffA(buf, buf, tools::as_dword(sl));
+#endif
 	console_buffer cb;
 	cprintf(&cb, buf, sl);
+}
+
+void Println(const char* s, signed_t slen)
+{
+	console_buffer cb;
+	cprintf(&cb, s, slen);
+	cb.write("\n", 1);
+}
+
+void Print(const std::vector<char> &txt)
+{
+	str::token<char> t( str::astr_view(txt.data(), txt.size()), '\n');
+	for (; t; ++t)
+	{
+		Println( t->data(), t->size() );
+	}
 }
 
 namespace tools
@@ -148,7 +264,7 @@ namespace tools
 
 namespace str
 {
-	const char* printable(const std::string& s, std::string_view disabled_chars)
+	const char* printable(const str::astr& s, str::astr_view disabled_chars)
 	{
 		for(char c : s)
 			if (disabled_chars.find(c) != disabled_chars.npos)
@@ -163,7 +279,7 @@ namespace str
 					}
 				}
 
-				std::string corrs;
+				str::astr corrs;
 				for (char cc : s)
 					if (disabled_chars.find(cc) != disabled_chars.npos)
 						corrs.push_back('?');
@@ -172,17 +288,49 @@ namespace str
 
 				spinlock::auto_lock_write alr(ti.lockp);
 				if (!ti.printables)
-					ti.printables = std::make_unique<std::map<std::string, std::string>>();
+					ti.printables = std::make_unique<std::map<str::astr, str::astr>>();
 				(*ti.printables)[s] = corrs;
 				return (*ti.printables)[s].c_str();
 			}
 		return s.c_str();
 	}
 
-	size_t  _text_from_ucs2(char* out, size_t maxlen, const std::wstring_view &from, codepage_e cp)
+#ifdef _NIX
+	struct inconv_stuff_s
+	{
+		iconv_t ucs2_to_ansi = (iconv_t)-1;
+		iconv_t ansi_to_ucs2 = (iconv_t)-1;
+		iconv_t utf8_to_ucs2 = (iconv_t)-1;
+		iconv_t ucs2_to_utf8 = (iconv_t)-1;
+		//iconv_t utf8_to_ansi = (iconv_t)-1;
+		//iconv_t ansi_to_utf8 = (iconv_t)-1;
+
+		~inconv_stuff_s()
+		{
+			if (ucs2_to_ansi != (iconv_t)-1)
+				iconv_close(ucs2_to_ansi);
+			if (ansi_to_ucs2 != (iconv_t)-1)
+				iconv_close(ansi_to_ucs2);
+			if (utf8_to_ucs2 != (iconv_t)-1)
+				iconv_close(utf8_to_ucs2);
+			if (ucs2_to_utf8 != (iconv_t)-1)
+				iconv_close(ucs2_to_utf8);
+			//if (utf8_to_ansi != (iconv_t)-1)
+				//iconv_close(utf8_to_ucs2);
+			//if (ansi_to_utf8 != (iconv_t)-1)
+				//iconv_close(ucs2_to_utf8);
+
+		}
+
+	} iconvs;
+
+#endif
+
+	size_t  _text_from_ucs2(char* out, size_t maxlen, const str::wstr_view &from, codepage_e cp)
 	{
 		if ((maxlen == 0) || (from.length() == 0)) return 0;
 
+#ifdef _WIN32
 		UINT CodePage = CP_ACP;
 		switch (cp)
 		{
@@ -197,12 +345,43 @@ namespace str
 		signed_t l = WideCharToMultiByte(CodePage, WC_COMPOSITECHECK | WC_DEFAULTCHAR, from.data(), (int)from.length(), out, (int)maxlen, nullptr, nullptr);
 		out[l] = 0;
 		return l;
+#endif
+#ifdef _NIX
+		iconv_t func = (iconv_t) - 1;
+		switch (cp)
+		{
+		case codepage_e::OEM:
+			if (iconvs.ucs2_to_ansi <= (iconv_t)-1)
+				iconvs.ucs2_to_ansi = iconv_open("cp1251//IGNORE", "UCS-2");
+			func = iconvs.ucs2_to_ansi;
+			break;
+		case codepage_e::UTF8:
+			if (iconvs.ucs2_to_utf8 <= (iconv_t)-1)
+				iconvs.ucs2_to_utf8 = iconv_open("UTF-8//IGNORE", "UCS-2");
+			func = iconvs.ucs2_to_utf8;
+			break;
+		}
+
+		if (func != (iconv_t)-1)
+		{
+			size_t isz = from.length() * sizeof(wchar);
+			size_t osz = maxlen;
+			char* f = (char*)from.data();
+			iconv(func, &f, &isz, &out, &osz);
+			if (isz == 0)
+				return maxlen - osz;
+		}
+		return 0;
+
+#endif
+
 	}
 
-	size_t   _text_to_ucs2(wchar_t * out, size_t maxlen, const std::string_view& from, codepage_e cp)
+	size_t   _text_to_ucs2(wchar * out, size_t maxlen, const str::astr_view& from, codepage_e cp)
 	{
 		if ((maxlen == 0) || (from.length() == 0)) return 0;
 
+#ifdef _WIN32
 		UINT CodePage = CP_ACP;
 		switch (cp)
 		{
@@ -231,6 +410,35 @@ namespace str
 			out[res] = 0;
 		}
 		return res;
+#endif
+#ifdef _NIX
+		iconv_t func = (iconv_t)-1;
+		switch (cp)
+		{
+		case codepage_e::OEM:
+			if (iconvs.ansi_to_ucs2 <= (iconv_t)-1)
+				iconvs.ansi_to_ucs2 = iconv_open("UCS-2//IGNORE", "cp1251");
+			func = iconvs.ansi_to_ucs2;
+			break;
+		case codepage_e::UTF8:
+			if (iconvs.utf8_to_ucs2 <= (iconv_t)-1)
+				iconvs.utf8_to_ucs2 = iconv_open("UCS-2//IGNORE", "UTF-8");
+			func = iconvs.utf8_to_ucs2;
+			break;
+		}
+
+		if (func != (iconv_t)-1)
+		{
+			size_t isz = from.length();
+			size_t osz = maxlen * sizeof(wchar);
+			char* f = (char*)from.data();
+			char* o = (char*)out;
+			iconv(func, &f, &isz, &o, &osz);
+			if (isz == 0)
+				return maxlen - osz / sizeof(wchar);
+		}
+		return 0;
+#endif
 	}
 
 }

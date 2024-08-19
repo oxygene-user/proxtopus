@@ -5,8 +5,8 @@
 template <typename TCHARACTER> sts_t<TCHARACTER>& sts_t<TCHARACTER>::add_comment(const std::basic_string_view<TCHARACTER>& comment)
 {
 	element* e = new element(this);
-	
-	auto rslt = elements.try_emplace(static_name_comment, &e->sts);
+
+	/*auto rslt =*/ elements.try_emplace(static_name_comment, &e->sts);
 	e->name = &static_name_comment;
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
@@ -308,7 +308,7 @@ template <typename TCHARACTER> const std::basic_string<TCHARACTER> sts_t<TCHARAC
 			r.push_back(' ');
 			r.append(e->sts.value);
             continue;
-        } 
+        }
 
 		if (e->sts.value_not_specified() && !e->sts.first_element)
         {
@@ -357,5 +357,6 @@ template <typename TCHARACTER> const std::basic_string<TCHARACTER> sts_t<TCHARAC
 template <typename TCHARACTER> std::basic_string<TCHARACTER> sts_t<TCHARACTER>::static_name_comment;
 
 template class sts_t<char>;
-template class sts_t<wchar_t>;
+// no need
+//template class sts_t<wchar>;
 

@@ -1,16 +1,16 @@
 #include "pch.h"
 
-bool loader::load_conf(const std::wstring& cfp)
+bool loader::load_conf(const FN& cfp)
 {
-	std::vector<u8> cb;
+	buffer cb;
 	if (!load_buf(cfp, cb))
 	{
-		LOG_E("no config.txt found");
+		LOG_E("no %s found", str::to_utf8(cfp.c_str()).c_str());
 		exit_code = EXIT_FAIL_NOCONFIG;
 		return false;
 	}
 
-	cfg.load(std::string_view((const char*)cb.data(), cb.size()));
+	cfg.load(str::astr_view((const char*)cb.data(), cb.size()));
 
 	// parse config file here
 

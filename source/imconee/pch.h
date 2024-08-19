@@ -11,18 +11,39 @@
 #define LOGGER 2
 
 #ifdef _WIN32
-#include <winsock2.h>
-#endif // _WIN32
-
 // Windows Header Files
+
+#include <winsock2.h>
 #include <windows.h>
 #include <mmsystem.h>
 
 // C RunTime Header Files
+#include <tchar.h>
+#endif // _WIN32
+
+#if defined __linux__
+#undef _NIX
+#define _NIX
+#endif
+
+#ifdef __GNUC__
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/ip.h>
+#include <stdarg.h>
+#include <float.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <thread>
+#include <poll.h>
+
+#pragma GCC diagnostic ignored "-Wswitch"
+
+#endif
+
 #include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
-#include <tchar.h>
 
 #include <atomic>
 #include <memory>
@@ -33,6 +54,8 @@
 #include <functional>
 #include <charconv>
 #include <array>
+
+#include "resource.h"
 
 #include "rndgen.h"
 

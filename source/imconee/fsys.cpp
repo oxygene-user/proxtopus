@@ -11,19 +11,21 @@
 #define NATIVE_SLASH '/'
 #define NATIVE_SLASH_S "/"
 #define ENEMY_SLASH '\\'
+
+#pragma GCC diagnostic ignored "-Wunused-result"
 #endif
 
-inline bool __is_slash(const wchar_t c)
+inline bool __is_slash(const FNc c)
 {
 	return c == NATIVE_SLASH || c == ENEMY_SLASH;
 }
 
-inline bool __ending_slash(const std::wstring_view& path)
+inline bool __ending_slash(const FNview& path)
 {
 	return path.size() > 0 && __is_slash(path[path.size() - 1]);
 }
 
-void __append_slash_if_not(wchar_t *path, size_t len) // unsafe! be sure buf has enough space
+void __append_slash_if_not(FNc *path, size_t len) // unsafe! be sure buf has enough space
 {
 	if (len == 0 || !__is_slash(path[len - 1]))
 	{
@@ -31,17 +33,17 @@ void __append_slash_if_not(wchar_t *path, size_t len) // unsafe! be sure buf has
 		path[len+1] = 0;
 	}
 }
-void __append_slash_if_not(std::wstring &path)
+void __append_slash_if_not(FN &path)
 {
 	if (!__ending_slash(path))
 		path.push_back(NATIVE_SLASH);
 }
 
 
-void  __build_full_path(std::wstring& path)
+void  __build_full_path(FN& path)
 {
 #ifdef _WIN32
-	std::wstring disk;
+	FN disk;
 
 	if (path.length() > 1 && (path[1] == ':'))
 	{
@@ -51,7 +53,7 @@ void  __build_full_path(std::wstring& path)
 
 	if (!__is_slash(path[0]))
 	{
-		wchar_t buf[MAX_PATH_LENGTH];
+		FNc buf[MAX_PATH_LENGTH];
 		if (disk.empty())
 		{
 			size_t len = GetCurrentDirectoryW(MAX_PATH_LENGTH - 8, buf);
@@ -73,10 +75,10 @@ void  __build_full_path(std::wstring& path)
 #ifdef _NIX
 	if (!__is_slash(path[0]))
 	{
-		char wd[MAX_PATH_LENGTH];
-		if (const char* d = getcwd(wd, sizeof(wd) - 1))
+		FNc wd[MAX_PATH_LENGTH];
+		if (const FNc* d = getcwd(wd, sizeof(wd) - 1))
 		{
-			std::wstring dd = str::from_utf8(d);
+			FN dd(d);
 			__append_slash_if_not(dd);
 			path.insert(0, dd);
 		}
@@ -84,17 +86,17 @@ void  __build_full_path(std::wstring& path)
 #endif //_NIX
 }
 
-void __remove_crap(std::wstring& path)
+void __remove_crap(FN& path)
 {
 	signed_t prev_prev_slash = str::get_last_char(path) == '.' ? path.length() : -1;
 	signed_t prev_slash = prev_prev_slash;
 	signed_t cch = path.length() - 1;
 	signed_t to = -1;
 	signed_t doubledot = 0;
-	if (str::starts_with(path, WSTR("\\\\"))) to = path.find_first_of(WSTR("/\\"), 2); // UNC path
+	if (str::starts_with(path, MAKEFN("\\\\"))) to = path.find_first_of(MAKEFN("/\\"), 2); // UNC path
 	for (; cch >= to; --cch)
 	{
-		wchar_t c = cch >= 0 ? path[cch] : NATIVE_SLASH;
+		FNc c = cch >= 0 ? path[cch] : NATIVE_SLASH;
 		if (__is_slash(c))
 		{
 			if (prev_slash - 1 == cch)
@@ -161,19 +163,19 @@ void __remove_crap(std::wstring& path)
 }
 
 
-std::wstring  get_exec_full_name()
+FN  get_exec_full_name()
 {
-	std::wstring wd;
+	FN wd;
 #ifdef _WIN32
 	wd.resize(MAX_PATH_LENGTH - 8);
 	size_t len = GetModuleFileNameW(nullptr, wd.data(), MAX_PATH_LENGTH - 8);
 	wd.resize(len);
 #endif // _WIN32
 #ifdef _NIX
-	char tmp[PATH_MAX];
+	FNc tmp[PATH_MAX];
 	int len = readlink("/proc/self/exe", tmp, PATH_MAX - 1);
-	if (len == -1) { std::wstring(); }
-	wd = str::from_utf8(std::string_view(tmp, len));
+	if (len == -1) { FN(); }
+	wd = FNview(tmp, len);
 #endif //_NIX
 
 	if (wd[0] == '\"')
@@ -183,21 +185,21 @@ std::wstring  get_exec_full_name()
 		wd.erase(0, 1);
 	}
 
-	str::replace_all<wchar_t>(wd, ENEMY_SLASH, NATIVE_SLASH);
+	str::replace_all<FNc>(wd, ENEMY_SLASH, NATIVE_SLASH);
 	__remove_crap(wd);
 
 	return wd;
 }
 
-void  set_start_path(std::wstring& wd, std::wstring* exename)
+void  set_start_path(FN& wd, FN* exename)
 {
 	wd = get_exec_full_name();
 
-	signed_t idx = wd.find_last_of(WSTR("/\\"));
+	size_t idx = wd.find_last_of(MAKEFN("/\\"));
 	if (idx == wd.npos)
 	{
 		//while(true) Sleep(0);
-		DEBUG_BREAK(); // OPA!
+		DEBUGBREAK(); // OPA!
 	}
 	if (nullptr != exename)
 	{
@@ -210,60 +212,58 @@ void  set_start_path(std::wstring& wd, std::wstring* exename)
 	SetCurrentDirectoryW(wd.c_str());
 #endif // _WIN32
 #ifdef _NIX
-	chdir(str::to_utf8(wd));
+	chdir(wd.c_str());
 #endif //_NIX
 }
 
 
-std::wstring get_start_path()
+FN get_start_path()
 {
-	wchar_t buf[MAX_PATH_LENGTH];
-	signed_t len = GetModuleFileNameW(nullptr, buf, sizeof(buf)-1);
-
-	std::wstring p(buf, len);
-	signed_t z = p.find_last_of(WSTR("\\/"));
+	FN p = get_exec_full_name();
+	signed_t z = p.find_last_of(MAKEFN("\\/"));
 	p.resize(z);
 	return p;
 }
 
-std::wstring get_path(const std::wstring& full_file_path)
+FN get_path(const FN& full_file_path)
 {
-	std::wstring p(full_file_path);
-	signed_t z = p.find_last_of(WSTR("\\/"));
-	if (z == std::wstring::npos)
-		return std::wstring();
+	FN p(full_file_path);
+	size_t z = p.find_last_of(MAKEFN("\\/"));
+	if (z == FN::npos)
+		return FN();
 	p.resize(z);
 	return p;
 }
 
-void path_simplify(std::wstring& path)
+void path_simplify(FN& path)
 {
-	str::replace_all<wchar_t>(path, ENEMY_SLASH, NATIVE_SLASH);
+	str::replace_all<FNc>(path, ENEMY_SLASH, NATIVE_SLASH);
 	__remove_crap(path);
 	__build_full_path(path);
 }
 
-std::wstring path_fix(const std::wstring& path)
+FN path_fix(const FN& path)
 {
 	if (path.size() >= 2 && path[0] == '.' && path[1] == '\\')
 	{
 		// replace '.' with path of exe file
-		return path_concat(get_start_path(), std::wstring_view(path).substr(2));
+		return path_concat(get_start_path(), FNview(path).substr(2));
 	}
 	return path;
 }
 
-std::wstring path_concat(const std::wstring_view &path, const std::wstring_view &fn)
+FN path_concat(const FNview &path, const FNview &fn)
 {
-	std::wstring c(path);
+	FN c(path);
 	if (c[c.length() - 1] != '\\')
 		c.push_back('\\');
 	c.append(fn);
 	return c;
 }
 
-bool load_buf(const std::wstring& fn, std::vector<u8>& b)
+bool load_buf(const FN& fn, buffer& b)
 {
+#ifdef _WIN32
 	HANDLE h = CreateFileW(fn.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (INVALID_HANDLE_VALUE == h)
 	{
@@ -274,7 +274,30 @@ bool load_buf(const std::wstring& fn, std::vector<u8>& b)
 	b.resize(fnl);
 	DWORD r;
 	ReadFile(h, b.data(), (DWORD)fnl, &r, nullptr);
+
 	CloseHandle(h);
+#endif
+#ifdef _NIX
+	int mode = O_RDONLY;
+	int h = open(fn.c_str(), mode);
+	if (h < 0)
+	{
+		b.clear();
+		return false;
+	}
+
+	struct stat s;
+	if (fstat(h, &s) < 0)
+	{
+		b.clear();
+		return false;
+	}
+	signed_t fnl = s.st_size;
+	b.resize(s.st_size);
+	int r = ::read(h, b.data(), s.st_size);
+	close(h);
+#endif
+
 	if (r != fnl)
 	{
 		b.clear();
@@ -283,12 +306,23 @@ bool load_buf(const std::wstring& fn, std::vector<u8>& b)
 	return true;
 }
 
-void save_buf(const std::wstring& fn, const std::string& b)
+void save_buf(const FN& fn, const str::astr& b)
 {
+#ifdef _WIN32
 	HANDLE h = CreateFileW(fn.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (INVALID_HANDLE_VALUE == h)
 		return;
 	DWORD w;
 	WriteFile(h, b.data(), (int)b.length(), &w, nullptr);
 	CloseHandle(h);
+#endif
+
+#ifdef _NIX
+	int h = open(fn.c_str(), O_TRUNC | O_CREAT | O_RDWR, 0666);
+	if (h < 0)
+		return;
+	write(h, b.data(), b.size());
+	close(h);
+#endif
+
 }

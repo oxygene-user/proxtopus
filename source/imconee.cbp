@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="imconee" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/imconeed" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/imconee" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-fomit-frame-pointer" />
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-flto" />
+					<Add option="-O3" />
+				</Compiler>
+				<Linker>
+					<Add option="-flto" />
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wfatal-errors" />
+			<Add option="-Wall" />
+			<Add option="-m64" />
+			<Add option="-fexceptions" />
+			<Add option="-std=c++20" />
+			<Add directory="/home/user/dev/imconee/" />
+		</Compiler>
+		<Linker>
+			<Add option="-m64" />
+		</Linker>
+		<Unit filename="botan/aead.h" />
+		<Unit filename="botan/aes.cpp" />
+		<Unit filename="botan/aes_ni.cpp" />
+		<Unit filename="botan/aes_vperm.cpp" />
+		<Unit filename="botan/allocator.h" />
+		<Unit filename="botan/assert.h" />
+		<Unit filename="botan/auto_rng.h" />
+		<Unit filename="botan/block_cipher.h" />
+		<Unit filename="botan/botan.h" />
+		<Unit filename="botan/buf_comp.h" />
+		<Unit filename="botan/build.h" />
+		<Unit filename="botan/chacha.cpp" />
+		<Unit filename="botan/chacha20poly1305.cpp" />
+		<Unit filename="botan/chacha_avx2.cpp" />
+		<Unit filename="botan/chacha_avx512.cpp" />
+		<Unit filename="botan/chacha_simd32.cpp" />
+		<Unit filename="botan/cipher_mode.h" />
+		<Unit filename="botan/compiler.h" />
+		<Unit filename="botan/concepts.h" />
+		<Unit filename="botan/cpuid.cpp" />
+		<Unit filename="botan/cpuid_x86.cpp" />
+		<Unit filename="botan/ctr.cpp" />
+		<Unit filename="botan/data_snk.h" />
+		<Unit filename="botan/data_src.h" />
+		<Unit filename="botan/dyn_load.cpp" />
+		<Unit filename="botan/entropy_src.h" />
+		<Unit filename="botan/exceptn.cpp" />
+		<Unit filename="botan/exceptn.h" />
+		<Unit filename="botan/filter.cpp" />
+		<Unit filename="botan/filter.h" />
+		<Unit filename="botan/filters.h" />
+		<Unit filename="botan/gcm.cpp" />
+		<Unit filename="botan/ghash.cpp" />
+		<Unit filename="botan/ghash_cpu.cpp" />
+		<Unit filename="botan/ghash_vperm.cpp" />
+		<Unit filename="botan/hash.h" />
+		<Unit filename="botan/hex.h" />
+		<Unit filename="botan/hkdf.cpp" />
+		<Unit filename="botan/hmac.cpp" />
+		<Unit filename="botan/hmac_drbg.cpp" />
+		<Unit filename="botan/hmac_drbg.h" />
+		<Unit filename="botan/internal/aes.h" />
+		<Unit filename="botan/internal/alignment_buffer.h" />
+		<Unit filename="botan/internal/bit_ops.h" />
+		<Unit filename="botan/internal/bswap.h" />
+		<Unit filename="botan/internal/chacha.h" />
+		<Unit filename="botan/internal/chacha20poly1305.h" />
+		<Unit filename="botan/internal/cpuid.h" />
+		<Unit filename="botan/internal/ct_utils.h" />
+		<Unit filename="botan/internal/ctr.h" />
+		<Unit filename="botan/internal/donna128.h" />
+		<Unit filename="botan/internal/dyn_load.h" />
+		<Unit filename="botan/internal/fmt.h" />
+		<Unit filename="botan/internal/gcm.h" />
+		<Unit filename="botan/internal/ghash.h" />
+		<Unit filename="botan/internal/hkdf.h" />
+		<Unit filename="botan/internal/hmac.h" />
+		<Unit filename="botan/internal/int_utils.h" />
+		<Unit filename="botan/internal/keccak_perm.h" />
+		<Unit filename="botan/internal/keccak_perm_round.h" />
+		<Unit filename="botan/internal/loadstor.h" />
+		<Unit filename="botan/internal/md5.h" />
+		<Unit filename="botan/internal/mdx_hash.h" />
+		<Unit filename="botan/internal/mul128.h" />
+		<Unit filename="botan/internal/os_utils.h" />
+		<Unit filename="botan/internal/out_buf.h" />
+		<Unit filename="botan/internal/parsing.h" />
+		<Unit filename="botan/internal/poly1305.h" />
+		<Unit filename="botan/internal/rotate.h" />
+		<Unit filename="botan/internal/salsa20.h" />
+		<Unit filename="botan/internal/sha1.h" />
+		<Unit filename="botan/internal/sha2_32.h" />
+		<Unit filename="botan/internal/sha2_32_f.h" />
+		<Unit filename="botan/internal/sha2_64.h" />
+		<Unit filename="botan/internal/sha2_64_f.h" />
+		<Unit filename="botan/internal/sha3.h" />
+		<Unit filename="botan/internal/simd_32.h" />
+		<Unit filename="botan/internal/simd_avx2.h" />
+		<Unit filename="botan/internal/simd_avx512.h" />
+		<Unit filename="botan/internal/stl_util.h" />
+		<Unit filename="botan/internal/stream_mode.h" />
+		<Unit filename="botan/kdf.h" />
+		<Unit filename="botan/keccak_perm.cpp" />
+		<Unit filename="botan/keccak_perm_bmi2.cpp" />
+		<Unit filename="botan/mac.h" />
+		<Unit filename="botan/md5.cpp" />
+		<Unit filename="botan/mem_ops.cpp" />
+		<Unit filename="botan/mem_ops.h" />
+		<Unit filename="botan/mutex.h" />
+		<Unit filename="botan/os_utils.cpp" />
+		<Unit filename="botan/parsing.cpp" />
+		<Unit filename="botan/pipe.h" />
+		<Unit filename="botan/poly1305.cpp" />
+		<Unit filename="botan/rng.cpp" />
+		<Unit filename="botan/rng.h" />
+		<Unit filename="botan/salsa20.cpp" />
+		<Unit filename="botan/secmem.h" />
+		<Unit filename="botan/sha1.cpp" />
+		<Unit filename="botan/sha1_sse2.cpp" />
+		<Unit filename="botan/sha1_x86.cpp" />
+		<Unit filename="botan/sha2_32.cpp" />
+		<Unit filename="botan/sha2_32_bmi2.cpp" />
+		<Unit filename="botan/sha2_32_x86.cpp" />
+		<Unit filename="botan/sha2_64.cpp" />
+		<Unit filename="botan/sha2_64_bmi2.cpp" />
+		<Unit filename="botan/sha3.cpp" />
+		<Unit filename="botan/stateful_rng.cpp" />
+		<Unit filename="botan/stateful_rng.h" />
+		<Unit filename="botan/stream_cipher.h" />
+		<Unit filename="botan/strong_type.h" />
+		<Unit filename="botan/sym_algo.cpp" />
+		<Unit filename="botan/sym_algo.h" />
+		<Unit filename="botan/symkey.h" />
+		<Unit filename="botan/system_rng.cpp" />
+		<Unit filename="botan/system_rng.h" />
+		<Unit filename="botan/types.h" />
+		<Unit filename="imconee/botan.cpp" />
+		<Unit filename="imconee/cipher_ss.cpp" />
+		<Unit filename="imconee/cipher_ss.h" />
+		<Unit filename="imconee/cmdline.cpp" />
+		<Unit filename="imconee/cmdline.h" />
+		<Unit filename="imconee/connect.cpp" />
+		<Unit filename="imconee/connect.h" />
+		<Unit filename="imconee/engine.cpp" />
+		<Unit filename="imconee/engine.h" />
+		<Unit filename="imconee/fsys.cpp" />
+		<Unit filename="imconee/fsys.h" />
+		<Unit filename="imconee/handler_ss.cpp" />
+		<Unit filename="imconee/handler_ss.h" />
+		<Unit filename="imconee/handlers.cpp" />
+		<Unit filename="imconee/handlers.h" />
+		<Unit filename="imconee/list.h" />
+		<Unit filename="imconee/listener.cpp" />
+		<Unit filename="imconee/listener.h" />
+		<Unit filename="imconee/loader.cpp" />
+		<Unit filename="imconee/loader.h" />
+		<Unit filename="imconee/logger.cpp" />
+		<Unit filename="imconee/logger.h" />
+		<Unit filename="imconee/main.cpp" />
+		<Unit filename="imconee/mem.cpp" />
+		<Unit filename="imconee/netkit.cpp" />
+		<Unit filename="imconee/netkit.h" />
+		<Unit filename="imconee/pch.cpp" />
+		<Unit filename="imconee/pch.h" />
+		<Unit filename="imconee/proxy.cpp" />
+		<Unit filename="imconee/proxy.h" />
+		<Unit filename="imconee/proxy_ss.cpp" />
+		<Unit filename="imconee/proxy_ss.h" />
+		<Unit filename="imconee/queue.h" />
+		<Unit filename="imconee/resource.h" />
+		<Unit filename="imconee/rndgen.cpp" />
+		<Unit filename="imconee/rndgen.h" />
+		<Unit filename="imconee/spinlock.h" />
+		<Unit filename="imconee/str_helpers.h" />
+		<Unit filename="imconee/sts.cpp" />
+		<Unit filename="imconee/sts.h" />
+		<Unit filename="imconee/tools.cpp" />
+		<Unit filename="imconee/tools.h" />
+		<Unit filename="res/help.txt">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
+		</Unit>
+		<Unit filename="res/help_listener.txt">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
+		</Unit>
+		<Unit filename="res/help_nix.txt">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
+		</Unit>
+		<Extensions />
+	</Project>
+</CodeBlocks_project_file>

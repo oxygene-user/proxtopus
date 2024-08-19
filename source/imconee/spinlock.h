@@ -173,8 +173,8 @@ inline void _mm_pause() { usleep( 0 ); }
 #define SLxInterlockedCompareExchange32(a,b,c)   __sync_val_compare_and_swap(a,c,b)
 #define SLxInterlockedCompareExchange2(a,b,c)    __sync_val_compare_and_swap(a,c,b)
 #define SLxInterlockedCompareExchange64(a,b,c)   __sync_val_compare_and_swap(a,c,b)
-#define SLxInterlockedAdd  __sync_fetch_add_and
-#define SLxInterlockedAdd64 __sync_fetch_add_and
+#define SLxInterlockedAdd  __sync_fetch_and_add
+#define SLxInterlockedAdd64 __sync_fetch_and_add
 #define SLxInterlockedAnd64 __sync_and_and_fetch
 #define SLxInterlockedIncrement(a) __sync_add_and_fetch(a,1)
 #define SLxInterlockedDecrement(a) __sync_sub_and_fetch(a,1)
@@ -317,15 +317,15 @@ SLINLINE bool try_lock_write(RWLOCK &lock)
 
 SLINLINE void unlock_write(RWLOCK &lock)
 {
-	RWLOCKVALUE tmp = lock;
+    RWLOCKVALUE tmp = lock;
 
-	RWLOCKVALUE thread = tid_self();
-    if((tmp & LOCK_THREAD_MASK)!=thread)
+    RWLOCKVALUE thread = tid_self();
+    if ((tmp & LOCK_THREAD_MASK)!=thread)
         SLERROR("DEAD LOCK: %llu", lock);
 
-	CHECK_WRITE_LOCK(tmp);
+    CHECK_WRITE_LOCK(tmp);
 
-	RWLOCKVALUE val = tmp - LOCK_WRITE_VAL;
+    RWLOCKVALUE val = tmp - LOCK_WRITE_VAL;
 	if(!(val & LOCK_WRITE_MASK)) // last lock - reset thread
 		val &= LOCK_READ_MASK;
 	SLxInterlockedCompareExchange64(&lock, val, tmp);
@@ -426,6 +426,11 @@ inline void simple_unlock(volatile long3264 &lock)
     #endif
 }
 
+inline bool atomic_replace(volatile long3264& lock, long3264 expected_value, long3264 new_value)
+{
+	long3264 val = SLxInterlockedCompareExchange(&lock, new_value, expected_value);
+    return expected_value == val;
+}
 
 struct auto_simple_lock
 {

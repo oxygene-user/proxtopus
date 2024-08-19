@@ -30,491 +30,499 @@
     <Filter Include="src\botan">
       <UniqueIdentifier>{a6c7ab8b-015e-440d-b735-e642f492cb84}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\system">
+      <UniqueIdentifier>{ebdef0b9-f1be-408c-a621-0a7d8fc0ee40}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="..\imconee.natvis" />
+    <Natvis Include="imconee.natvis" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pch.cpp">
+    <ClCompile Include="imconee\pch.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="imconee\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="sts.cpp">
+    <ClCompile Include="imconee\sts.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="tools.cpp">
+    <ClCompile Include="imconee\tools.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="logger.cpp">
+    <ClCompile Include="imconee\logger.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="cmdline.cpp">
+    <ClCompile Include="imconee\cmdline.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="listener.cpp">
+    <ClCompile Include="imconee\listener.cpp">
       <Filter>src\listeners</Filter>
     </ClCompile>
-    <ClCompile Include="netkit.cpp">
+    <ClCompile Include="imconee\netkit.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="handlers.cpp">
+    <ClCompile Include="imconee\handlers.cpp">
       <Filter>src\handlers</Filter>
     </ClCompile>
-    <ClCompile Include="fsys.cpp">
+    <ClCompile Include="imconee\fsys.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="engine.cpp">
+    <ClCompile Include="imconee\engine.cpp">
       <Filter>src\engine</Filter>
     </ClCompile>
-    <ClCompile Include="loader.cpp">
+    <ClCompile Include="imconee\loader.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="connect.cpp">
+    <ClCompile Include="imconee\connect.cpp">
       <Filter>src\engine</Filter>
     </ClCompile>
-    <ClCompile Include="proxy.cpp">
+    <ClCompile Include="imconee\proxy.cpp">
       <Filter>src\engine</Filter>
     </ClCompile>
-    <ClCompile Include="proxy_ss.cpp">
+    <ClCompile Include="imconee\proxy_ss.cpp">
       <Filter>src\engine\shadowsocks</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\md5.cpp">
+    <ClCompile Include="botan\md5.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\rng.cpp">
+    <ClCompile Include="botan\rng.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\stateful_rng.cpp">
+    <ClCompile Include="botan\stateful_rng.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\os_utils.cpp">
+    <ClCompile Include="botan\os_utils.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\hmac_drbg.cpp">
+    <ClCompile Include="botan\hmac_drbg.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\mem_ops.cpp">
+    <ClCompile Include="botan\mem_ops.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sym_algo.cpp">
+    <ClCompile Include="botan\sym_algo.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\parsing.cpp">
+    <ClCompile Include="botan\parsing.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\allocator.cpp">
+    <ClCompile Include="botan\exceptn.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\exceptn.cpp">
+    <ClCompile Include="botan\hkdf.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\hkdf.cpp">
+    <ClCompile Include="botan\sha1.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha1.cpp">
+    <ClCompile Include="botan\sha1_sse2.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha1_sse2.cpp">
+    <ClCompile Include="botan\sha1_x86.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha1_x86.cpp">
+    <ClCompile Include="botan\sha2_32.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha2_32.cpp">
+    <ClCompile Include="botan\sha2_32_bmi2.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha2_32_bmi2.cpp">
+    <ClCompile Include="botan\sha2_32_x86.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha2_32_x86.cpp">
+    <ClCompile Include="botan\sha2_64.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha2_64.cpp">
+    <ClCompile Include="botan\sha2_64_bmi2.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha2_64_bmi2.cpp">
+    <ClCompile Include="botan\cpuid.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\cpuid.cpp">
+    <ClCompile Include="botan\cpuid_x86.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\cpuid_x86.cpp">
+    <ClCompile Include="botan\hmac.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\hmac.cpp">
+    <ClCompile Include="botan\sha3.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\sha3.cpp">
+    <ClCompile Include="botan\keccak_perm.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\keccak_perm.cpp">
+    <ClCompile Include="botan\keccak_perm_bmi2.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\keccak_perm_bmi2.cpp">
+    <ClCompile Include="botan\system_rng.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\system_rng.cpp">
+    <ClCompile Include="botan\dyn_load.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\dyn_load.cpp">
+    <ClCompile Include="botan\filter.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\filter.cpp">
+    <ClCompile Include="botan\chacha20poly1305.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\chacha20poly1305.cpp">
+    <ClCompile Include="botan\gcm.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\gcm.cpp">
+    <ClCompile Include="botan\ctr.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\ctr.cpp">
+    <ClCompile Include="botan\ghash.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\ghash.cpp">
+    <ClCompile Include="botan\ghash_cpu.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\ghash_cpu.cpp">
+    <ClCompile Include="botan\ghash_vperm.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\ghash_vperm.cpp">
+    <ClCompile Include="botan\salsa20.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\salsa20.cpp">
+    <ClCompile Include="botan\chacha.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\chacha.cpp">
+    <ClCompile Include="botan\chacha_avx2.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\chacha_avx2.cpp">
+    <ClCompile Include="botan\chacha_avx512.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\chacha_avx512.cpp">
+    <ClCompile Include="botan\chacha_simd32.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\chacha_simd32.cpp">
+    <ClCompile Include="botan\poly1305.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\poly1305.cpp">
+    <ClCompile Include="botan\aes.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\aes.cpp">
+    <ClCompile Include="botan\aes_ni.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\aes_ni.cpp">
+    <ClCompile Include="botan\aes_vperm.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="..\botan\aes_vperm.cpp">
-      <Filter>botan</Filter>
-    </ClCompile>
-    <ClCompile Include="cipher_ss.cpp">
+    <ClCompile Include="imconee\cipher_ss.cpp">
       <Filter>src\engine\shadowsocks</Filter>
     </ClCompile>
-    <ClCompile Include="handler_ss.cpp">
+    <ClCompile Include="imconee\handler_ss.cpp">
       <Filter>src\handlers</Filter>
     </ClCompile>
-    <ClCompile Include="botan.cpp">
+    <ClCompile Include="imconee\botan.cpp">
       <Filter>src\botan</Filter>
     </ClCompile>
-    <ClCompile Include="rndgen.cpp">
+    <ClCompile Include="imconee\rndgen.cpp">
       <Filter>src\botan</Filter>
+    </ClCompile>
+    <ClCompile Include="imconee\mem.cpp">
+      <Filter>src\system</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="imconee.ico">
+    <ClInclude Include="imconee\pch.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\str_helpers.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\sts.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\tools.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\logger.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\cmdline.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\listener.h">
+      <Filter>src\listeners</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\netkit.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\handlers.h">
+      <Filter>src\handlers</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\fsys.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\engine.h">
+      <Filter>src\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\loader.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\connect.h">
+      <Filter>src\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\proxy.h">
+      <Filter>src\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\proxy_ss.h">
+      <Filter>src\engine\shadowsocks</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\aead.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\aes.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\alignment_buffer.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\allocator.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\assert.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\auto_rng.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\bit_ops.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\block_cipher.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\botan.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\bswap.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\buf_comp.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\build.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\chacha.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\chacha20poly1305.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\cipher_mode.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\compiler.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\concepts.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\cpuid.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\ct_utils.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\ctr.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\data_snk.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\data_src.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\donna128.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\dyn_load.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\entropy_src.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\exceptn.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\filter.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\filters.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\fmt.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\gcm.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\ghash.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\hash.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\hex.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\hkdf.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\hmac.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\hmac_drbg.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\int_utils.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\kdf.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\keccak_perm.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\keccak_perm_round.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\loadstor.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\mac.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\md5.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\mdx_hash.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\mem_ops.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\mul128.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\mutex.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\os_utils.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\out_buf.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\parsing.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\pipe.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\poly1305.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\rng.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\rotate.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\salsa20.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\secmem.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\sha1.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\sha2_32.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\sha2_32_f.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\sha2_64.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\sha2_64_f.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\sha3.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\simd_32.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\simd_avx2.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\simd_avx512.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\stateful_rng.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\stl_util.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\stream_cipher.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\internal\stream_mode.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\strong_type.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\sym_algo.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\symkey.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\system_rng.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="botan\types.h">
+      <Filter>botan\h</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\cipher_ss.h">
+      <Filter>src\engine\shadowsocks</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\handler_ss.h">
+      <Filter>src\handlers</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\resource.h" />
+    <ClInclude Include="imconee\rndgen.h">
+      <Filter>src\botan</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="imconee\imconee.rc">
+      <Filter>res</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\imconee.ico">
       <Filter>res</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pch.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="str_helpers.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="sts.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="tools.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="logger.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="cmdline.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="listener.h">
-      <Filter>src\listeners</Filter>
-    </ClInclude>
-    <ClInclude Include="netkit.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="handlers.h">
-      <Filter>src\handlers</Filter>
-    </ClInclude>
-    <ClInclude Include="fsys.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="engine.h">
-      <Filter>src\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="loader.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="connect.h">
-      <Filter>src\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="proxy.h">
-      <Filter>src\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="proxy_ss.h">
-      <Filter>src\engine\shadowsocks</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\aead.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\aes.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\alignment_buffer.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\allocator.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\assert.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\auto_rng.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\bit_ops.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\block_cipher.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\botan.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\bswap.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\buf_comp.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\build.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\chacha.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\chacha20poly1305.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\charset.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\cipher_mode.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\compiler.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\concepts.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\cpuid.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\ct_utils.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\ctr.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\data_snk.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\data_src.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\donna128.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\dyn_load.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\entropy_src.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\exceptn.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\filter.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\filters.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\fmt.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\gcm.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\ghash.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\hash.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\hex.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\hkdf.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\hmac.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\hmac_drbg.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\int_utils.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\kdf.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\keccak_perm.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\keccak_perm_round.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\loadstor.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\mac.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\md5.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\mdx_hash.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\mem_ops.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\mul128.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\mutex.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\os_utils.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\out_buf.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\parsing.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\pipe.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\poly1305.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\rng.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\rotate.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\salsa20.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\scan_name.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\secmem.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\sha1.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\sha2_32.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\sha2_32_f.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\sha2_64.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\sha2_64_f.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\sha3.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\simd_32.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\simd_avx2.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\simd_avx512.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\stateful_rng.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\stl_util.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\stream_cipher.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\internal\stream_mode.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\strong_type.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\sym_algo.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\symkey.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\system_rng.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="..\botan\types.h">
-      <Filter>botan\h</Filter>
-    </ClInclude>
-    <ClInclude Include="cipher_ss.h">
-      <Filter>src\engine\shadowsocks</Filter>
-    </ClInclude>
-    <ClInclude Include="handler_ss.h">
-      <Filter>src\handlers</Filter>
-    </ClInclude>
-    <ClInclude Include="resource.h" />
-    <ClInclude Include="rndgen.h">
-      <Filter>src\botan</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="imconee.rc">
+    <Text Include="res\help.txt">
       <Filter>res</Filter>
-    </ResourceCompile>
+    </Text>
+    <Text Include="res\help_listener.txt">
+      <Filter>res</Filter>
+    </Text>
+    <Text Include="res\help_win.txt">
+      <Filter>res</Filter>
+    </Text>
   </ItemGroup>
 </Project>

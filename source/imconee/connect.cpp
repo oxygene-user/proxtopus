@@ -3,28 +3,28 @@
 namespace conn
 {
 
-	bool is_valid_addr(const std::string_view& a_raw) // check string match to {domain_or_ipv4:port}
+	bool is_valid_addr(const str::astr_view& a_raw) // check string match to {domain_or_ipv4:port}
 	{
-		std::string_view a = a_raw;
+		str::astr_view a = a_raw;
 		if (str::starts_with(a, ASTR("tcp://")))
 			a = a.substr(6);
 
-		if (a.find(ASTR("://")) != std::string::npos)
+		if (a.find(ASTR("://")) != str::astr::npos)
 			return false;
 
 		size_t dv = a.find(':');
-		if (dv == std::string::npos)
+		if (dv == str::astr::npos)
 			return false;
 
 		auto dm = a.substr(0, dv);
-		if (dm.empty() || dm.find_first_of(" :?") != std::string::npos)
+		if (dm.empty() || dm.find_first_of(" :?") != str::astr::npos)
 			return false;
 
 		if (dm[0] == '.' || str::get_last_char(dm) == '.')
 			return false;
 
 		size_t dmp = dm.rfind('.');
-		if (dmp > 0 && dmp != std::string::npos)
+		if (dmp > 0 && dmp != str::astr::npos)
 		{
 			if (is_digit(dm[dmp + 1]))
 			{

@@ -12,10 +12,10 @@ namespace ss
 {
 	inline void nonceIncrement(u8* n, const size_t nlen)
 	{
-		uint_fast16_t c = 1U;
-		for (size_t i = 0U; i < nlen; i++) {
-			c += static_cast<uint_fast16_t>(n[i]);
-			n[i] = static_cast<unsigned char>(c & 0xff);
+		signed_t c = 1;
+		for (size_t i = 0U; c != 0 && i < nlen; i++) {
+			c += static_cast<signed_t>(n[i]);
+			n[i] = static_cast<u8>(c & 0xff);
 			c >>= 8;
 		}
 	}
@@ -31,8 +31,8 @@ namespace ss
 	class keyed_filter : public Botan::Keyed_Filter
 	{
 		std::unique_ptr<Botan::Cipher_Mode> mode;
-		std::vector<u8> iv;
-		std::vector<u8> buffer;
+		buffer iv;
+		buffer buf;
 		void incnonce()
 		{
 			nonceIncrement(iv.data(), iv.size());
@@ -48,7 +48,7 @@ namespace ss
 		/*virtual*/ Botan::Key_Length_Specification key_spec() const override { return mode->key_spec(); }
 		/*virtual*/ bool valid_iv_length(size_t /*length*/) const override { return true; }
 
-		/*virtual*/ std::string name() const override { return mode->name(); };
+		/*virtual*/ str::astr name() const override { return mode->name(); };
 		/*virtual*/ void write(const uint8_t input[], size_t input_length) override;
 		/*virtual*/ void start_msg() override { mode->start(iv); }
 		/*virtual*/ void end_msg() override;
@@ -59,18 +59,18 @@ namespace ss
 		keyed_filter recoder;
 	public:
 		cipher() {}
-		/*virtual*/ std::string name() const override { return recoder.name(); };
+		/*virtual*/ str::astr name() const override { return recoder.name(); };
 	};
 
 	class cipher_enc : public cipher
 	{
 
 		keyed_filter recoder;
-		std::vector<u8>* current_output = nullptr; // valid only in process method 
+		buffer* current_output = nullptr; // valid only in process method
 	public:
 		cipher_enc() {}
 		void setup(std::span<const u8> key, unsigned NonceSize, cipher_builder cb);
-		bool process(std::span<const u8> input, std::vector<u8>& output);
+		bool process(std::span<const u8> input, buffer& output);
 
 		/*virtual*/ void write(const uint8_t input[], size_t length) override
 		{
@@ -80,33 +80,36 @@ namespace ss
 		}
 	};
 
+	struct data_acceptor
+	{
+		virtual void handle(const uint8_t input[], size_t size) = 0;
+	};
+
 	class cipher_dec : public cipher
 	{
 
 		keyed_filter recoder;
-		std::span<u8> current_output; // valid only in process method 
-		size_t offset = 0;
+		data_acceptor *current_output; // valid only in process method
+		size_t handled;
 	public:
 		cipher_dec() {}
 
 		bool is_init() const { return recoder.is_init(); }
 		void setup(std::span<const u8> key, unsigned NonceSize, cipher_builder cb);
-		bool process(std::span<const u8> input, std::span<u8> output);
+		bool process(std::span<const u8> input, data_acceptor &output);
 
 		/*virtual*/ void write(const uint8_t input[], size_t length) override
 		{
-			ASSERT(offset + length <= current_output.size());
-			memcpy(current_output.data() + offset, input, length);
-			offset += length;
+			current_output->handle(input, length);
+			handled += length;
 		}
 	};
 
+	using outbuffer = tools::chunk_buffer<16384>;
 
-	class core
+
+	struct core
 	{
-		friend class proxy_shadowsocks;
-		friend class handler_ss;
-
 #pragma pack(push,1)
 		struct crypto_par
 		{
@@ -132,8 +135,8 @@ namespace ss
 
 			virtual void init_encryptor(std::span<const u8> /*key*/) {}
 			virtual void init_decryptor(std::span<const u8> /*key*/) {}
-			virtual signed_t encipher(std::span<const u8> plain, std::vector<u8>& cipher) = 0;
-			virtual signed_t decipher(std::vector<u8>& plain, std::span<const u8> cipher) = 0;
+			virtual signed_t encipher(std::span<const u8> plain, buffer& cipher) = 0;
+			virtual signed_t decipher(outbuffer& plain, std::span<const u8> cipher) = 0;
 
 			const crypto_par& getPars() const { return pars; };
 		};
@@ -147,15 +150,31 @@ namespace ss
 
 			/*virtual*/ void init_encryptor(std::span<const u8> /*key*/) {}
 			/*virtual*/ void init_decryptor(std::span<const u8> /*key*/) {}
-			/*virtual*/ signed_t encipher(std::span<const u8> plain, std::vector<u8>& cipher)
+			/*virtual*/ signed_t encipher(std::span<const u8> plain, buffer& cipher)
 			{
 				cipher.assign(plain.begin(), plain.end());
 				return cipher.size();
 			}
-			/*virtual*/ signed_t decipher(std::vector<u8>& plain, std::span<const u8> cipher)
+			/*virtual*/ signed_t decipher(outbuffer& plain, std::span<const u8> cipher)
 			{
-				plain.assign(cipher.begin(), cipher.end());
-				return plain.size();
+				plain.assign(cipher);
+				return cipher.size();
+			}
+		};
+
+		struct skip_buf : public buffer
+		{
+			size_t skip = 0;
+			u8* data() { return buffer::data() + skip; }
+			const u8* data() const { return buffer::data() + skip; }
+			size_t size() const { return buffer::size() - skip; }
+			void clear() {
+				buffer::clear();
+				skip = 0;
+			}
+			void erase(size_t szerase)
+			{
+				skip += szerase;
 			}
 		};
 
@@ -166,10 +185,10 @@ namespace ss
 			ss::cipher_builder cb;
 			ss::cipher_enc encryptor;
 			ss::cipher_dec decryptor;
-			std::vector<u8> unprocessed;
+			skip_buf unprocessed;
 			size_t last_block_payload_size = 0;
 
-			/*virtual*/ signed_t decrypt(size_t& from, std::vector<u8>& plain);
+			/*virtual*/ signed_t decrypt(size_t& from, outbuffer& plain);
 
 		public:
 			aead_cryptor(crypto_par p, ss::cipher_builder cb) :cryptor(p), cb(cb) {}
@@ -178,12 +197,23 @@ namespace ss
 
 			/*virtual*/ void init_encryptor(std::span<const u8> key);
 			/*virtual*/ void init_decryptor(std::span<const u8> key);
-			/*virtual*/ signed_t encipher(std::span<const u8> plain, std::vector<u8>& cipher);
-			/*virtual*/ signed_t decipher(std::vector<u8>& plain, std::span<const u8> cipher);
+			/*virtual*/ signed_t encipher(std::span<const u8> plain, buffer& cipher);
+			/*virtual*/ signed_t decipher(outbuffer& plain, std::span<const u8> cipher);
 		};
 
 		using cryptobuilder = std::function<std::unique_ptr<cryptor>(void)>;
 
+		std::unique_ptr<cryptor> make_aead_crypto_chachapoly();
+		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_256();
+		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_192();
+		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_128();
+		static std::unique_ptr<cryptor> makeuncrypted();
+
+		str::astr masterKey;
+		crypto_par cp;
+		cryptobuilder cb;
+
+	public:
 
 		class crypto_pipe : public netkit::pipe
 		{
@@ -203,15 +233,15 @@ namespace ss
 			netkit::pipe_ptr pipe;
 
 			std::unique_ptr<cryptor> crypto;
-			std::vector<u8> encrypted_data;
-			std::vector<u8> decrypted_data;
-			std::string masterKey;
+			buffer encrypted_data;
+			outbuffer decrypted_data;
+			str::astr masterKey;
 			ss::cipher_builder cb;
 			crypto_par cp;
 			friend class proxy_shadowsocks;
 
 		public:
-			crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, std::string masterKey, crypto_par cp);
+			crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, str::astr masterKey, crypto_par cp);
 
 			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
@@ -220,18 +250,7 @@ namespace ss
 
 		};
 
-		std::unique_ptr<cryptor> make_aead_crypto_chachapoly();
-		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_256();
-		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_192();
-		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_128();
-		static std::unique_ptr<cryptor> makeuncrypted();
-
-		std::string masterKey;
-		crypto_par cp;
-		cryptobuilder cb;
-
-	public:
-		void load(loader& ldr, const std::string& name, const asts& bb);
+		void load(loader& ldr, const str::astr& name, const asts& bb);
 
 	};
 

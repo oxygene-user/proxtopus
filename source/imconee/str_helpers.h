@@ -1,18 +1,29 @@
 #pragma once
 
+#ifdef _MSC_VER
+typedef wchar_t wchar;
+#elif defined __GNUC__
+typedef char16_t wchar;
+#endif
 
 
 namespace str
 {
+	template <typename TCH> using xstr = std::basic_string<TCH>;
+	template <typename TCH> using xstr_view = std::basic_string_view<TCH>;
+	using astr = xstr<char>;
+	using wstr = xstr<wchar>;
+	using astr_view = xstr_view<char>;
+	using wstr_view = xstr_view<wchar>;
 
-	template <typename TCH> TCH get_last_char(const std::basic_string<TCH>& s)
+	template <typename TCH> TCH get_last_char(const xstr<TCH>& s)
 	{
 		size_t l = s.length();
 		if (l > 0)
 			return s[l - 1];
 		return 0;
 	}
-	template <typename TCH> TCH get_last_char(const std::basic_string_view<TCH>& s)
+	template <typename TCH> TCH get_last_char(const xstr_view<TCH>& s)
 	{
 		size_t l = s.length();
 		if (l > 0)
@@ -20,27 +31,27 @@ namespace str
 		return 0;
 	}
 
-	template <typename TCH> TCH starts_with(const std::basic_string_view<TCH>& s, const std::basic_string_view<TCH>& ss)
+	template <typename TCH> TCH starts_with(const xstr_view<TCH>& s, const xstr_view<TCH>& ss)
 	{
 		if (s.length() < ss.length())
 			return false;
 		return s.substr(0, ss.length()) == ss;
 	}
-	template <typename TCH> TCH starts_with(const std::basic_string<TCH>& s, const std::basic_string_view<TCH>& ss)
+	template <typename TCH> TCH starts_with(const xstr<TCH>& s, const xstr_view<TCH>& ss)
 	{
 		if (s.length() < ss.length())
 			return false;
-		return std::basic_string_view<TCH>(s).substr(0, ss.length()) == ss;
+		return xstr_view<TCH>(s).substr(0, ss.length()) == ss;
 	}
 
-	template <typename TCH> void trunc_len(std::basic_string<TCH>& s, size_t numchars = 1)
+	template <typename TCH> void trunc_len(xstr<TCH>& s, size_t numchars = 1)
 	{
 		size_t l = s.length();
 		if (l >= numchars)
 			s.resize(l - numchars);
 	}
 
-	template <typename TCH> std::basic_string<TCH>& replace_all(std::basic_string<TCH>& s, const std::basic_string_view<TCH>& s1, const std::basic_string_view<TCH>& s2)
+    template <typename TCH> xstr<TCH>& replace_one(xstr<TCH>& s, const xstr_view<TCH>& s1, const xstr_view<TCH>& s2)
 	{
 		for (size_t f = 0;;)
 		{
@@ -48,13 +59,28 @@ namespace str
 			if (f == s.npos)
 				break;
 
-			s.replace(f, s.size(), s2);
+			s.replace(f, s1.size(), s2);
+			break;
+		}
+		return s;
+	}
+
+
+	template <typename TCH> xstr<TCH>& replace_all(xstr<TCH>& s, const xstr_view<TCH>& s1, const xstr_view<TCH>& s2)
+	{
+		for (size_t f = 0;;)
+		{
+			f = s.find(s1, f);
+			if (f == s.npos)
+				break;
+
+			s.replace(f, s1.size(), s2);
 			f += s2.size();
 		}
 		return s;
 	}
 
-	template <typename TCH> std::basic_string<TCH>& replace_all(std::basic_string<TCH>& s, TCH c1, TCH c2)
+	template <typename TCH> xstr<TCH>& replace_all(xstr<TCH>& s, TCH c1, TCH c2)
 	{
 		for (size_t f = 0;;)
 		{
@@ -73,23 +99,23 @@ namespace str
 		return c == 32 || c == '\n' || c == '\r' || c == '\t';
 	}
 
-	template<typename CC> INLINE void ltrim(std::basic_string<CC>& s) {
+	template<typename CC> INLINE void ltrim(xstr<CC>& s) {
 		s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](CC ch) {
 			return !is_space(ch);
 		}));
 	}
 
-	template<typename CC> INLINE std::basic_string_view<CC> ltrim(std::basic_string_view<CC> s) {
+	template<typename CC> INLINE xstr_view<CC> ltrim(xstr_view<CC> s) {
 		signed_t i = 0;
 		for (signed_t c = s.length(); i < c && is_space(s[i]); ++i);
 		--i;
 		if (i >= 0)
-			return std::basic_string_view(s.data() + i, s.length() - i);
+			return xstr_view<CC>(s.data() + i, s.length() - i);
 		return s;
 	}
 
 	// trim from end (in place)
-	template<typename CC> INLINE void rtrim(std::basic_string<CC>& s) {
+	template<typename CC> INLINE void rtrim(xstr<CC>& s) {
 		//s.erase(std::find_if(s.rbegin(), s.rend(), [](CC ch) {
 			//return !is_space(ch);
 		//}).base(), s.end());
@@ -101,29 +127,29 @@ namespace str
 			s.resize(i);
 	}
 
-	template<typename CC> INLINE std::basic_string_view<CC> rtrim(std::basic_string_view<CC> s) {
+	template<typename CC> INLINE xstr_view<CC> rtrim(xstr_view<CC> s) {
 
 		signed_t i = s.length() - 1;
 		for (; i >= 0 && is_space(s[i]); --i);
 		++i;
 		if ((size_t)i < s.length())
-			return std::basic_string_view(s.data(), i);
+			return xstr_view<CC>(s.data(), i);
 		return s;
 	}
 
 
 	// trim from both ends (in place)
-	template<typename CC> INLINE void trim(std::basic_string<CC>& s) {
+	template<typename CC> INLINE void trim(xstr<CC>& s) {
 		rtrim(s);
 		ltrim(s);
 	}
 
-	template<typename CC> INLINE std::basic_string_view<CC> trim(std::basic_string_view<CC> s) {
+	template<typename CC> INLINE xstr_view<CC> trim(xstr_view<CC> s) {
 		return ltrim(rtrim(s));
 	}
 
 
-	inline std::string build_string(const char* s, ...)
+	inline str::astr build_string(const char* s, ...)
 	{
 		char str[1024];
 
@@ -132,14 +158,14 @@ namespace str
 		vsnprintf(str, sizeof(str), s, args);
 		va_end(args);
 		str[sizeof(str) - 1] = 0;
-		return std::string(str);
+		return str::astr(str);
 	}
 
-	inline std::string build_string_d(const char* fn, int ln, const char* s, ...)
+	inline str::astr build_string_d(const char* fn, int ln, const char* s, ...)
 	{
 		char str[1024];
 
-		int t = sprintf_s(str, sizeof(str), "%s(%i): ", fn, ln);
+		int t = snprintf(str, sizeof(str), "%s(%i): ", fn, ln);
 
 		va_list args;
 		va_start(args, s);
@@ -148,10 +174,10 @@ namespace str
 
 		str[sizeof(str) - 1] = 0;
 
-		return std::string(str);
+		return str::astr(str);
 	}
 
-	inline std::string build_string_d(const char* fn, int ln)
+	inline str::astr build_string_d(const char* fn, int ln)
 	{
 		return build_string_d(fn, ln, "---");
 	}
@@ -164,39 +190,44 @@ namespace str
 		UTF8,
 	};
 
-	size_t  _text_from_ucs2(char* out, size_t maxlen, const std::wstring_view& from, codepage_e cp);
-	size_t  _text_to_ucs2(wchar_t* out, size_t maxlen, const std::string_view& from, codepage_e cp);
+	size_t  _text_from_ucs2(char* out, size_t maxlen, const str::wstr_view& from, codepage_e cp);
+	size_t  _text_to_ucs2(wchar* out, size_t maxlen, const str::astr_view& from, codepage_e cp);
 
-	inline std::string to_str(const std::wstring_view& s, codepage_e cp)
+	inline str::astr to_str(const str::wstr_view& s, codepage_e cp)
 	{
-		std::string   sout; sout.reserve(s.length());
+		str::astr   sout; sout.resize(s.length());
 
 		_text_from_ucs2(sout.data(), sout.capacity(), s, cp);
 		return sout;
 	}
 
-	inline std::string to_str(const std::wstring_view& s)
+	inline str::astr to_str(const str::wstr_view& s)
 	{
 		return to_str(s, codepage_e::ANSI);
 	}
 
-	inline std::string to_utf8(const std::wstring_view& s)
+	inline str::astr to_utf8(const str::astr_view& s)
 	{
-		std::string  sout; sout.reserve(s.length() * 3); // hint: char at utf8 can be 6 bytes length, but ucs2 maximum code is 0xffff encoding to utf8 has 3 bytes len
+		return str::astr(s);
+	}
+
+	inline str::astr to_utf8(const str::wstr_view& s)
+	{
+		str::astr  sout; sout.resize(s.length() * 3); // hint: char at utf8 can be 6 bytes length, but ucs2 maximum code is 0xffff encoding to utf8 has 3 bytes len
 		size_t nl = _text_from_ucs2(sout.data(), sout.capacity(), s, codepage_e::UTF8);
 		sout.resize(nl);
 		return sout;
 	}
 
-	inline std::wstring from_utf8(const std::string_view& s)
+	inline str::wstr from_utf8(const str::astr_view& s)
 	{
-		std::wstring   sout; sout.reserve(s.length());
+		str::wstr   sout; sout.resize(s.length());
 		size_t nl = _text_to_ucs2(sout.data(), sout.capacity(), s, codepage_e::UTF8);
 		sout.resize(nl);
 		return sout;
 	}
 
-	template <typename TCH> void qsplit(std::vector<std::basic_string<TCH>>& splar, const std::basic_string_view<TCH>& str)
+	template <typename TCH> void qsplit(std::vector<xstr<TCH>>& splar, const xstr_view<TCH>& str)
 	{
 		splar.clear();
 		if (str.length() == 0)  return;
@@ -205,7 +236,7 @@ namespace str
 		bool quote = false;
 		for (signed_t l = str.length(); l > 0; ++i, --l)
 		{
-			wchar_t ch = str[i];
+			wchar ch = str[i];
 			if (bg < 0)
 			{
 				if (ch == ' ') continue;
@@ -249,8 +280,8 @@ namespace str
 
 	template<typename TCHARACTER, bool quoted = false> class token // tokenizer, for (token t(str); t; t++) if (*t=="...") ...
 	{
-		std::basic_string_view<TCHARACTER> str;
-		std::basic_string_view<TCHARACTER> tkn;
+		xstr_view<TCHARACTER> str;
+		xstr_view<TCHARACTER> tkn;
 		TCHARACTER separator;
 		bool eos;
 
@@ -258,18 +289,18 @@ namespace str
 
 		typedef decltype(tkn) tokentype;
 
-		//token(const std::basic_string<TCHARACTER>& str, TCHARACTER separator = TCHARACTER(',')) : str(str), separator(separator), eos(false) { ++(*this); }
-		token(const std::basic_string_view<TCHARACTER>& str, TCHARACTER separator = TCHARACTER(',')) : str(str), separator(separator), eos(false) { ++(*this); }
+		//token(const xstr<TCHARACTER>& str, TCHARACTER separator = TCHARACTER(',')) : str(str), separator(separator), eos(false) { ++(*this); }
+		token(const xstr_view<TCHARACTER>& str, TCHARACTER separator = TCHARACTER(',')) : str(str), separator(separator), eos(false) { ++(*this); }
 		token() : eos(true) {}
 
 		TCHARACTER sep() const { return separator; }
 
 		operator bool() const { return !eos; }
 
-		const std::basic_string_view<TCHARACTER>& tail() const { return str; }
+		const xstr_view<TCHARACTER>& tail() const { return str; }
 
-		const std::basic_string_view<TCHARACTER>& operator* () const { return  tkn; }
-		const std::basic_string_view<TCHARACTER>* operator->() const { return &tkn; }
+		const xstr_view<TCHARACTER>& operator* () const { return  tkn; }
+		const xstr_view<TCHARACTER>* operator->() const { return &tkn; }
 
 		token& begin() { return *this; }
 		token end() { return token(); }
@@ -295,12 +326,12 @@ namespace str
 
 				if (!q && str[0] == separator)
 				{
-					tkn = std::basic_string_view<TCHARACTER>(begin, (signed_t)(str.data() - begin));
+					tkn = xstr_view<TCHARACTER>(begin, (signed_t)(str.data() - begin));
 					str = str.substr(1);
 					return;
 				}
 			}
-			tkn = std::basic_string_view<TCHARACTER>(begin, (signed_t)(str.data() - begin));
+			tkn = xstr_view<TCHARACTER>(begin, (signed_t)(str.data() - begin));
 		}
 		void operator++(int) { ++(*this); }
 	};
@@ -313,14 +344,15 @@ namespace str
 
 
 
-#define BUILD_ASTRVIEW(x,y) std::string_view(x,y)
+#define BUILD_ASTRVIEW(x,y) str::astr_view(x,y)
+#define BUILD_WSTRVIEW(x,y) str::wstr_view(L##x,y)
 
 #if defined _MSC_VER
-#define BUILD_WSTRVIEW(x,y) std::wstring_view(L##x,y)
+#define BUILD_WSTRVIEW(x,y) str::wstr_view(L##x,y)
 #define CONST_STR_BUILD( tc, s ) _const_str_build<tc>::get( s, L##s, sizeof(s)-1 )
 #define WIDE2(s) L##s
 #elif defined __GNUC__
-#define WSPTR_MACRO(x,y) std::wstring_view(u##x,y)
+#define WSPTR_MACRO(x,y) str::wstr_view(u##x,y)
 #define CONST_STR_BUILD( tc, s ) _const_str_build<tc>::get( s, u##s, sizeof(s)-1 )
 #define WIDE2(s) u##s
 #endif
@@ -331,11 +363,11 @@ template<typename T> struct _const_str_build
 };
 template<> struct _const_str_build<char>
 {
-	static std::string_view get(const char* sa, const wchar_t*, signed_t len) { return std::string_view(sa, len); }
+	static str::astr_view get(const char* sa, const wchar*, signed_t len) { return str::astr_view(sa, len); }
 };
-template<> struct _const_str_build<wchar_t>
+template<> struct _const_str_build<wchar>
 {
-	static std::wstring_view get(const char*, const wchar_t* sw, signed_t len) { return std::wstring_view(sw, len); }
+	static str::wstr_view get(const char*, const wchar* sw, signed_t len) { return str::wstr_view(sw, len); }
 };
 
 
@@ -345,5 +377,5 @@ template<> struct _const_str_build<wchar_t>
 
 namespace str
 {
-	const char* printable(const std::string& name, std::string_view disabled_chars = ASTR("{}[]`\"\'\\/?&"));
+	const char* printable(const str::astr& name, str::astr_view disabled_chars = ASTR("{}[]`\"\'\\/?&"));
 }

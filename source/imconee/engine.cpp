@@ -2,12 +2,14 @@
 
 volatile bool engine::exit = false;
 
-engine::engine(std::wstring &&path_config)
+engine::engine(FN && path_config)
 {
-	std::wstring x = std::move(path_config);
+	FN x = std::move(path_config);
 
+#ifdef _WIN32
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
 
 
 	loader ldr(this);
@@ -19,7 +21,7 @@ engine::engine(std::wstring &&path_config)
 		return;
 	}
 
-	ldr.iterate_p([&](const std::string& name, const asts& lb) {
+	ldr.iterate_p([&](const str::astr& name, const asts& lb) {
 
 		if (name.empty())
 		{
@@ -30,7 +32,7 @@ engine::engine(std::wstring &&path_config)
 		proxy* p = proxy::build(ldr, name, lb);
 		if (nullptr == p)
 			return false;
-		
+
 		prox.emplace_back(p);
 		return true;
 	});
@@ -42,7 +44,7 @@ engine::engine(std::wstring &&path_config)
 		return;
 	}
 
-	ldr.iterate_l([&](const std::string& name, const asts& lb) {
+	ldr.iterate_l([&](const str::astr& name, const asts& lb) {
 
 		if (name.empty())
 		{
@@ -53,7 +55,7 @@ engine::engine(std::wstring &&path_config)
 		listener* ls = listener::build(ldr, name, lb);
 		if (nullptr == ls)
 			return false;
-		
+
 		listners.emplace_back(ls);
 		return true;
 	});
@@ -80,7 +82,9 @@ engine::engine(std::wstring &&path_config)
 
 engine::~engine()
 {
+#ifdef _WIN32
 	WSACleanup();
+#endif
 }
 
 signed_t engine::working()
@@ -92,7 +96,6 @@ signed_t engine::working()
 
 		return -1;
 	}
-
 
 	return 1000;
 }

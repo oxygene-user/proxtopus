@@ -1,9 +1,9 @@
 #include "pch.h"
 
-proxy* proxy::build(loader& ldr, const std::string& name, const asts& bb)
+proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 {
 
-	std::string t = bb.get_string(ASTR("type"));
+	str::astr t = bb.get_string(ASTR("type"));
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
@@ -50,12 +50,12 @@ proxy* proxy::build(loader& ldr, const std::string& name, const asts& bb)
 	return nullptr;
 
 
-	
+
 }
 
-proxy::proxy(loader& ldr, const std::string& name, const asts& bb):name(name)
+proxy::proxy(loader& ldr, const str::astr& name, const asts& bb):name(name)
 {
-	std::string a = bb.get_string(ASTR("addr"));
+	str::astr a = bb.get_string(ASTR("addr"));
 	if (a.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
@@ -66,12 +66,12 @@ proxy::proxy(loader& ldr, const std::string& name, const asts& bb):name(name)
 	addr.preparse(a);
 }
 
-std::string proxy::desc() const
+str::astr proxy::desc() const
 {
 	return name + "@" + addr.desc();
 }
 
-proxy_socks4::proxy_socks4(loader& ldr, const std::string& name, const asts& bb):proxy(ldr, name, bb)
+proxy_socks4::proxy_socks4(loader& ldr, const str::astr& name, const asts& bb):proxy(ldr, name, bb)
 {
 	userid = bb.get_string(ASTR("userid"));
 	if (userid.length() > 255)
@@ -87,8 +87,6 @@ namespace {
 		u8 cd = 1;
 		u16 destport;
 		u32 destip;
-
-
 	};
 	struct connect_answr_socks4
 	{
@@ -100,6 +98,10 @@ namespace {
 
 }
 
+#ifdef __GNUC__
+#define _alloca alloca
+#endif
+
 netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
 {
 	addr2.get_ip4(false);
@@ -110,7 +112,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 
 	signed_t dsz = sizeof(connect_packet_socks4) + 1 + userid.length();
 	connect_packet_socks4* pd = (connect_packet_socks4 *)_alloca(dsz);
-	pd->connect_packet_socks4::connect_packet_socks4();
+	pd->vn = 4; pd->cd = 1;
 	pd->destport = netkit::to_ne((u16)addr2.port());
 	pd->destip = addr2.get_ip4(false);
 	memcpy(pd + 1, userid.c_str(), userid.length());
@@ -131,10 +133,10 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	return pipe_to_proxy;
 }
 
-proxy_socks5::proxy_socks5(loader& ldr, const std::string& name, const asts& bb) :proxy(ldr, name, bb)
+proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
 {
 
-	std::string pwd, user = bb.get_string(ASTR("auth"));
+	str::astr pwd, user = bb.get_string(ASTR("auth"));
 	size_t dv = user.find(':');
 	if (dv != user.npos)
 	{
@@ -223,7 +225,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 
 	if (rb != 2 || packet[0] != 5 || packet[1] != 0)
 	{
-		std::string ers;
+		str::astr ers;
 		auto proxyfail = [&](signed_t code) -> const char*
 		{
 			switch (code)
@@ -231,7 +233,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 			case 1: return "general SOCKS server failure";
 			case 2: return "connection not allowed by ruleset";
 			case 3: return "Network unreachable";
-			case 4: 
+			case 4:
 				ers = ASTR("Host unreachable (");
 				ers.append(addr2.domain());
 				ers.push_back(')');

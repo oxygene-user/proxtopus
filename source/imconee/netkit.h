@@ -7,10 +7,14 @@
 
 #define LOOP_PERIOD 500000 // 0.5 sec
 
+#ifdef _NIX
+inline void closesocket(int s) { ::close(s); };
+#endif
+
 namespace netkit
 {
 	template <bool native_little> struct cvt {};
-	template<> struct cvt<true> { 
+	template<> struct cvt<true> {
 		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
 		{
 			return ((v_nitive & 0xff) << 8) | ((v_nitive >> 8) & 0xff);
@@ -43,26 +47,33 @@ namespace netkit
 
 	struct ip4 : public in_addr
 	{
-		static ip4 parse(const std::string_view& s);
+		static ip4 parse(const str::astr_view& s);
 
-		ip4() { S_un.S_addr = 0; }
+		ip4() { s_addr = 0; }
+		ip4(u8 o1, u8 o2, u8 o3, u8 o4)
+		{
+            u8* dst = (u8*)this;
+            *(dst+0) = o1;
+            *(dst+1) = o2;
+            *(dst+2) = o3;
+            *(dst+3) = o4;
+		}
 		ip4(const sockaddr_in &a) {
-			this->S_un.S_addr = 0;
+			this->s_addr = 0;
 			if (a.sin_family == AF_INET)
 			{
-				this->S_un = a.sin_addr.S_un;
+				this->s_addr = a.sin_addr.s_addr;
 			}
 		}
 
 		void operator=(const sockaddr_in* ipv4)
 		{
-			S_un.S_addr = 0;
-			this->S_un = ipv4->sin_addr.S_un;
+			s_addr = ipv4->sin_addr.s_addr;
 		}
 
 		void operator=(const addrinfo *addr)
 		{
-			S_un.S_addr = 0;
+			s_addr = 0;
 
 			for (; addr != nullptr; addr = addr->ai_next) {
 				//void* addr;
@@ -75,7 +86,7 @@ namespace netkit
 					//addr = &(ipv4->sin_addr);
 					//ipver = "IPv4";
 
-					this->S_un = ipv4->sin_addr.S_un;
+					s_addr = ipv4->sin_addr.s_addr;
 				}
 				else { // IPv6
 					//struct sockaddr_in6* ipv6 = (struct sockaddr_in6*)p->ai_addr;
@@ -89,17 +100,22 @@ namespace netkit
 			}
 		}
 
-		std::string to_string() const
+		const u8* octets() const
 		{
-			std::string s = std::to_string( S_un.S_un_b.s_b1);
-			s.push_back('.'); s.append(std::to_string(S_un.S_un_b.s_b2));
-			s.push_back('.'); s.append(std::to_string(S_un.S_un_b.s_b3));
-			s.push_back('.'); s.append(std::to_string(S_un.S_un_b.s_b4));
+			return reinterpret_cast<const u8*>( &s_addr );
+		}
+
+		str::astr to_string() const
+		{
+			str::astr s = std::to_string(octets()[0]);
+			s.push_back('.'); s.append(std::to_string(octets()[1]));
+			s.push_back('.'); s.append(std::to_string(octets()[2]));
+			s.push_back('.'); s.append(std::to_string(octets()[3]));
 			return s;
 		}
 
 		operator u32() const {
-			return S_un.S_addr;
+			return s_addr;
 		}
 	};
 
@@ -118,20 +134,35 @@ namespace netkit
 	};
 
 #ifdef _WIN32
+#define MAXIMUM_WAITABLES (MAXIMUM_WAIT_OBJECTS - 2)
+#endif
+#ifdef _NIX
+    #define MAXIMUM_WAITABLES 64
+    #define SOCKET int
+    #define INVALID_SOCKET (-1)
+    #define SOCKET_ERROR (-1)
+#endif
+
+#define READY_SYSTEM 1	// ready by WSAEnumNetworkEvents/select
+#define READY_PIPE 2	// ready by parent pipe
+
 	struct waitable_data
 	{
+#ifdef _WIN32
 		WSAEVENT wsaevent = nullptr;
+#endif
 		SOCKET s = INVALID_SOCKET;
-		signed_t ready = 0; // |1 if WSAEnumNetworkEvents already returns FD_READ for socket
+		u8 ready = 0;
+		u8 bufferfull = 0; // _NIX
+		u8 reserved1, reserved2;
 		void operator=(SOCKET s_) { s = s_; }
 	};
+	NIXONLY( static_assert(sizeof(waitable_data) == 8); )
 	using WAITABLE = waitable_data*;
 	inline bool is_ready(WAITABLE w) { return w->ready != 0; }
 	inline void make_ready(WAITABLE w, signed_t mask) { w->ready |= mask; }
 	inline void clear_ready(WAITABLE w, signed_t mask) { w->ready &= ~mask; }
 #define NULL_WAITABLE ((netkit::WAITABLE)nullptr)
-#define MAXIMUM_WAITABLES (MAXIMUM_WAIT_OBJECTS - 2)
-#endif
 
 	wrslt wait(WAITABLE s, long microsec);
 
@@ -145,6 +176,10 @@ namespace netkit
 		WSAEVENT www[MAXIMUM_WAITABLES + 2];
 		WSAEVENT sig = nullptr;
 #endif
+#ifdef _NIX
+        pollfd polls[MAXIMUM_WAITABLES + 2];
+        int evt[2] = {INVALID_SOCKET, INVALID_SOCKET}; // socketpair
+#endif // _NIX
 		signed_t numw = 0;
 		u64 readymask = 0;
 
@@ -202,12 +237,25 @@ namespace netkit
 			bool is_empty() const { return readm == 0 && closem == 0 && writem == 0; }
 		};
 
+#ifdef _NIX
+        mask checkall();
+#endif // _NIX
+
+
 		~pipe_waiter()
 		{
 #ifdef _WIN32
 			if (sig)
 				WSACloseEvent(sig);
 #endif
+#ifdef _NIX
+            if (evt[0] >= 0)
+            {
+                ::close(evt[0]);
+                ::close(evt[1]);
+            }
+
+#endif // _NIX
 		}
 
 		u64 reg(pipe* p);
@@ -219,7 +267,7 @@ namespace netkit
 
 	class endpoint
 	{
-		std::string domain_;
+		str::astr domain_;
 		mutable ip4 ip = {};
 		signed_t port_ = 0;
 		mutable addr_type type_ = AT_ERROR;
@@ -227,7 +275,7 @@ namespace netkit
 	public:
 
 		endpoint() {}
-		explicit endpoint(const std::string& addr);
+		explicit endpoint(const str::astr& addr);
 		endpoint(ip4 ip, signed_t port):ip(ip), port_(port), type_(AT_TCP_RESLOVED) {}
 
 		bool operator==(const endpoint& ep)
@@ -249,7 +297,7 @@ namespace netkit
 			return false;
 		}
 
-		void preparse(const std::string& addr);
+		void preparse(const str::astr& addr);
 
 		void set_ip4(ip4 ipa)
 		{
@@ -262,7 +310,7 @@ namespace netkit
 			this->port_ = p;
 		}
 
-		void set_domain(const std::string& dom)
+		void set_domain(const str::astr& dom)
 		{
 			this->domain_ = dom;
 			type_ = AT_TCP_DOMAIN;
@@ -277,13 +325,13 @@ namespace netkit
 		{
 			return type_;
 		}
-		std::string domain() const
+		str::astr domain() const
 		{
 			return domain_;
 		}
-		std::string desc() const
+		str::astr desc() const
 		{
-			std::string d(domain_);
+			str::astr d(domain_);
 			if (!d.empty())
 			{
 				d.push_back(':'); d.append(std::to_string(port_));
@@ -301,7 +349,7 @@ namespace netkit
 				}
 				else
 				{
-					std::string ipa = ip.to_string();
+					str::astr ipa = ip.to_string();
 					if (d.find(ipa) == d.npos)
 					{
 						d.append(ASTR(" ("));
@@ -322,23 +370,20 @@ namespace netkit
 	struct tcp_pipe;
 	struct socket
 	{
-		std::string name;
-#ifdef _WIN32
+		str::astr name;
 		waitable_data _socket;
 		SOCKET sock() const { return _socket.s; }
 		WAITABLE get_waitable()
 		{
+#ifdef _WIN32
 			if (_socket.wsaevent == nullptr)
 			{
 				_socket.wsaevent = WSACreateEvent();
 				WSAEventSelect(_socket.s, _socket.wsaevent, FD_READ|FD_CLOSE);
 			}
+#endif
 			return &_socket;
 		}
-#else
-		SOCKET _socket = INVALID_SOCKET;
-		SOCKET sock() const { return _socket; }
-#endif
 
 		void close(bool flush_before_close);
 		bool ready() const { return sock() != INVALID_SOCKET; }
@@ -376,7 +421,7 @@ namespace netkit
 		sockaddr_in addr = {};
 		signed_t creationtime = 0;
 
-		tools::circular_buffer<65536 * 2> rcvbuf;
+		tools::circular_buffer<16384*3> rcvbuf;
 		tools::chunk_buffer<16384> outbuf;
 
 		tcp_pipe() { creationtime = chrono::ms(); }
@@ -469,9 +514,10 @@ namespace netkit
 		*/
 	};
 
+	static_assert(sizeof(tcp_pipe) <= 65536);
 
 
-	bool dnsresolve(const std::string& host, ip4& addr);
+	bool dnsresolve(const str::astr& host, ip4& addr);
 
 
 
@@ -495,7 +541,7 @@ namespace netkit
 			data[ptr++] = (u8)((b >> 8) & 0xff); // high first
 			data[ptr++] = (u8)((b) & 0xff); // low second
 		}
-		void pushs(const std::string& s)
+		void pushs(const str::astr& s)
 		{
 			data[ptr++] = (u8)s.length();
 			memcpy(data + ptr, s.c_str(), s.length());

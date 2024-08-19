@@ -131,7 +131,7 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 		signed_t sz = pipe1->recv(data, rcvsize);
 		if (sz < 0)
 			return SLOT_DEAD;
-		
+
 		if (sz > 0)
 		{
 			netkit::pipe::sendrslt r = pipe2->send(data, sz);
@@ -203,7 +203,7 @@ signed_t handler::processing_thread::tick(u8* data)
 
 	auto mask = waiter.wait(10 * 1000 * 1000 /*10 sec*/);
 	if (mask.is_empty())
-		return 0; //numslots-1;
+		return 0;
 
 	signed_t cur_numslots = numslots.lock_read()();
 	signed_t rv = MAXIMUM_SLOTS + 1;
@@ -213,7 +213,7 @@ signed_t handler::processing_thread::tick(u8* data)
 	for (signed_t i = 0; i < cur_numslots && !mask.is_empty();)
 	{
 		bridged::process_result pr = slots[i].process(data, mask);
-		
+
 		if (bridged::SLOT_DEAD == pr)
 		{
 			slots[i].clear();
@@ -222,7 +222,7 @@ signed_t handler::processing_thread::tick(u8* data)
 			continue;
 		}
 
-		if (bridged::SLOT_SKIPPED == pr)
+		if (rv > MAXIMUM_SLOTS && bridged::SLOT_SKIPPED == pr)
 			rv = i;
 
 		++i;
@@ -238,7 +238,11 @@ signed_t handler::processing_thread::tick(u8* data)
 		{
 			if (slots[i].is_empty())
 				continue;
-			slots[was_del++] = std::move(slots[i]);
+			slots[was_del] = std::move(slots[i]);
+			if (rv == i)
+				rv = was_del;
+
+			was_del++;
 			ASSERT(slots[was_del].is_empty());
 		}
 		ns() = was_del;
@@ -264,13 +268,14 @@ void handler::bridge(processing_thread *npt)
 		if (engine::is_stop())
 			break;
 
-		//if (r < MAXIMUM_SLOTS)
-		if (false) // don't forward slots for now, looks like it bad for performance
+		if (r < MAXIMUM_SLOTS)
 		{
+			// forward idle slots to next thread to free up the current thread faster
+
 			auto st = state.lock_write();
 			if (processing_thread* next = npt->get_next())
-				npt->forward(r, next);
-			st.unlock();
+				if (npt->forward(r, next))
+					break;
 		}
 	}
 }
@@ -289,7 +294,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 			}
 
 			netkit::pipe_ptr pp(pipe);
-			return std::move(pipe);
+			return pp;
 		}
 
 		if (proxychain.size() == 0)
@@ -324,7 +329,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 	}
 
 	netkit::pipe_ptr pp = connect(proxychain[0]->get_addr(), true);
-	
+
 	for (signed_t i = 0; pp != nullptr && i < (signed_t)proxychain.size(); ++i)
 	{
 		bool finala = i + 1 >= (signed_t)proxychain.size();
@@ -340,10 +345,10 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 
 		pp = proxychain[i]->prepare(pp, na);
 	}
-	return std::move(pp);
+	return pp;
 }
 
-void handler::processing_thread::forward(signed_t slot, processing_thread* n)
+bool handler::processing_thread::forward(signed_t slot, processing_thread* n)
 {
 	auto ns = numslots.lock_write();
 
@@ -354,7 +359,14 @@ void handler::processing_thread::forward(signed_t slot, processing_thread* n)
 	{
 		--ns();
 		moveslot(slot, ns());
+		if (ns() == 0)
+		{
+			ns() = -1;
+			return true;
+		}
 	}
+
+	return false;
 
 }
 
@@ -384,7 +396,7 @@ void handler::stop()
 
 	if (ss().need_stop)
 		return;
-	
+
 	ss().need_stop = true;
 	if (ss().pth)
 		ss().pth->close();
