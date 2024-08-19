@@ -11,8 +11,8 @@ For cryptography the [Botan](https://github.com/randombit/botan) library was use
 The config describes three entities: **listeners**, **handlers**, and **proxies**. The relationship between **listeners** and **handlers** is one to one. In fact, you place a **handler** inside a **listener**, thereby assigning a port and protocol (TCP) to the **handler**. A **proxy** (or upstream proxy) is a descriptor of an external connection point. It is declared once for each unique point and can be used an unlimited number of times in any **handler** as a proxy chain. All outgoing traffic from the **handler** will go through the specified chain. See config.txt example [here](https://github.com/oxygene-user/imconee/blob/main/conf/config.txt).
 
 # build
-Source code written in c++20
-To build for windows, you have to use MSVC 2022
+Source code written in c++20<br>
+To build for windows, you have to use MSVC 2022<br>
 To build for linux, you have to install at least gcc v10. You can just type make (makefile is in sources) or use Code::Blocks IDE (cbp file also included)
 
 # install (windows)
