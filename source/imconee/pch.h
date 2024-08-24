@@ -14,12 +14,14 @@
 // Windows Header Files
 
 #include <winsock2.h>
+#include <ws2ipdef.h>
 #include <windows.h>
 #include <mmsystem.h>
 
-// C RunTime Header Files
 #include <tchar.h>
+#include <in6addr.h>
 #endif // _WIN32
+
 
 #if defined __linux__
 #undef _NIX

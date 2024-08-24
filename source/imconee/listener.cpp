@@ -6,7 +6,7 @@ listener* listener::build(loader &ldr, const str::astr& name, const asts& bb)
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for lisnener [%s]. Type {imconee help listener} for more information.", str::printable(name));
+		LOG_E("{type} not defined for lisnener [%s]; type {imconee help listener} for more information", str::printable(name));
 		return nullptr;
 	}
 
@@ -21,7 +21,7 @@ listener* listener::build(loader &ldr, const str::astr& name, const asts& bb)
 		return tcpl;
 	}
 
-	LOG_E("unknown {type} [%s] for lisnener [%s]. Type {imconee help listener} for more information.", t.c_str(), str::printable(name));
+	LOG_E("unknown {type} [%s] for lisnener [%s]; type {imconee help listener} for more information", t.c_str(), str::printable(name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 
 	return nullptr;
@@ -57,8 +57,9 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb):l
 	hand.reset(h);
 
 	str::astr bs = bb.get_string(ASTR("bind"));
-	netkit::ip4 bindaddr = netkit::ip4::parse(bs);
-	prepare(bindaddr, port);
+	netkit::ipap bindaddr = netkit::ipap::parse(bs);
+	bindaddr.port = (u16)port;
+	prepare(bindaddr);
 
 }
 
@@ -69,16 +70,14 @@ void tcp_listener::acceptor()
 	ss().stage = ACCEPTOR_WORKS;
 	ss.unlock();
 
-
 	auto r = state.lock_read();
-	netkit::ip4 bind2 = r().bind;
-	int port = r().port;
+	netkit::ipap bind2 = r().bind;
 	r.unlock();
 
-	LOG_N("Listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string().c_str(), port);
-
-	if (tcp_listen(bind2, port))
+	if (tcp_listen(bind2))
 	{
+		LOG_N("listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string(false).c_str(), bind2.port);
+
 		for (; !state.lock_read()().need_stop;)
 		{
 			netkit::tcp_pipe* pipe = tcp_accept();
@@ -90,15 +89,16 @@ void tcp_listener::acceptor()
 
 	ss = state.lock_write();
 	ss().stage = IDLE;
+
+	spinlock::decrement(engine::numlisteners);
 }
 
-void tcp_listener::prepare(netkit::ip4 bind2, signed_t port)
+void tcp_listener::prepare(const netkit::ipap &bind2)
 {
 	stop();
 
 	auto ss = state.lock_write();
 	ss().bind = bind2;
-	ss().port = (u16)port;
 }
 
 /*virtual*/ void tcp_listener::open()
@@ -106,8 +106,11 @@ void tcp_listener::prepare(netkit::ip4 bind2, signed_t port)
 	auto ss = state.lock_write();
 	if (ss().stage != IDLE)
 		return;
+
 	ss().stage = ACCEPTOR_START;
 	ss.unlock();
+
+	spinlock::increment(engine::numlisteners);
 
 	std::thread th(&tcp_listener::acceptor, this);
 	th.detach();
@@ -127,19 +130,12 @@ void tcp_listener::prepare(netkit::ip4 bind2, signed_t port)
 
 #ifdef _NIX
 	auto st = state.lock_read();
-	netkit::ip4 cnct(127,0,0,1);
-	if (st().bind != 0)
+	netkit::ipap cnct = netkit::ipap::localhost(st().bind.v4);
+	if (!st().bind.is_wildcard())
         cnct = st().bind;
-    signed_t port = st().port;
-    st.unlock();
-    sockaddr_in addr = {};
 
-    addr.sin_family = AF_INET;
-    addr.sin_addr = cnct;
-    addr.sin_port = netkit::to_ne((u16)port);
-
-    SOCKET s = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    ::connect(s, (const sockaddr *)&addr, sizeof(addr));
+    SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+    cnct.connect(s);
     closesocket(s);
 #endif
 

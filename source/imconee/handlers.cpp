@@ -8,7 +8,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb)
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for handler of listener [%s]. Type {imconee help handler} for more information.", str::printable(owner->name));
+		LOG_E("{type} not defined for handler of listener [%s]; type {imconee help handler} for more information", str::printable(owner->name));
 		return nullptr;
 	}
 
@@ -36,7 +36,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb)
 		return h;
 	}
 
-	LOG_E("unknown {type} [%s] for handler of lisnener [%s]. Type {imconee help handler} for more information.", str::printable(t), str::printable(owner->name));
+	LOG_E("unknown {type} [%s] for handler of lisnener [%s]; type {imconee help handler} for more information", str::printable(t), str::printable(owner->name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 	return nullptr;
 }
@@ -51,7 +51,7 @@ handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 			const proxy* p = ldr.find_proxy(*tkn);
 			if (p == nullptr)
 			{
-				LOG_E("unknown {proxy} [%s] for handler of lisnener [%s].", std::string(*tkn).c_str(), str::printable(owner->name));
+				LOG_E("unknown {proxy} [%s] for handler of lisnener [%s]", std::string(*tkn).c_str(), str::printable(owner->name));
 				ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
 				return;
 			}
@@ -290,7 +290,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 		{
 			if (proxychain.size() == 0)
 			{
-				LOG_N("Connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
+				LOG_N("connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
 			}
 
 			netkit::pipe_ptr pp(pipe);
@@ -299,7 +299,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 
 		if (proxychain.size() == 0)
 		{
-			LOG_N("Not connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
+			LOG_N("not connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
 		}
 
 		return netkit::pipe_ptr();
@@ -316,16 +316,16 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 		stag.append(s);
 	};
 
-	//LOG_N("Listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string().c_str(), port);
+	//LOG_N("listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string().c_str(), port);
 
 	if (proxychain.size() == 1)
 	{
-		ps("Connecting to upstream proxy (%s) via listener [%s]"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str(), str::printable(owner->name));
+		ps("connecting to upstream proxy (%s) via listener [%s]"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str(), str::printable(owner->name));
 	}
 	else
 	{
-		ps("Connecting through proxy chain via listener [%s]"); LOG_N(stag.c_str(), str::printable(owner->name));
-		ps("Connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str());
+		ps("connecting through proxy chain via listener [%s]"); LOG_N(stag.c_str(), str::printable(owner->name));
+		ps("connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str());
 	}
 
 	netkit::pipe_ptr pp = connect(proxychain[0]->get_addr(), true);
@@ -336,11 +336,11 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 		const netkit::endpoint &na = finala ? addr : proxychain[i + 1]->get_addr();
 		if (finala)
 		{
-			ps("Connecting to address (%s)"); LOG_N(stag.c_str(), na.desc().c_str());
+			ps("connecting to address (%s)"); LOG_N(stag.c_str(), na.desc().c_str());
 		}
 		else
 		{
-			ps("Connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[i + 1]->desc().c_str());
+			ps("connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[i + 1]->desc().c_str());
 		}
 
 		pp = proxychain[i]->prepare(pp, na);
@@ -420,7 +420,7 @@ handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb):han
 	if (!conn::is_valid_addr(to_addr))
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("{to} field of direct handler not defined or invalid (listener: [%s]).", str::printable(owner->name));
+		LOG_E("{to} field of direct handler not defined or invalid (listener: [%s])", str::printable(owner->name));
 	}
 }
 
@@ -515,7 +515,7 @@ void handler_socks::handshake4(netkit::pipe* pipe)
 		return;
 
 	u16 port = (((u16)packet[1]) << 8) | packet[2];
-	netkit::ip4 dst = *(netkit::ip4 *)(packet + 3);
+	netkit::ipap dst = netkit::ipap::build(packet + 3, 4, port);
 
 	std::string uid;
 	for (;;)
@@ -539,7 +539,7 @@ void handler_socks::handshake4(netkit::pipe* pipe)
 		return;
 	}
 
-	netkit::endpoint inf(dst, port);
+	netkit::endpoint inf(dst);
 	worker(pipe, inf, [port, dst](netkit::pipe* p, rslt ec) {
 
 		u8 rp[8];
@@ -560,7 +560,7 @@ void handler_socks::handshake4(netkit::pipe* pipe)
 		}
 
 		rp[2] = (port>>8) & 0xff; rp[3] = port & 0xff;
-		*(netkit::ip4*)(rp + 4) = dst;
+		*(u32*)(rp + 4) = (u32)dst;
 
 		p->send(rp, 8);
 	});
@@ -665,7 +665,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 		rb = pipe->recv(packet + 5, -3);
 		if (rb != 3)
 			return;
-		ep.set_ip4(*(netkit::ip4*)(packet + 4));
+		ep.set_ipap(netkit::ipap::build(packet + 4, 4));
 		break;
 	case 3: // domain name
 
@@ -677,10 +677,11 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 		break;
 
 	case 4: // ipv6
-		/* ipv6 not supported yet */
-		pipe->recv(packet, -15); // read 15 of 16 bytes of ipv6 address (1st byte already read)
-		fail_answer(8); // Address type not supported
-		return;
+		rb = pipe->recv(packet + 5, -15); // read 15 of 16 bytes of ipv6 address (1st byte already read)
+		if (rb != 15)
+			return;
+		ep.set_ipap(netkit::ipap::build(packet + 4, 16));
+		break;
 	}
 
 	rb = pipe->recv(packet, -2);
@@ -711,7 +712,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 			break;
 		}
 
-		*(netkit::ip4*)(rp + 4) = ep.get_ip4(false);
+		*(u32*)(rp + 4) = (u32)ep.get_ip(netkit::GIP_ONLY4);
 		rp[8] = (port >> 8) & 0xff;
 		rp[9] = port & 0xff;
 		p->send(rp, 10);

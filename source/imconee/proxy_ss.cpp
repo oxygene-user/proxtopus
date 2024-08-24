@@ -94,9 +94,10 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const
 	{
 		netkit::pgen pg(packet, 7);
 
-		pg.push8(1); // atyp: ip4
-		pg.push(addr2.get_ip4(false));
-		pg.push16(addr2.port());
+		netkit::ipap ip = addr2.get_ip(netkit::getip_def);
+
+		pg.push8(ip.v4 ? 1 : 4);
+		pg.push(ip, true);
 
 		if (p_enc->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();

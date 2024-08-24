@@ -30,7 +30,8 @@ void handler_ss::worker(netkit::pipe* raw_pipe)
 		rb = p_enc->recv(packet + 2, -3);
 		if (rb != 3)
 			return;
-		ep.set_ip4(*(netkit::ip4*)(packet + 1));
+		
+		ep.set_ipap(netkit::ipap::build(packet + 1, 4));
 		break;
 	case 3: // domain name
 
@@ -44,8 +45,7 @@ void handler_ss::worker(netkit::pipe* raw_pipe)
 	case 4: // ipv6
 		/* ipv6 not supported yet */
 		p_enc->recv(packet+2, -15); // read 15 of 16 bytes of ipv6 address (1st byte already read)
-
-		/// (ipv6 *)(packet+1)
+		ep.set_ipap(netkit::ipap::build(packet + 1, 16));
 		return;
 	}
 

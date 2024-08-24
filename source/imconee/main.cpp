@@ -41,7 +41,6 @@ static void handle_signal(int sig) {
 
 static FN path_config;
 
-
 static void shapka()
 {
 
@@ -52,7 +51,7 @@ static void shapka()
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
 #endif
 
-	Print("Imconee v0.1\n");
+	Print("Imconee v0.2\n");
 }
 
 
@@ -67,7 +66,7 @@ int run_engine(bool as_service)
 	} else
 	{
 		if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
-			LOG_E("Could not set control handler");
+			LOG_E("could not set control handler");
 			return EXIT_FAIL_CTLHANDLE;
 		}
 	}
@@ -79,12 +78,8 @@ int run_engine(bool as_service)
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
 
-    if (sigaction(SIGINT, &sa, nullptr) == -1) {
-        LOG_E("Could not set control handler");
-        return EXIT_FAIL_CTLHANDLE;
-    }
-    if (sigaction(SIGTERM, &sa, nullptr) == -1) {
-        LOG_E("Could not set control handler");
+    if (sigaction(SIGINT, &sa, nullptr) == -1 || sigaction(SIGTERM, &sa, nullptr) == -1) {
+        LOG_E("could not set control handler");
         return EXIT_FAIL_CTLHANDLE;
     }
 #endif // _NIX
@@ -108,7 +103,7 @@ int run_engine(bool as_service)
 
 static int elevate(const std::vector<str::wstr>& parar)
 {
-	LOG_N("Elevating...");
+	LOG_N("elevating...");
 
 	FN exe = get_exec_full_name();
 
@@ -143,11 +138,11 @@ static int elevate(const std::vector<str::wstr>& parar)
 
 	if (0 != ShellExecuteExW(&shExInfo))
 	{
-		LOG_N("Elevation successful. Exit lower process.");
+		LOG_N("elevation successful; exit lower process");
 		return EXIT_OK_EXIT;
 	}
 
-	LOG_E("Elevation failed. Exit lower process.");
+	LOG_E("elevation failed");
 	return EXIT_FAIL_ELEVATION;
 }
 
@@ -197,9 +192,9 @@ void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVe
 	hSrv = RegisterServiceCtrlHandlerW(sn.c_str(), (LPHANDLER_FUNCTION)CommandHandler);
 	if (hSrv == nullptr) return;
 
-	LOG_N("Pending start");
+	LOG_N("pending start");
 	SetStatus(SERVICE_START_PENDING, 0, 1);
-	LOG_N("Start");
+	LOG_N("start");
 	SetStatus(SERVICE_RUNNING, 0, 0);
 	int ecode = run_engine(true);
 	SetStatus(SERVICE_STOPPED, ecode, 0);
@@ -207,19 +202,19 @@ void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVe
 
 static int error_openservice()
 {
-	LOG_E("Failed to open service");
+	LOG_E("failed to open service");
 	return EXIT_FAIL_OPENSERVICE;
 }
 
 static int error_openmgr()
 {
-	LOG_E("Failed to open Service Manager");
+	LOG_E("failed to open Service Manager");
 	return EXIT_FAIL_OPENMGR;
 }
 
 static int error_startservice()
 {
-	LOG_E("Failed to start service");
+	LOG_E("failed to start service");
 	return EXIT_FAIL_STARTSERVICE;
 
 }
@@ -270,7 +265,7 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 		sch = CreateServiceW(sch, sn.c_str(), dn.c_str(), GENERIC_EXECUTE, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_IGNORE, snas.c_str(), nullptr, nullptr, nullptr, nullptr, nullptr);
 		if (!sch)
 		{
-			LOG_E("Failed to create service");
+			LOG_E("failed to create service");
 			return EXIT_FAIL_CREATESERVICE;
 		}
 
@@ -299,12 +294,12 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 		QueryServiceStatus(sch, &ss);
 		if (ss.dwCurrentState != SERVICE_STOPPED)
 		{
-			LOG_N("Stoping...");
+			LOG_N("stoping...");
 			ControlService(sch, SERVICE_CONTROL_STOP, &ss);
 		}
 
 		if (!DeleteService(sch)) {
-			LOG_E("Failed to delete service");
+			LOG_E("failed to delete service");
 			return EXIT_FAIL_DELETESERVICE;
 		}
 

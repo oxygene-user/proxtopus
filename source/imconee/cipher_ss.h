@@ -176,6 +176,18 @@ namespace ss
 			{
 				skip += szerase;
 			}
+
+			skip_buf &operator+=(const std::span<const u8> &d)
+			{
+				if (skip > 500 * 1024 && sz + d.size() > cap)
+				{
+					memcpy(buffer::data(), data(), size());
+					sz = size();
+					skip = 0;
+				}
+				buffer::operator+=(d);
+				return *this;
+			}
 		};
 
 		class aead_cryptor : public cryptor

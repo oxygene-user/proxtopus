@@ -22,6 +22,8 @@ enum AppExitCode
 	EXIT_FAIL_METHOD_UNDEFINED = 13,	// {method} not defined for proxy [%s]
 										// {to} field of direct handler not defined or invalid (listener: [%s]). Valid format of {to} field is: domain_or_ipv4:port
 
+	EXIT_FAIL_IPV46_VALS = 14,
+
 	EXIT_FAIL_ELEVATION = 98,
 	EXIT_FAIL_CTLHANDLE = 99,
 

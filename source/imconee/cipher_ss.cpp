@@ -459,6 +459,7 @@ namespace
 /*virtual*/ signed_t ss::core::aead_cryptor::decipher(outbuffer& plain, std::span<const u8> cipher)
 {
 	unprocessed += cipher;
+
 	size_t from = 0;
 	signed_t decr = 0;
 	for (size_t usz = unprocessed.size(); from < usz;)

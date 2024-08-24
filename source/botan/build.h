@@ -266,7 +266,7 @@ namespace Botan {
 		uint8_t& operator[](size_t index) { return buf[index]; }
 		uint8_t operator[](size_t index) const { return buf[index]; }
 
-		secure_vector& operator+=(std::span<const uint8_t> in) {
+		secure_vector& operator+=(const std::span<const uint8_t> &in) {
 
 			if (in.size() + sz <= cap)
 			{

@@ -182,6 +182,25 @@ namespace str
 		return build_string_d(fn, ln, "---");
 	}
 
+	template<typename CC, typename V> INLINE void append_hex(xstr<CC>& s, V v) {
+
+		CC cc[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+		const unsigned N = 2 * sizeof(v);
+		bool skipz = true;
+		for (unsigned i = 0; i < N; ++i)
+		{
+			unsigned shiftr = 4 * (N - i - 1);
+			V hex = (v >> shiftr) & 0xf;
+			if (skipz && hex == 0)
+				continue;
+			s.push_back(cc[hex]);
+			skipz = false;
+		}
+		if (skipz)
+			s.push_back(cc[0]);
+	}
+
 
 	enum class codepage_e
 	{

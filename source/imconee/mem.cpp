@@ -48,7 +48,7 @@ namespace ma
 		{
 			spinlock::simple_lock(async);
 
-			for (int i = 0, sz = 2; i < 21; ++i, sz <<= 1)
+			for (int i = 0, sz = 2; i < 22; ++i, sz <<= 1)
 				allocs[i].sz = sz;
 
 			spinlock::simple_unlock(async);
@@ -68,8 +68,8 @@ namespace ma
 					return p + 16;
 				}
 			}
-			__debugbreak();
-			__assume(0);
+			DEBUGBREAK();
+			UNREACHABLE();
 		}
 		void* realloc(void *p, size_t sz)
 		{
@@ -97,8 +97,8 @@ namespace ma
 				}
 			}
 
-			__debugbreak();
-			__assume(0);
+			DEBUGBREAK();
+			UNREACHABLE();
 		}
 		void free(void *p)
 		{

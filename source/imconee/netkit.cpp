@@ -10,15 +10,113 @@
 namespace netkit
 {
     static signed_t send_buffer_size = 128 * 1024; // 128k
+	getip_options getip_def = GIP_PRIOR4;
 
 #ifdef _NIX
         const int SD_SEND = SHUT_WR;
 #endif
 
-	ip4 ip4::parse(const str::astr_view& s)
+	ipap ipap::parse6(const str::astr_view& s)
 	{
-		ip4 rv = {};
-		u8* dst = (u8*)&rv;
+		bool colon = false;
+		bool fillright = false;
+		signed_t somedigits = 0;
+
+		signed_t cntl = 0, cntr = 0;
+		std::array<u16, 8> left;
+		std::array<u16, 8> rite;
+
+		u16 current = 0;
+
+		auto pushdig = [&]() -> bool
+		{
+			if (fillright)
+			{
+				rite[cntr++] = netkit::to_ne(current);
+				if (cntl + cntr == 7)
+					return true;
+			}
+			else {
+				left[cntl++] = netkit::to_ne(current);
+				if (cntl == 8)
+					return true;
+			}
+			return false;
+		};
+
+		auto hexdig = [](char c) -> u8
+		{
+			if (c >= '0' && c <= '9')
+				return c - 48;
+			if (c >= 'a' && c <= 'f')
+				return c - 'a' + 10;
+			if (c >= 'A' && c <= 'F')
+				return c - 'A' + 10;
+			return 255;
+		};
+
+		for (char c : s)
+		{
+			if (c == ':')
+			{
+				if (somedigits > 0 && pushdig())
+					break;
+
+				if (colon)
+				{
+					// double colon
+					fillright = true;
+				}
+
+				colon = true;
+				current = 0;
+				somedigits = 0;
+				continue;
+			}
+
+			u8 hd = hexdig(c);
+			if (hd == 255)
+				return ipap();
+			current = (current << 4) + hd;
+			++somedigits;
+			if (somedigits == 5)
+				return ipap();
+		}
+
+		if (somedigits)
+			pushdig();
+
+		ipap rv(false);
+		u16 *w = rv.words();
+		signed_t i = 0;
+		for (; i < cntl; ++i)
+			w[i] = left[i];
+
+		signed_t i2 = 8 - cntr;
+
+		for (; i < i2; ++i)
+			w[i] = 0;
+
+		for (signed_t j = 0;i < 8; ++i, ++j)
+			w[i] = rite[j];
+
+		return rv;
+	}
+
+	ipap ipap::parse(const str::astr_view& s)
+	{
+		signed_t numd = 0;
+		for( char c : s )
+			if (c == ':')
+			{
+				++numd;
+				if (numd == 2)
+					return parse6(s);
+			}
+
+		ipap rv;
+
+		u8* dst = rv.octets();
 		u8* end = dst + 4;
 
 		for (str::token<char> tkn(s, '.'); tkn; ++tkn)
@@ -27,11 +125,53 @@ namespace netkit
 			++dst;
 			if (dst > end)
 			{
-				rv.s_addr = 0;
+				rv.ipv4.s_addr = 0;
 				break;
 			}
 		}
 		return rv;
+	}
+
+	bool ipap::bind(SOCKET s) const
+	{
+		if (v4)
+		{
+			sockaddr_in addr;
+
+			addr.sin_family = AF_INET;
+			addr.sin_addr = ipv4;
+			addr.sin_port = netkit::to_ne((u16)port);
+
+			return SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
+		}
+
+		sockaddr_in6 addr = {};
+
+		addr.sin6_family = AF_INET6;
+		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
+		addr.sin6_port = netkit::to_ne((u16)port);
+
+		return SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
+
+	}
+
+	bool ipap::connect(SOCKET s) const
+	{
+		if (v4)
+		{
+			sockaddr_in addr = {};
+			addr.sin_family = AF_INET;
+			addr.sin_addr = ipv4;
+			addr.sin_port = netkit::to_ne((u16)port);
+			return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
+		}
+
+		sockaddr_in6 addr = {};
+		addr.sin6_family = AF_INET6;
+		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
+		addr.sin6_port = netkit::to_ne((u16)port);
+		return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
+
 	}
 
 	void socket::close(bool flush_before_close)
@@ -52,24 +192,29 @@ namespace netkit
 		}
 	}
 
-	bool socket::tcp_listen(const ip4& bind2, int port)
+	bool socket::tcp_listen(const ipap& bind2)
 	{
-		_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (getip_def == GIP_ONLY6 && bind2.v4)
+		{
+			LOG_W("bind failed for listener [%s] due ipv4 addresses are disabled in config", str::printable(name));
+			return false;
+		}
+		if (getip_def == GIP_ONLY4 && !bind2.v4)
+		{
+			LOG_W("bind failed for listener [%s] due ipv6 addresses are disabled in config", str::printable(name));
+			return false;
+		}
+
+		_socket = ::socket(bind2.v4 ? AF_INET : AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == sock())
 			return false;
 
-		sockaddr_in addr;
-
-		addr.sin_family = AF_INET;
-		addr.sin_addr = bind2;
-		addr.sin_port = netkit::to_ne((u16)port);
-
-		if (SOCKET_ERROR == bind(sock(), (const sockaddr *)&addr, sizeof(addr)))
+		if (!bind2.bind(sock()))
 		{
-			LOG_W("bind failed for listener [%s]", str::printable(name));
+			LOG_W("bind failed for listener [%s]; check binding (%s)", str::printable(name), bind2.to_string(true).c_str());
 			close(false);
 			return false;
-		};
+		}
 
 		if (SOCKET_ERROR == listen(sock(), SOMAXCONN))
 		{
@@ -95,7 +240,7 @@ namespace netkit
 		if (engine::is_stop())
         {
             closesocket(s);
-            LOG_I("Listener %s has been terminated", name.c_str());
+            LOG_I("listener %s has been terminated", name.c_str());
             return nullptr;
         }
 
@@ -148,7 +293,7 @@ namespace netkit
 		else if (val > send_buffer_size)
 			send_buffer_size = val;
 
-		while (SOCKET_ERROR == ::connect(sock(), (const sockaddr *)&addr, sizeof(addr)))
+		if (!addr.connect(sock()))
 		{
 			close(false);
 			return false;
@@ -341,12 +486,18 @@ namespace netkit
 
 
 #ifdef _WIN32
-	bool dnsresolve(const str::astr& host, ip4& addr)
+	bool dnsresolve(const str::astr& host, ipap& addr)
 	{
 		ADDRINFOEXA* result = nullptr;
 
 		ADDRINFOEXA hints = {};
 		hints.ai_family = AF_UNSPEC;
+
+		if (getip_def == GIP_ONLY4)
+			hints.ai_family = AF_INET;
+		else if (getip_def == GIP_ONLY6)
+			hints.ai_family = AF_INET6;
+
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_TCP;
 
@@ -359,36 +510,56 @@ namespace netkit
 			return false;
 		}
 
+		sockaddr_in* a4 = nullptr;
+		sockaddr_in6* a6 = nullptr;
+
 		for (ADDRINFOEXA* ptr = result; ptr != nullptr; ptr = ptr->ai_next)
 		{
-
 			switch (ptr->ai_family)
 			{
-			case AF_UNSPEC:
-				continue;
 			case AF_INET:
-				addr = (struct sockaddr_in*)ptr->ai_addr;
-				break;
+				a4 = (sockaddr_in*)ptr->ai_addr;
+				continue;
 			case AF_INET6:
+				a6 = (sockaddr_in6*)ptr->ai_addr;
 				continue;
 			}
 		}
 
+		if (a4 != nullptr && a6 == nullptr && getip_def != GIP_ONLY6)
+			addr.set(a4, false);
+		else if (a6 != nullptr && a4 == nullptr && getip_def != GIP_ONLY4)
+			addr.set(a6, false);
+		else if (a4 != nullptr && a6 != nullptr)
+		{
+			if (getip_def == GIP_PRIOR4 || getip_def == GIP_ONLY4)
+				addr.set(a4, false);
+			else if (getip_def == GIP_PRIOR6 || getip_def == GIP_ONLY6)
+				addr.set(a6, false);
+		}
+
+
 #undef FreeAddrInfoEx
 		FreeAddrInfoEx(result);
 
-		return true;
+		return a4 != nullptr || a6 != nullptr;
 
 	}
 #endif
 #ifdef _NIX
-	bool dnsresolve(const str::astr& host, ip4& addr)
+	bool dnsresolve(const str::astr& host, ipap& addr)
 	{
-		struct addrinfo hints;
-		struct addrinfo* res;
+		addrinfo hints;
+		addrinfo* res;
 
 		memset(&hints, 0, sizeof hints);
-		hints.ai_family = AF_INET;
+		hints.ai_family = AF_UNSPEC;
+
+		if (getip_def == GIP_ONLY4)
+			hints.ai_family = AF_INET;
+		else if (getip_def == GIP_ONLY6)
+			hints.ai_family = AF_INET6;
+
 		hints.ai_socktype = SOCK_STREAM;
 		//hints.ai_flags = AI_PASSIVE;
 		int status = getaddrinfo(host.c_str(), nullptr, &hints, &res);
@@ -399,7 +570,36 @@ namespace netkit
 			return false;
 		}
 
-		addr = res;
+		sockaddr_in* a4 = nullptr;
+		sockaddr_in6* a6 = nullptr;
+
+		for (addrinfo* rp = res; rp != nullptr; rp = rp->ai_next) {
+
+			switch (rp->ai_family)
+			{
+			case AF_INET:
+				a4 = (sockaddr_in*)rp->ai_addr;
+				continue;
+			case AF_INET6:
+				a6 = (sockaddr_in6*)rp->ai_addr;
+				continue;
+			}
+		}
+
+		if (a4 != nullptr && a6 == nullptr && getip_def != GIP_ONLY6)
+			addr.set(a4, false);
+		else if (a6 != nullptr && a4 == nullptr && getip_def != GIP_ONLY4)
+			addr.set(a6, false);
+		else if (a4 != nullptr && a6 != nullptr)
+		{
+			if (getip_def == GIP_PRIOR4 || getip_def == GIP_ONLY4)
+				addr.set(a4, false);
+			else if (getip_def == GIP_PRIOR6 || getip_def == GIP_ONLY6)
+				addr.set(a6, false);
+		}
+		else
+			return false;
+
 		return true;
 
 	}
@@ -412,6 +612,8 @@ namespace netkit
 
 	void netkit::endpoint::preparse(const str::astr& a_raw)
 	{
+		// TODO : test with [::1]:999 or [::1]
+
 		str::astr_view a = a_raw;
 		if (str::starts_with(a, ASTR("tcp://")))
 			a = a.substr(6);
@@ -426,30 +628,62 @@ namespace netkit
 			type_ = AT_TCP_DOMAIN;
 			return;
 		}
+
+		// may be ipv6
+
+		size_t porti = dv + 1;
+
+		if (a[0] == '[')
+		{
+			dv = a.find(ASTR("]:"));
+			if (dv == str::astr::npos)
+			{
+				if (a[a.length() - 1] != ']')
+					return;
+			}
+			else
+			{
+				a = a.substr(1);
+				dv = dv - 1;
+				porti = dv + 2;
+			}
+		}
+
+
 		domain_ = a.substr(0, dv);
-		auto ports = a.substr(dv + 1);
-		std::from_chars(ports.data(), ports.data() + ports.length(), port_);
+		auto ports = a.substr(porti);
+		std::from_chars(ports.data(), ports.data() + ports.length(), ip.port);
 		type_ = AT_TCP_DOMAIN;
 	}
 
-	ip4 netkit::endpoint::get_ip4(bool log_enable) const
+	ipap netkit::endpoint::get_ip(size_t options) const
 	{
 		if (type_ == AT_TCP_RESLOVED)
-			return ip;
+		{
+			if ((options & GIP_ANY) != 0)
+				return ip;
+
+			if (ip.v4 && ((options & 0xff) == GIP_ONLY4 || (options & 0xff) == GIP_PRIOR4))
+				return ip;
+
+			if (!ip.v4 && ((options & 0xff) == GIP_ONLY6 || (options & 0xff) == GIP_PRIOR6))
+				return ip;
+
+		}
 
 		if (type_ == AT_ERROR)
-			return ip4();
+			return ipap();
 
 		if (netkit::dnsresolve(domain_, ip))
 		{
 			type_ = AT_TCP_RESLOVED;
 			return ip;
 		}
-		else if (log_enable)
+		else if (0 != (options & GIP_LOG_IT))
 		{
 			LOG_E("domain name resolve failed: [%s]", domain_.c_str());
 		}
-		return ip4();
+		return ipap();
 	}
 
 	wrslt wait(WAITABLE s, long microsec)

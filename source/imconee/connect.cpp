@@ -52,7 +52,7 @@ namespace conn
 	netkit::pipe* connect(const netkit::endpoint& addr)
 	{
 		if (addr.type() == netkit::AT_TCP_DOMAIN)
-			addr.get_ip4(true);
+			addr.get_ip(netkit::getip_def | netkit::GIP_ANY | netkit::GIP_LOG_IT);
 
 		if (addr.type() == netkit::AT_TCP_RESLOVED)
 		{

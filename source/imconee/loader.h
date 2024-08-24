@@ -9,6 +9,7 @@ class loader
 	engine* e;
 	const asts* listeners = nullptr;
 	const asts* prox = nullptr;
+	const asts* settings = nullptr;
 
 public:
 

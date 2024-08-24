@@ -3,12 +3,14 @@
 
 class engine
 {
+
 	std::vector<std::unique_ptr<listener>> listners;
 	std::vector<std::unique_ptr<proxy>> prox;
 	static volatile bool exit;
 
 public:
 
+	static volatile spinlock::long3264 numlisteners;
 	int exit_code = EXIT_OK;
 
 	engine(FN&& path_config);

@@ -34,11 +34,16 @@ public:
 #define DEBUGBREAK() __debugbreak()
 #define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
 #define NIXONLY(...)
+#define UNREACHABLE() __assume(0)
+#endif
+
+#ifdef __GNUC__
+#define UNREACHABLE() __builtin_unreachable()
+#define DEBUGBREAK() __builtin_trap()
+#define NOWARNING(n,...) __VA_ARGS__
 #endif
 
 #ifdef _NIX
-#define DEBUGBREAK() __builtin_trap()
-#define NOWARNING(n,...) __VA_ARGS__
 #define NIXONLY(...) __VA_ARGS__
 
 #define MB_OK 1

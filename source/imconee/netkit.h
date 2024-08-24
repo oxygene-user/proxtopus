@@ -9,10 +9,27 @@
 
 #ifdef _NIX
 inline void closesocket(int s) { ::close(s); };
+#define MAXIMUM_WAITABLES 64
+#define SOCKET int
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERROR (-1)
 #endif
 
 namespace netkit
 {
+	enum getip_options
+	{
+		GIP_PRIOR4, // any, but 4 first
+		GIP_PRIOR6, // any, but 6 first
+		GIP_ONLY4,
+		GIP_ONLY6,
+
+		GIP_LOG_IT = (1 << 8),	// log if cant resolve
+		GIP_ANY = (2 << 8),		// don't resolve prior/only if already resolved
+	};
+
+	extern getip_options getip_def;
+
 	template <bool native_little> struct cvt {};
 	template<> struct cvt<true> {
 		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
@@ -45,78 +62,234 @@ namespace netkit
 	}
 
 
-	struct ip4 : public in_addr
+	struct ipap // ip address and port
 	{
-		static ip4 parse(const str::astr_view& s);
-
-		ip4() { s_addr = 0; }
-		ip4(u8 o1, u8 o2, u8 o3, u8 o4)
+		static ipap parse6(const str::astr_view& s); // assume s is ipv6 address
+		static ipap parse(const str::astr_view& s);
+		static ipap build(const u8* packet, signed_t plen, u16 port = 0)
 		{
-            u8* dst = (u8*)this;
-            *(dst+0) = o1;
-            *(dst+1) = o2;
-            *(dst+2) = o3;
-            *(dst+3) = o4;
-		}
-		ip4(const sockaddr_in &a) {
-			this->s_addr = 0;
-			if (a.sin_family == AF_INET)
+			ipap r;
+			if (plen == 4)
 			{
-				this->s_addr = a.sin_addr.s_addr;
+				r.ipv4 = *(in_addr*)packet;
 			}
+			else if (plen == 16){
+				memcpy(&r.ipv6, packet, 16);
+				r.v4 = false;
+			}
+			r.port = port;
+			return r;
 		}
 
-		void operator=(const sockaddr_in* ipv4)
+		static ipap localhost(bool v4)
 		{
-			s_addr = ipv4->sin_addr.s_addr;
+		    return ipap(v4).init_localhost();
+		}
+
+		union
+		{
+			in_addr ipv4;
+			in6_addr ipv6;
+		};
+
+		u16 port = 0; // in native order (will be converted to network order directly while filling sockaddr_in or sockaddr_in6 structures)
+		bool v4 = true;
+
+		void clear()
+		{
+			v4 = getip_def == GIP_ONLY4 || getip_def == GIP_PRIOR4;
+			if (v4) ipv4.s_addr = 0; else memset(&ipv6, 0, sizeof(ipv6));
+		}
+
+		ipap &init_localhost()
+		{
+            if (u8* dst = octets())
+            {
+                *(dst+0) = 127;
+                *(dst+1) = 0;
+                *(dst+2) = 0;
+                *(dst+3) = 1;
+            } else {
+                u16 * w = reinterpret_cast<u16*>(&ipv6);
+                w[0] = 0;
+                w[1] = 0;
+                w[2] = 0;
+                w[3] = 0;
+                w[4] = 0;
+                w[5] = 0;
+                w[6] = 0;
+                w[7] = to_ne(1);
+            }
+		    return *this;
+		}
+
+		bool is_wildcard() const
+		{
+		    if (v4) return ipv4.s_addr == 0;
+		    const u64 * d = reinterpret_cast<const u64*>(&ipv6);
+		    return d[0] == 0 && d[1] == 0;
+
+		}
+
+		ipap()
+		{
+			clear();
+		}
+		ipap(bool v4):v4(v4)
+		{
+		}
+
+		ipap(const sockaddr_in &a) {
+			ipv4.s_addr = a.sin_addr.s_addr;
+			port = netkit::to_he(a.sin_port);
+		}
+		ipap(const sockaddr_in6& a):v4(false) {
+			memcpy(&ipv6, &a.sin6_addr, sizeof(a.sin6_addr));
+			port = netkit::to_he(a.sin6_port);
+		};
+
+		void set(const sockaddr_in* ip4, bool useport)
+		{
+			v4 = true;
+			ipv4.s_addr = ip4->sin_addr.s_addr;
+			if (useport)
+				port = netkit::to_he(ip4->sin_port);
+		}
+		void set(const sockaddr_in6* ip6, bool useport)
+		{
+			v4 = false;
+			memcpy(&ipv6, &ip6->sin6_addr, sizeof(ip6->sin6_addr));
+			if (useport)
+				port = netkit::to_he(ip6->sin6_port);
 		}
 
 		void operator=(const addrinfo *addr)
 		{
-			s_addr = 0;
+			clear();
 
 			for (; addr != nullptr; addr = addr->ai_next) {
-				//void* addr;
-				//char* ipver;
 
-				// get the pointer to the address itself,
-				// different fields in IPv4 and IPv6:
 				if (addr->ai_family == AF_INET) { // IPv4
-					struct sockaddr_in* ipv4 = (struct sockaddr_in*)addr->ai_addr;
-					//addr = &(ipv4->sin_addr);
-					//ipver = "IPv4";
-
-					s_addr = ipv4->sin_addr.s_addr;
+					set((sockaddr_in*)addr->ai_addr, true);
+					break;
 				}
-				else { // IPv6
-					//struct sockaddr_in6* ipv6 = (struct sockaddr_in6*)p->ai_addr;
-					//addr = &(ipv6->sin6_addr);
-					//ipver = "IPv6";
+				else if (addr->ai_family == AF_INET6) { // IPv6
+					set((sockaddr_in6*)addr->ai_addr, true);
+					break;
 				}
-
-				// convert the IP to a string and print it:
-				//inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
-				//printf("  %s: %s\n", ipver, ipstr);
 			}
 		}
 
 		const u8* octets() const
 		{
-			return reinterpret_cast<const u8*>( &s_addr );
+			return v4 ? reinterpret_cast<const u8*>( &ipv4 ) : nullptr;
+		}
+		u8* octets()
+		{
+			return v4 ? reinterpret_cast<u8*>(&ipv4) : nullptr;
 		}
 
-		str::astr to_string() const
+		u16* words()
 		{
-			str::astr s = std::to_string(octets()[0]);
-			s.push_back('.'); s.append(std::to_string(octets()[1]));
-			s.push_back('.'); s.append(std::to_string(octets()[2]));
-			s.push_back('.'); s.append(std::to_string(octets()[3]));
-			return s;
+			return !v4 ? reinterpret_cast<u16*>(&ipv6) : nullptr;
 		}
+		const u16* words() const
+		{
+			return !v4 ? reinterpret_cast<const u16*>(&ipv6) : nullptr;
+		}
+
+		str::astr to_string(bool with_port) const
+		{
+			if (const u8 *octs = octets())
+			{
+				str::astr s = std::to_string(octs[0]);
+				s.push_back('.'); s.append(std::to_string(octs[1]));
+				s.push_back('.'); s.append(std::to_string(octs[2]));
+				s.push_back('.'); s.append(std::to_string(octs[3]));
+				if (with_port)
+				{
+					s.push_back(':');
+					s.append(std::to_string(port));
+				}
+				return s;
+			}
+			if (const u16* ww = words())
+			{
+				str::astr s; if (with_port) s.push_back('[');
+
+				bool col = false, clp = false;
+				bool needz = false;
+				for (signed_t i = 0; i < 8; ++i)
+				{
+					u16 w = ww[i];
+					if (w == 0 && !needz)
+					{
+						if (!col)
+						{
+							if (clp)
+								s.push_back(':');
+							else
+								s.append(ASTR("::"));
+						}
+						col = true;
+					}
+					else
+					{
+						if (col)
+							needz = true;
+						str::append_hex(s, netkit::to_he(w));
+						if (i < 7)
+						{
+							clp = true;
+							s.push_back(':');
+						}
+					}
+
+
+				}
+
+				if (with_port)
+				{
+					s.append(ASTR("]:"));
+					s.append(std::to_string(port));
+				}
+				return s;
+			}
+
+			UNREACHABLE();
+		}
+
+		bool copmpare(const ipap& a) const
+		{
+			if (v4 && a.v4)
+				return port == a.port && ipv4.s_addr == a.ipv4.s_addr;
+			if (!v4 && !a.v4)
+				return port == a.port && memcmp(&ipv6, &a.ipv6, sizeof(ipv6)) == 0;
+			return false;
+		}
+		bool copmpare_a(const ipap& a) const
+		{
+			if (v4 && a.v4)
+				return ipv4.s_addr == a.ipv4.s_addr;
+			if (!v4 && !a.v4)
+				return memcmp(&ipv6, &a.ipv6, sizeof(ipv6)) == 0;
+			return false;
+		}
+
+		bool operator==(const ipap& a) = delete;
 
 		operator u32() const {
-			return s_addr;
+			return v4 ? ipv4.s_addr : 0;
 		}
+
+		/*
+		operator u128() const {
+			return !v4 ? *(u128 *)&ipv6 : 0;
+		}
+		*/
+
+		bool bind(SOCKET s) const;
+		bool connect(SOCKET s) const;
 	};
 
 	enum addr_type
@@ -135,12 +308,6 @@ namespace netkit
 
 #ifdef _WIN32
 #define MAXIMUM_WAITABLES (MAXIMUM_WAIT_OBJECTS - 2)
-#endif
-#ifdef _NIX
-    #define MAXIMUM_WAITABLES 64
-    #define SOCKET int
-    #define INVALID_SOCKET (-1)
-    #define SOCKET_ERROR (-1)
 #endif
 
 #define READY_SYSTEM 1	// ready by WSAEnumNetworkEvents/select
@@ -268,15 +435,14 @@ namespace netkit
 	class endpoint
 	{
 		str::astr domain_;
-		mutable ip4 ip = {};
-		signed_t port_ = 0;
+		mutable ipap ip;
 		mutable addr_type type_ = AT_ERROR;
 
 	public:
 
 		endpoint() {}
 		explicit endpoint(const str::astr& addr);
-		endpoint(ip4 ip, signed_t port):ip(ip), port_(port), type_(AT_TCP_RESLOVED) {}
+		endpoint(const ipap &ip):ip(ip), type_(AT_TCP_RESLOVED) {}
 
 		bool operator==(const endpoint& ep)
 		{
@@ -288,26 +454,26 @@ namespace netkit
 					return domain_ == ep.domain_;
 
 				if (ep.type_ == AT_TCP_RESLOVED)
-					return port_ == ep.port_ && ip == ep.ip;
+					return ip.copmpare(ep.ip);
 
 				return false;
 			case netkit::AT_TCP_RESLOVED:
-				return port_ == ep.port_ && ip == ep.ip;
+				return ip.copmpare(ep.ip);
 			}
 			return false;
 		}
 
 		void preparse(const str::astr& addr);
 
-		void set_ip4(ip4 ipa)
+		void set_ipap(const ipap &ip_)
 		{
-			this->ip = ipa;
+			this->ip = ip_;
 			type_ = AT_TCP_RESLOVED;
 		}
 
 		void set_port(signed_t p)
 		{
-			this->port_ = p;
+			this->ip.port = (u16)p;
 		}
 
 		void set_domain(const str::astr& dom)
@@ -316,10 +482,11 @@ namespace netkit
 			type_ = AT_TCP_DOMAIN;
 		}
 
-		ip4 get_ip4(bool log_enable) const;
+		ipap get_ip(size_t options) const;
+
 		signed_t port() const
 		{
-			return port_;
+			return ip.port;
 		}
 		addr_type type() const
 		{
@@ -334,7 +501,7 @@ namespace netkit
 			str::astr d(domain_);
 			if (!d.empty())
 			{
-				d.push_back(':'); d.append(std::to_string(port_));
+				d.push_back(':'); d.append(std::to_string(ip.port));
 			}
 			switch (type_)
 			{
@@ -343,13 +510,11 @@ namespace netkit
 			case netkit::AT_TCP_RESLOVED:
 				if (d.empty())
 				{
-					d = ip.to_string();
-					d.push_back(':');
-					d.append(std::to_string(port_));
+					d = ip.to_string(true);
 				}
 				else
 				{
-					str::astr ipa = ip.to_string();
+					str::astr ipa = ip.to_string(false);
 					if (d.find(ipa) == d.npos)
 					{
 						d.append(ASTR(" ("));
@@ -389,7 +554,7 @@ namespace netkit
 		bool ready() const { return sock() != INVALID_SOCKET; }
 		virtual ~socket() { close(false); }
 
-		bool tcp_listen(const ip4& bind2, int port);
+		bool tcp_listen(const ipap& bind2);
 		tcp_pipe* tcp_accept();
 	};
 
@@ -418,14 +583,14 @@ namespace netkit
 
 	struct tcp_pipe : public pipe, public socket
 	{
-		sockaddr_in addr = {};
+		ipap addr;
 		signed_t creationtime = 0;
 
 		tools::circular_buffer<16384*3> rcvbuf;
 		tools::chunk_buffer<16384> outbuf;
 
 		tcp_pipe() { creationtime = chrono::ms(); }
-		tcp_pipe(SOCKET s, const sockaddr_in& addr) :addr(addr) { _socket = s; creationtime = chrono::ms(); }
+		tcp_pipe(SOCKET s, const ipap& addr) :addr(addr) { _socket = s; creationtime = chrono::ms(); }
 		tcp_pipe(const tcp_pipe&) = delete;
 		tcp_pipe(tcp_pipe&&) = delete;
 
@@ -444,17 +609,13 @@ namespace netkit
 			return (chrono::ms() - creationtime) > 10000; // 10 sec
 		}
 
-		void set_address(ip4 IPv4, signed_t port)
+		void set_address(const ipap &ipp)
 		{
-			addr.sin_family = AF_INET;
-			addr.sin_addr = IPv4;
-			addr.sin_port = netkit::to_ne((u16)port);
+			addr = ipp;
 		}
 		void set_address(const endpoint & ainf)
 		{
-			addr.sin_family = AF_INET;
-			addr.sin_addr = ainf.get_ip4(false);
-			addr.sin_port = netkit::to_ne((u16)ainf.port());
+			set_address( ainf.get_ip(getip_def | netkit::GIP_ANY) );
 		}
 
 		bool connect();
@@ -517,7 +678,7 @@ namespace netkit
 	static_assert(sizeof(tcp_pipe) <= 65536);
 
 
-	bool dnsresolve(const str::astr& host, ip4& addr);
+	bool dnsresolve(const str::astr& host, ipap& addr);
 
 
 
@@ -547,10 +708,21 @@ namespace netkit
 			memcpy(data + ptr, s.c_str(), s.length());
 			ptr += s.length();
 		}
-		void push(netkit::ip4 ip) // push ip
+		void push(const netkit::ipap &ip, bool push_port) // push ip
 		{
-			memcpy(data + ptr, &ip, 4);
-			ptr += 4;
+			if (ip.v4)
+			{
+				memcpy(data + ptr, &ip.ipv4, 4);
+				ptr += 4;
+			}
+			else {
+				memcpy(data + ptr, &ip.ipv6, 16);
+				ptr += 16;
+			}
+			if (push_port)
+			{
+				push16(ip.port);
+			}
 		}
 	};
 

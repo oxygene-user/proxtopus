@@ -1,6 +1,7 @@
 #include "pch.h"
 
 volatile bool engine::exit = false;
+volatile spinlock::long3264 engine::numlisteners = 0;
 
 engine::engine(FN && path_config)
 {
@@ -25,7 +26,7 @@ engine::engine(FN && path_config)
 
 		if (name.empty())
 		{
-			LOG_W("Proxy with no name skipped");
+			LOG_W("proxy with no name skipped");
 			return true;
 		}
 
@@ -48,7 +49,7 @@ engine::engine(FN && path_config)
 
 		if (name.empty())
 		{
-			LOG_W("Listener with no name skipped");
+			LOG_W("listener with no name skipped");
 			return true;
 		}
 
@@ -94,6 +95,12 @@ signed_t engine::working()
 		for (std::unique_ptr<listener> & l : listners)
 			l->stop();
 
+		return -1;
+	}
+
+	if (numlisteners <= 0)
+	{
+		LOG_E("there are no active listeners");
 		return -1;
 	}
 

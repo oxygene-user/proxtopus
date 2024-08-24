@@ -120,7 +120,7 @@ template<typename TCHARACTER> static const TCHARACTER *token_start(const TCHARAC
 			{
 				for (t+=2; t<end-1; t++) // seek for comment end
 					if (*t==TCHARACTER('*') && *(t+1)==TCHARACTER('/')) break;
-				if (t==end-1) {LOG_W("Unended comment"); break;}
+				if (t==end-1) {LOG_W("unclosed comment"); break;}
 				t++;
 			}
 			else
@@ -154,7 +154,7 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 #ifdef _DEBUG
 	if (!source_basis) source_basis = s;
 #endif
-#define END_CHECK(msg) if (s >= end) { LOG_W("Unexpected eof while " msg "(line: %i)", get_current_line(s)); return false; }
+#define END_CHECK(msg) if (s >= end) { LOG_W("unexpected eof while " msg "(line: %i)", get_current_line(s)); return false; }
 #define SKIP_SEPARATORS(additional_check) \
 	while (true)\
 	{\

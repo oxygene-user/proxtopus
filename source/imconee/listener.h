@@ -31,13 +31,12 @@ class tcp_listener : public listener
 
 	struct statestruct
 	{
-		netkit::ip4 bind = {};
-		u16 port = 0;
+		netkit::ipap bind;
 		state_stage stage = IDLE;
 		bool need_stop = false;
 	};
 
-	static_assert( sizeof(statestruct) == 8 );
+	static_assert( sizeof(statestruct) == 24 );
 
 	spinlock::syncvar<statestruct> state;
 	void acceptor();
@@ -49,7 +48,7 @@ public:
 	//tcp_listener(handler *h) { hand.reset(h); }
 	/*virtual*/ ~tcp_listener() {}
 
-	void prepare(netkit::ip4 bind2, signed_t port);
+	void prepare(const netkit::ipap &bind2);
 
 	/*virtual*/ void open() override;
 	/*virtual*/ void stop() override;

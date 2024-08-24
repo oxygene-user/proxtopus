@@ -7,7 +7,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_W("{type} not defined for proxy [%s]. Type {imconee help proxy} for more information.", str::printable(name));
+		LOG_E("{type} not defined for proxy [%s]; type {imconee help proxy} for more information", str::printable(name));
 		return nullptr;
 	}
 
@@ -44,7 +44,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 		return p;
 	}
 
-	LOG_E("unknown {type} [%s] for proxy [%s]. Type {imconee help proxy} for more information.", str::printable(t), str::printable(name));
+	LOG_E("unknown {type} [%s] for proxy [%s]; type {imconee help proxy} for more information", str::printable(t), str::printable(name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 
 	return nullptr;
@@ -59,7 +59,7 @@ proxy::proxy(loader& ldr, const str::astr& name, const asts& bb):name(name)
 	if (a.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_W("addr not defined for proxy [%s]", str::printable(name));
+		LOG_E("addr not defined for proxy [%s]", str::printable(name));
 		return;
 	}
 
@@ -104,7 +104,7 @@ namespace {
 
 netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
 {
-	addr2.get_ip4(false);
+	addr2.get_ip(netkit::GIP_ONLY4);
 	if (addr2.type() != netkit::AT_TCP_RESLOVED || addr2.port() == 0)
 	{
 		return netkit::pipe_ptr();
@@ -114,7 +114,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	connect_packet_socks4* pd = (connect_packet_socks4 *)_alloca(dsz);
 	pd->vn = 4; pd->cd = 1;
 	pd->destport = netkit::to_ne((u16)addr2.port());
-	pd->destip = addr2.get_ip4(false);
+	pd->destip = addr2.get_ip(netkit::GIP_ONLY4);
 	memcpy(pd + 1, userid.c_str(), userid.length());
 	((u8*)pd)[dsz - 1] = 0;
 
@@ -198,9 +198,10 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 		pg.push8(5); // socks 5
 		pg.push8(1); // connect
 		pg.push8(0);
-		pg.push8(1); // ip4
-		pg.push(addr2.get_ip4(false));
-		pg.push16(addr2.port());
+
+		netkit::ipap a = addr2.get_ip(netkit::getip_def);
+		pg.push8(a.v4 ? 1 : 4);
+		pg.push(a, true);
 
 		if (pipe_to_proxy->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 			return netkit::pipe_ptr();
@@ -234,14 +235,14 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 			case 2: return "connection not allowed by ruleset";
 			case 3: return "Network unreachable";
 			case 4:
-				ers = ASTR("Host unreachable (");
+				ers = ASTR("host unreachable (");
 				ers.append(addr2.domain());
 				ers.push_back(')');
 				return ers.c_str();
-			case 5: return "Connection refused";
+			case 5: return "connection refused";
 			case 6: return "TTL expired";
-			case 7: return "Command not supported";
-			case 8: return "Address type not supported";
+			case 7: return "command not supported";
+			case 8: return "address type not supported";
 			}
 
 			ers = ASTR("unknown error code (");
@@ -251,7 +252,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 
 		};
 
-		LOG_N("Proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
+		LOG_N("proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
 
 		return netkit::pipe_ptr();
 	}

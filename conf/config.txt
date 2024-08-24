@@ -1,3 +1,10 @@
+settings {
+
+	// higher priority - resolve and use first
+	ipv4=1  // 0 - disable, 1 - enable with priority 1, 2 - enable with priority 2
+	ipv6=0  // 0 - disable, 1 - enable with priority 1, 2 - enable with priority 2
+}
+
 listeners {
 
 	// simple port mapper
