@@ -37,6 +37,10 @@
 #define __LOC__ __FILE__ "(" __STR1__(__LINE__) ") : "
 #endif
 
+#ifdef _DEBUG
+#define DEBUG_DEADLOCK
+#endif
+
 namespace spinlock
 {
 #if defined _WIN32
@@ -217,10 +221,10 @@ SLINLINE uint32_t tid_self() { return ::pthread_self() & 0xffffffff; }
 #define CHECK_LOCK(lock) if (!(lock & LOCK_READ_MASK) && !(lock & LOCK_WRITE_MASK)) SLERROR("No LOCK: %llu", lock)
 
 #define DEADLOCK_COUNTER 3000000000LU // 30 seconds
-#define DEBUG_DEADLOCK
 #if defined(DEBUG_DEADLOCK) && defined(_WIN32)
 #define DEADLOCKCHECK_INIT() spinlock::int64 deadlockcounter=0;
-#define DEADLOCKCHECK(counter) if (deadlockcounter++>DEADLOCK_COUNTER){ SLERROR("Deadlock: %llu", counter); }
+//#define DEADLOCKCHECK(counter) if (deadlockcounter++>DEADLOCK_COUNTER){ SLERROR("Deadlock: %llu", counter); }
+#define DEADLOCKCHECK(counter) if (deadlockcounter++>1000000){ __debugbreak(); }
 #else
 #define DEADLOCKCHECK_INIT()
 #define DEADLOCKCHECK(counter)
@@ -487,8 +491,8 @@ inline long3264 decrement( volatile long3264 &lock )
 
 template <typename VARTYPE> class syncvar
 {
-    RWLOCK mutable  m_lock;
-    VARTYPE         m_var;
+    RWLOCK mutable  m_lock = 0;
+    VARTYPE         m_var = {};
 
     class read_c
     {
@@ -498,8 +502,8 @@ template <typename VARTYPE> class syncvar
         read_c( const VARTYPE & _var, const syncvar *_host ): var(&_var), host(_host)
         {
         }
-        read_c & operator = (const read_c &);
-        read_c(const read_c &);
+        read_c & operator = (const read_c &) = delete;
+        read_c(const read_c &) = delete;
     public:
         read_c( read_c &&r ): var(r.var), host(r.host)
         {
@@ -550,8 +554,8 @@ template <typename VARTYPE> class syncvar
         write_c( VARTYPE * _var, const syncvar *_host ): var(_var), host(_host)
         {
         }
-        write_c & operator = (const write_c &r);
-        write_c(const write_c &r);
+        write_c & operator = (const write_c &r) = delete;
+        write_c(const write_c &r) = delete;
     public:
         write_c(): var(nullptr), host(nullptr) {}
         write_c( write_c &&r ): var(r.var), host(r.host)
@@ -621,15 +625,14 @@ public:
     /**
     * Constructor. Custom initialization for protected variable
     */
-    explicit syncvar(const VARTYPE &v): m_lock(0), m_var(v)
+    explicit syncvar(const VARTYPE &v): m_var(v)
     {
     }
     /**
     * Constructor. Default initialization for protected variable
     */
-    syncvar():m_lock(0)
+    syncvar()
     {
-        m_var = {};
     }
     /**
     * Destructor

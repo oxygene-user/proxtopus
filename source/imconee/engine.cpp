@@ -1,12 +1,7 @@
 #include "pch.h"
 
-volatile bool engine::exit = false;
-volatile spinlock::long3264 engine::numlisteners = 0;
-
-engine::engine(FN && path_config)
+engine::engine()
 {
-	FN x = std::move(path_config);
-
 #ifdef _WIN32
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -15,12 +10,14 @@ engine::engine(FN && path_config)
 
 	loader ldr(this);
 
-	if (!ldr.load_conf(x))
+	if (!ldr.load_conf(glb.path_config))
 	{
 		exit_code = ldr.exit_code;
-		exit = true;
+		glb.stop();
 		return;
 	}
+
+	glb.path_config = FN();
 
 	ldr.iterate_p([&](const str::astr& name, const asts& lb) {
 
@@ -41,7 +38,7 @@ engine::engine(FN && path_config)
 	if (ldr.exit_code != 0)
 	{
 		exit_code = ldr.exit_code;
-		exit = true;
+		glb.stop();
 		return;
 	}
 
@@ -64,17 +61,23 @@ engine::engine(FN && path_config)
 	if (exit_code != 0)
 	{
 		exit_code = ldr.exit_code;
-		exit = true;
+		glb.stop();
 		return;
 	}
 
 	if (listners.empty())
 	{
-		LOG_W("empty (or not loaded) \"listeners\" block");
+		LOG_E("empty (or not loaded) \"listeners\" block");
 		exit_code = EXIT_FAIL_NOLISTENERS;
-		exit = true;
+		glb.stop();
 		return;
 	}
+
+	if (ldr.nameservers && glb.dns != nullptr)
+	{
+		glb.dns->load_serves(this, ldr.nameservers);
+	}
+
 
 	for (auto &l : listners)
 		l->open();
@@ -90,7 +93,7 @@ engine::~engine()
 
 signed_t engine::working()
 {
-	if (exit)
+	if (glb.is_stop())
 	{
 		for (std::unique_ptr<listener> & l : listners)
 			l->stop();
@@ -98,11 +101,11 @@ signed_t engine::working()
 		return -1;
 	}
 
-	if (numlisteners <= 0)
+	if (glb.numlisteners <= 0)
 	{
 		LOG_E("there are no active listeners");
 		return -1;
 	}
 
-	return 1000;
+	return glb.log_muted || glb.prints.lock_read()().empty() ? 1000 : 1;
 }

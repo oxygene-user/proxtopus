@@ -3,8 +3,6 @@
 #if LOGGER==2
 #include <codecvt>
 
-logger lg;
-
 /*
 logger &logger::operator<<(const std::string& s)
 {
@@ -31,12 +29,29 @@ logger& logger::operator<<(signed_t x)
 }
 */
 
-void logger::newline(int sev, const std::string& s)
+void logger::mute()
 {
-	if (muted)
+	glb.log_muted = true;
+}
+
+
+void logger::newline(int sev, const str::astr& s)
+{
+	if (glb.log_muted)
 		return;
 
-	SIMPLELOCK(lock);
+	auto tid = []() -> const char*
+		{
+			static thread_local std::array<char, 8> tids;
+			if (tids[0] == 0)
+			{
+				tids[0] = '[';
+				tids[5] = ']';
+				std::span<char> t(tids.data()+1, 0);
+				str::append_hex<std::span<char>, u16, false>(t, tools::as_word(spinlock::tid_self()));
+			}
+			return tids.data();
+		};
 
 	switch (sev)
 	{
@@ -48,6 +63,9 @@ void logger::newline(int sev, const std::string& s)
 		break;
 	case SEV_ERROR:
 		Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "error: %s\n", s.c_str());
+		break;
+	case SEV_DEBUG:
+		Print("%s %s\n", tid(), s.c_str());
 		break;
 	default:
 		Print("note: %s\n", s.c_str());

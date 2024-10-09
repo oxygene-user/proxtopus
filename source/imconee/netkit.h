@@ -15,21 +15,10 @@ inline void closesocket(int s) { ::close(s); };
 #define SOCKET_ERROR (-1)
 #endif
 
+struct thread_storage;
+
 namespace netkit
 {
-	enum getip_options
-	{
-		GIP_PRIOR4, // any, but 4 first
-		GIP_PRIOR6, // any, but 6 first
-		GIP_ONLY4,
-		GIP_ONLY6,
-
-		GIP_LOG_IT = (1 << 8),	// log if cant resolve
-		GIP_ANY = (2 << 8),		// don't resolve prior/only if already resolved
-	};
-
-	extern getip_options getip_def;
-
 	template <bool native_little> struct cvt {};
 	template<> struct cvt<true> {
 		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
@@ -52,6 +41,11 @@ namespace netkit
 		}
 	};
 
+	inline u16 to_ne16(signed_t v_nitive)
+	{
+		return cvt<Endian::little>::to_ne((u16)(v_nitive & 0xffff));
+	}
+
 	inline u16 to_ne(u16 v_nitive)
 	{
 		return cvt<Endian::little>::to_ne(v_nitive);
@@ -61,23 +55,46 @@ namespace netkit
 		return cvt<Endian::little>::to_he(v_network);
 	}
 
+	enum socket_type
+	{
+		ST_UNDEFINED,
+		ST_TCP,
+		ST_UDP,
+	};
 
+	struct udp_packet;
 	struct ipap // ip address and port
 	{
 		static ipap parse6(const str::astr_view& s); // assume s is ipv6 address
 		static ipap parse(const str::astr_view& s);
+		static void build(ipap* r, const u8* packet, signed_t plen, u16 port = 0)
+		{
+			bool readport = false;
+			if (port == 0 && (plen == 6 || plen == 18))
+			{
+				plen -= 2;
+				readport = true;
+			}
+
+			if (plen == 4)
+			{
+				r->ipv4 = *(in_addr*)packet;
+			}
+			else if (plen == 16) {
+				memcpy(&r->ipv6, packet, 16);
+				r->v4 = false;
+			}
+			if (readport)
+			{
+				r->port = ((u16)packet[plen] << 8) | packet[plen + 1];
+			}
+			else
+				r->port = port;
+		}
 		static ipap build(const u8* packet, signed_t plen, u16 port = 0)
 		{
 			ipap r;
-			if (plen == 4)
-			{
-				r.ipv4 = *(in_addr*)packet;
-			}
-			else if (plen == 16){
-				memcpy(&r.ipv6, packet, 16);
-				r.v4 = false;
-			}
-			r.port = port;
+			build(&r, packet, plen, port);
 			return r;
 		}
 
@@ -97,7 +114,7 @@ namespace netkit
 
 		void clear()
 		{
-			v4 = getip_def == GIP_ONLY4 || getip_def == GIP_PRIOR4;
+			v4 = glb.cfg.ipstack == conf::gip_only4 || glb.cfg.ipstack == conf::gip_prior4;
 			if (v4) ipv4.s_addr = 0; else memset(&ipv6, 0, sizeof(ipv6));
 		}
 
@@ -135,19 +152,64 @@ namespace netkit
 		{
 			clear();
 		}
-		ipap(bool v4):v4(v4)
+		explicit ipap(bool v4):v4(v4)
 		{
 		}
 
-		ipap(const sockaddr_in &a) {
+		/*
+		explicit ipap(const sockaddr_in &a) {
 			ipv4.s_addr = a.sin_addr.s_addr;
 			port = netkit::to_he(a.sin_port);
 		}
-		ipap(const sockaddr_in6& a):v4(false) {
+		explicit ipap(const sockaddr_in6& a):v4(false) {
 			memcpy(&ipv6, &a.sin6_addr, sizeof(a.sin6_addr));
 			port = netkit::to_he(a.sin6_port);
 		};
+		*/
+		explicit ipap(const void *aaaa, signed_t aaaa_size) :v4(aaaa_size == sizeof(sockaddr_in)) {
+			if (v4)
+			{
+				const sockaddr_in* a = (const sockaddr_in*)aaaa;
+				ipv4.s_addr = a->sin_addr.s_addr;
+				port = netkit::to_he(a->sin_port);
+			}
+			else
+			{
+				const sockaddr_in6* a = (const sockaddr_in6*)aaaa;
+				memcpy(&ipv6, &a->sin6_addr, sizeof(a->sin6_addr));
+				port = netkit::to_he(a->sin6_port);
+			}
+		};
 
+		ipap& operator=(const ipap& ip)
+		{
+			if (ip.v4)
+			{
+				ipv4.s_addr = ip.ipv4.s_addr;
+				v4 = true;
+			}
+			else {
+				memcpy(&ipv6, &ip.ipv6, sizeof(ipv6));
+				v4 = false;
+			}
+#ifdef _DEBUG
+			if (port == 53 && ip.port == 0)
+				__debugbreak();
+#endif
+			port = ip.port;
+			return *this;
+		}
+
+		void set(const ipap& ip, bool useport)
+		{
+			v4 = ip.v4;
+			if (v4)
+				ipv4.s_addr = ip.ipv4.s_addr;
+			else
+				memcpy(&ipv6, &ip.ipv6, sizeof(ipv6));
+			if (useport)
+				port = ip.port;
+		}
 		void set(const sockaddr_in* ip4, bool useport)
 		{
 			v4 = true;
@@ -178,6 +240,12 @@ namespace netkit
 					break;
 				}
 			}
+		}
+
+		ipap& set_port(signed_t p)
+		{
+			this->port = tools::as_word(p);
+			return *this;
 		}
 
 		const u8* octets() const
@@ -282,6 +350,11 @@ namespace netkit
 			return v4 ? ipv4.s_addr : 0;
 		}
 
+		operator bool() const
+		{
+			return !is_wildcard();
+		}
+
 		/*
 		operator u128() const {
 			return !v4 ? *(u128 *)&ipv6 : 0;
@@ -290,13 +363,14 @@ namespace netkit
 
 		bool bind(SOCKET s) const;
 		bool connect(SOCKET s) const;
+		bool sendto(SOCKET s, const std::span<const u8> &p) const;
 	};
 
-	enum addr_type
+	enum endpoint_state
 	{
-		AT_ERROR,
-		AT_TCP_DOMAIN,
-		AT_TCP_RESLOVED,
+		EPS_EMPTY,
+		EPS_DOMAIN,
+		EPS_RESLOVED,
 	};
 
 	enum wrslt
@@ -436,28 +510,31 @@ namespace netkit
 	{
 		str::astr domain_;
 		mutable ipap ip;
-		mutable addr_type type_ = AT_ERROR;
+		mutable endpoint_state state_ = EPS_EMPTY;
+		mutable socket_type sockt = ST_UNDEFINED;
+
+		void check_domain_or_ip();
 
 	public:
 
 		endpoint() {}
 		explicit endpoint(const str::astr& addr);
-		endpoint(const ipap &ip):ip(ip), type_(AT_TCP_RESLOVED) {}
+		endpoint(const ipap &ip):ip(ip), state_(EPS_RESLOVED) {}
 
 		bool operator==(const endpoint& ep)
 		{
-			switch (type_)
+			switch (state_)
 			{
-			case AT_TCP_DOMAIN:
+			case EPS_DOMAIN:
 
-				if (ep.type_ == AT_TCP_DOMAIN)
+				if (ep.state_ == EPS_DOMAIN)
 					return domain_ == ep.domain_;
 
-				if (ep.type_ == AT_TCP_RESLOVED)
+				if (ep.state_ == EPS_RESLOVED)
 					return ip.copmpare(ep.ip);
 
 				return false;
-			case netkit::AT_TCP_RESLOVED:
+			case netkit::EPS_RESLOVED:
 				return ip.copmpare(ep.ip);
 			}
 			return false;
@@ -465,10 +542,16 @@ namespace netkit
 
 		void preparse(const str::astr& addr);
 
+		void read(u8* packet, signed_t plen)
+		{
+			ipap::build(&ip, packet, plen);
+			state_ = EPS_RESLOVED;
+		}
+
 		void set_ipap(const ipap &ip_)
 		{
 			this->ip = ip_;
-			type_ = AT_TCP_RESLOVED;
+			state_ = EPS_RESLOVED;
 		}
 
 		void set_port(signed_t p)
@@ -479,7 +562,12 @@ namespace netkit
 		void set_domain(const str::astr& dom)
 		{
 			this->domain_ = dom;
-			type_ = AT_TCP_DOMAIN;
+			state_ = EPS_DOMAIN;
+		}
+		void set_domain(const str::astr_view& dom)
+		{
+			this->domain_ = dom;
+			state_ = EPS_DOMAIN;
 		}
 
 		ipap get_ip(size_t options) const;
@@ -488,9 +576,13 @@ namespace netkit
 		{
 			return ip.port;
 		}
-		addr_type type() const
+		endpoint_state state() const
 		{
-			return type_;
+			return state_;
+		}
+		socket_type socket_type() const
+		{
+			return sockt;
 		}
 		str::astr domain() const
 		{
@@ -503,11 +595,11 @@ namespace netkit
 			{
 				d.push_back(':'); d.append(std::to_string(ip.port));
 			}
-			switch (type_)
+			switch (state_)
 			{
-			case netkit::AT_TCP_DOMAIN:
+			case netkit::EPS_DOMAIN:
 				break;
-			case netkit::AT_TCP_RESLOVED:
+			case netkit::EPS_RESLOVED:
 				if (d.empty())
 				{
 					d = ip.to_string(true);
@@ -532,10 +624,42 @@ namespace netkit
 		}
 	};
 
+	struct udp_packet
+	{
+		u8	packet[65536];
+		ipap from;
+		u16 sz = 0;
+		udp_packet(bool v4)
+		{
+			from.v4 = v4;
+		}
+
+		std::span<const u8> to_span() const
+		{
+			return std::span<const u8>(packet, sz);
+		}
+	};
+
 	struct tcp_pipe;
+
 	struct socket
 	{
-		str::astr name;
+		SOCKET s = INVALID_SOCKET;
+
+		bool ready() const { return s != INVALID_SOCKET; }
+		virtual ~socket() { close(false); }
+
+		void close(bool flush_before_close);
+
+		bool init(signed_t timeout, bool v4);
+		bool listen_udp(const str::astr& name, const ipap& bind2);
+		bool recv(udp_packet& p);
+		bool send(const std::span<const u8>& p, const ipap& tgt_ip);
+	};
+
+
+	struct waitable_socket
+	{
 		waitable_data _socket;
 		SOCKET sock() const { return _socket.s; }
 		WAITABLE get_waitable()
@@ -552,10 +676,11 @@ namespace netkit
 
 		void close(bool flush_before_close);
 		bool ready() const { return sock() != INVALID_SOCKET; }
-		virtual ~socket() { close(false); }
+		virtual ~waitable_socket() { close(false); }
 
-		bool tcp_listen(const ipap& bind2);
-		tcp_pipe* tcp_accept();
+		bool listen(const str::astr& name, const ipap& bind2);
+		tcp_pipe* tcp_accept(const str::astr& name);
+
 	};
 
 	struct pipe : public ptr::sync_shared_object
@@ -577,11 +702,12 @@ namespace netkit
 		virtual signed_t recv(u8* data, signed_t maxdatasz) = 0;
 		virtual WAITABLE get_waitable() = 0;
 		virtual void close(bool flush_before_close) = 0;
+		virtual bool alive() = 0;
 	};
 
 	using pipe_ptr = ptr::shared_ptr<pipe>;
 
-	struct tcp_pipe : public pipe, public socket
+	struct tcp_pipe : public pipe, public waitable_socket
 	{
 		ipap addr;
 		signed_t creationtime = 0;
@@ -601,7 +727,7 @@ namespace netkit
 		/*virtual*/ void close(bool flush_before_close) override
 		{
 			rcvbuf.clear();
-			socket::close(flush_before_close);
+			waitable_socket::close(flush_before_close);
 		}
 
 		bool timeout() const
@@ -615,7 +741,7 @@ namespace netkit
 		}
 		void set_address(const endpoint & ainf)
 		{
-			set_address( ainf.get_ip(getip_def | netkit::GIP_ANY) );
+			set_address( ainf.get_ip(glb.cfg.ipstack | conf::gip_any) );
 		}
 
 		bool connect();
@@ -632,6 +758,9 @@ namespace netkit
 		}
 
 		bool connected() const { return ready(); }
+
+		/*virtual*/ bool alive() override;
+
 
 		/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 		/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
@@ -678,19 +807,137 @@ namespace netkit
 	static_assert(sizeof(tcp_pipe) <= 65536);
 
 
-	bool dnsresolve(const str::astr& host, ipap& addr);
+	bool dnsresolve(const str::astr& host, ipap& addr, bool log_it);
 
 
 
 	class pgen
 	{
 		u8* data;
-		signed_t ptr = 0;
+
+		void use_pre(signed_t res) // res can be positive and negative
+		{
+			ASSERT(res > 0 ? pre >= res : (pre - res) <= sz);
+			pre = tools::as_word(pre - res);
+			data = data - res;
+			sz = tools::as_word(sz + res);
+		}
+
 	public:
-		signed_t sz;
-		pgen(u8* data, signed_t sz) :data(data), sz(sz) {}
+		u16 ptr = 0;
+		u16 sz, pre = 0;
+		pgen(u8* data, signed_t sz, signed_t pre = 0) :data(data), sz(tools::as_word(sz)), pre(tools::as_word(pre)) {}
+		explicit pgen(std::span<const u8> data) :data(const_cast<u8 *>(data.data())), sz(tools::as_word(data.size())) {} // yeah, const hack
 		~pgen() {
-			ASSERT(ptr == sz);
+		}
+
+		void set_pre(u16 reqpre)
+		{
+			if (reqpre == pre)
+				return;
+			signed_t delta = (signed_t)pre - (signed_t)reqpre;
+			use_pre(delta);
+		}
+
+		void operator=(const udp_packet& p)
+		{
+			memcpy(data, p.packet, p.sz);
+			sz = ptr = p.sz;
+		}
+
+		std::span<const u8> to_span() const
+		{
+			return std::span<const u8>(data, sz);
+		}
+
+		void start()
+		{
+			ptr = 0;
+		}
+
+		const u8* raw() const
+		{
+			return data + ptr;
+		}
+		u8* get_data()
+		{
+			return data;
+		}
+
+		str::astr_view str_view(signed_t ssz)
+		{
+			for (char* c = (char*)data + ptr, *e = (char*)data + ptr + ssz; c < e; ++c)
+			{
+				char ch = *c;
+				if (ch >= 'A' && ch <= 'Z')
+				{
+					*c = ch + 32;
+				}
+			}
+
+			return str::astr_view( (const char *)data + ptr, ssz);
+		}
+
+		bool skipn(signed_t n)
+		{
+			ptr += tools::as_word(n);
+			return ptr <= sz;
+		}
+
+		bool enough(signed_t numb) const
+		{
+			return ptr + numb <= sz;
+		}
+
+		u16 read16()
+		{
+			ASSERT(enough(2));
+			u16 rv = (((u16)data[ptr]) << 8) | data[ptr+1];
+			ptr += 2;
+			return rv;
+		}
+		u32 read32()
+		{
+			ASSERT(enough(4));
+			u32 rv = (((u32)data[ptr]) << 24) | (((u32)data[ptr + 1]) << 16) | (((u32)data[ptr+2]) << 8) | (((u32)data[ptr+3]) << 0);
+			ptr += 4;
+			return rv;
+		}
+
+		template<typename T> const T* readstruct()
+		{
+			if (ptr + (signed_t)sizeof(T) > sz)
+				return nullptr;
+			T* t = (T *)(data + ptr);
+			ptr += sizeof(T);
+			return t;
+		}
+		template<typename T> T get()
+		{
+			if (ptr + (signed_t)sizeof(T) > sz)
+				return (T)0;
+			T* t = (T*)(data + ptr);
+			ptr += sizeof(T);
+			return *t;
+		}
+
+		template<typename S> S & pushstruct()
+		{
+			memset(data + ptr, 0, sizeof(S));
+			S& s = *(S*)(data + ptr);
+			ptr += sizeof(S);
+			return s;
+		}
+
+		void pusha(const u8* a, signed_t asz)
+		{
+			memcpy(data + ptr, a, asz);
+			ptr += tools::as_word(asz);
+		}
+		void pushz(signed_t zsz)
+		{
+			memset(data + ptr, 0, zsz);
+			ptr += tools::as_word(zsz);
 		}
 
 		void push8(signed_t b)
@@ -706,7 +953,7 @@ namespace netkit
 		{
 			data[ptr++] = (u8)s.length();
 			memcpy(data + ptr, s.c_str(), s.length());
-			ptr += s.length();
+			ptr += tools::as_word(s.length());
 		}
 		void push(const netkit::ipap &ip, bool push_port) // push ip
 		{
@@ -725,6 +972,39 @@ namespace netkit
 			}
 		}
 	};
+
+	struct thread_storage_data
+	{
+		virtual ~thread_storage_data() {}
+	};
+
+	struct thread_storage
+	{
+		std::unique_ptr<thread_storage_data> data;
+	};
+
+	enum io_result
+	{
+		ior_ok,
+		ior_general_fail,
+		ior_proxy_fail,
+		ior_send_failed,
+		ior_timeout,
+	};
+
+	class udp_pipe
+	{
+	public:
+		virtual ~udp_pipe() {}
+
+		virtual io_result send(const ipap &toaddr, const pgen& pg /* in */) = 0;
+		virtual io_result recv(pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/) = 0;
+	};
+
+	void udp_prepare(thread_storage& ts, bool v4);
+	io_result udp_send(thread_storage& ts, const ipap& toaddr, const pgen& pg /* in */);
+	io_result udp_recv(thread_storage& ts, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/);
+
 
 }
 

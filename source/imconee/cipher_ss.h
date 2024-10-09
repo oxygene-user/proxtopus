@@ -1,7 +1,5 @@
 #pragma once
 
-#include "botan/botan.h"
-
 #define AEAD_CHUNK_SIZE_MASK 0x3FFF
 #define AEAD_TAG_SIZE 16
 
@@ -255,6 +253,7 @@ namespace ss
 		public:
 			crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, str::astr masterKey, crypto_par cp);
 
+			/*virtual*/ bool alive() override;
 			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
 			/*virtual*/ netkit::WAITABLE get_waitable() override;
@@ -262,7 +261,7 @@ namespace ss
 
 		};
 
-		void load(loader& ldr, const str::astr& name, const asts& bb);
+		str::astr load(loader& ldr, const str::astr& name, const asts& bb); // returns addr (if url field present)
 
 	};
 

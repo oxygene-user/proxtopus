@@ -2,11 +2,12 @@
 #include "sts.h"
 #include "str_helpers.h"
 
-template <typename TCHARACTER> sts_t<TCHARACTER>& sts_t<TCHARACTER>::add_comment(const std::basic_string_view<TCHARACTER>& comment)
+template <typename CH> sts_t<CH>& sts_t<CH>::add_comment(const string_view_type& comment)
 {
 	element* e = new element(this);
 
-	/*auto rslt =*/ elements.try_emplace(static_name_comment, &e->sts);
+	/*auto rslt =*/ elements.insert(std::pair(static_name_comment, &e->sts));
+	
 	e->name = &static_name_comment;
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
@@ -15,7 +16,7 @@ template <typename TCHARACTER> sts_t<TCHARACTER>& sts_t<TCHARACTER>::add_comment
 	return *this;
 }
 
-template <typename TCHARACTER> sts_t<TCHARACTER>& sts_t<TCHARACTER>::add_block()
+template <typename CH> sts_t<CH>& sts_t<CH>::add_block()
 {
 	element* e = new element(this);
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
@@ -23,16 +24,15 @@ template <typename TCHARACTER> sts_t<TCHARACTER>& sts_t<TCHARACTER>::add_block()
 	return e->sts;
 }
 
-template <typename TCHARACTER> sts_t<TCHARACTER> &sts_t<TCHARACTER>::add_block(const std::basic_string_view<TCHARACTER> &name)
+template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_view_type &name)
 {
 	element* e;
 	if (!name.empty())
 	{
-		auto rslt = elements.try_emplace(std::basic_string<TCHARACTER>(name), nullptr);
+		auto rslt = elements.insert(std::pair(name, nullptr));
 		if (!rslt.second)
-		{
 			return *rslt.first->second; // already exist, return it
-		}
+
 		e = new element(this);
 		e->name = &rslt.first->first;
 		rslt.first->second = &e->sts;
@@ -44,12 +44,12 @@ template <typename TCHARACTER> sts_t<TCHARACTER> &sts_t<TCHARACTER>::add_block(c
     return e->sts;
 }
 
-template <typename TCHARACTER> sts_t<TCHARACTER> &sts_t<TCHARACTER>::add_block(const string_type &name)
+template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name)
 {
 	element* e;
 	if (!name.empty())
 	{
-		auto rslt = elements.try_emplace(name, nullptr);
+		auto rslt = elements.insert(std::pair(name, nullptr));
 		if (!rslt.second)
 		{
 			return *rslt.first->second; // already exist, return it
@@ -66,13 +66,13 @@ template <typename TCHARACTER> sts_t<TCHARACTER> &sts_t<TCHARACTER>::add_block(c
 	return e->sts;
 }
 
-template <typename TCHARACTER> sts_t<TCHARACTER> &sts_t<TCHARACTER>::add_block(const string_type &name, const sts_t &oth) // create copy
+template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name, const sts_t &oth) // create copy
 {
 	element* e = new element(this, oth);
 
 	if (!name.empty())
 	{
-		auto rslt = elements.try_emplace(name, &e->sts);
+		auto rslt = elements.insert(std::pair(name, &e->sts));
 		e->name = &rslt.first->first;
 #ifdef _DEBUG
 		if (!rslt.second)
@@ -87,19 +87,19 @@ template <typename TCHARACTER> sts_t<TCHARACTER> &sts_t<TCHARACTER>::add_block(c
 }
 
 
-template <typename TCHARACTER> int sts_t<TCHARACTER>::get_current_line(const TCHARACTER *s)
+template <typename CH> int sts_t<CH>::get_current_line(const CH *s)
 {
 #ifdef _DEBUG
 	if (source_basis && s)
 	{
 		int line = 1;
-		for (const TCHARACTER *t = source_basis; t < s; t++) // calculate number of lines from start of buffer to current position
-			if (*t == TCHARACTER('\r'))
+		for (const CH *t = source_basis; t < s; t++) // calculate number of lines from start of buffer to current position
+			if (*t == CH('\r'))
 			{
-				if (t < s-1 && *(t+1)==TCHARACTER('\n')) t++; // assume \r\n as one line
+				if (t < s-1 && *(t+1)==CH('\n')) t++; // assume \r\n as one line
 				line++;
 			}
-			else if (*t == TCHARACTER('\n')) line++;
+			else if (*t == CH('\n')) line++;
 		return line;
 	}
 #else
@@ -109,23 +109,23 @@ template <typename TCHARACTER> int sts_t<TCHARACTER>::get_current_line(const TCH
 }
 
 
-template<typename TCHARACTER> static const TCHARACTER *token_start(const TCHARACTER *t, const TCHARACTER *end)
+template<typename CH> static const CH *token_start(const CH *t, const CH *end)
 {
-#define TOKEN_CHECK(c) (c!=' ' && c!=TCHARACTER('\t') && c!=TCHARACTER('\r') && c!=TCHARACTER('\n'))
+#define TOKEN_CHECK(c) (c!=' ' && c!=CH('\t') && c!=CH('\r') && c!=CH('\n'))
 	for (;t<end-1;t++)
 	{
-		if (*t==TCHARACTER('/') && (*(t+1)==TCHARACTER('*') || *(t+1)==TCHARACTER('/')))
+		if (*t==CH('/') && (*(t+1)==CH('*') || *(t+1)==CH('/')))
 		{
-			if (*(t+1)==TCHARACTER('*')) // multiline comment
+			if (*(t+1)==CH('*')) // multiline comment
 			{
 				for (t+=2; t<end-1; t++) // seek for comment end
-					if (*t==TCHARACTER('*') && *(t+1)==TCHARACTER('/')) break;
+					if (*t==CH('*') && *(t+1)==CH('/')) break;
 				if (t==end-1) {LOG_W("unclosed comment"); break;}
 				t++;
 			}
 			else
 			{
-				for (t+=2; t<end && *t!=TCHARACTER('\r') && *t!=TCHARACTER('\n'); t++);
+				for (t+=2; t<end && *t!=CH('\r') && *t!=CH('\n'); t++);
 				//t--;
 			}
 			continue;
@@ -137,19 +137,19 @@ template<typename TCHARACTER> static const TCHARACTER *token_start(const TCHARAC
 	return nullptr;
 }
 
-template<typename TCHARACTER> static const TCHARACTER *token_end(const TCHARACTER *&s, const TCHARACTER *end, TCHARACTER addc)
+template<typename CH> static const CH *token_end(const CH *&s, const CH *end, CH addc)
 {
-	const TCHARACTER *start = s, *t;
-	for (; s<end && *s!=TCHARACTER('\r') && *s!=TCHARACTER('\n') && *s!=TCHARACTER('{') && *s!=addc; s++)
-		if (*s == '/' && s<end-1 && (*(s+1)==TCHARACTER('*') || *(s+1)==TCHARACTER('/'))) break;
+	const CH *start = s, *t;
+	for (; s<end && *s!=CH('\r') && *s!=CH('\n') && *s!=CH('{') && *s!=addc; s++)
+		if (*s == '/' && s<end-1 && (*(s+1)==CH('*') || *(s+1)==CH('/'))) break;
 	//END_CHECK("looking for end of line")
-	for (t = s-1; t>start && (*t == TCHARACTER(' ') || *t == TCHARACTER('\t')); t--);
+	for (t = s-1; t>start && (*t == CH(' ') || *t == CH('\t')); t--);
 
 	s = token_start(s, end); // skip comments and empty lines
 	return t + 1;
 }
 
-template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER *&s, const TCHARACTER *end)
+template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 {
 #ifdef _DEBUG
 	if (!source_basis) source_basis = s;
@@ -159,11 +159,11 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 	while (true)\
 	{\
 		/*END_CHECK("skipping separators")*/if (s >= end) break;\
-		if (*s!=TCHARACTER(' ') && *s!=TCHARACTER('\t') && additional_check) break;\
+		if (*s!=CH(' ') && *s!=CH('\t') && additional_check) break;\
 		s++;\
 	}
 
-	const TCHARACTER *start = s;
+	const CH *start = s;
 	if ((s = token_start(s, end)) == nullptr) return false;
 	if (s > start) // keep comments if needed (only top level block)
 	{
@@ -175,11 +175,11 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 		}
 	}
 
-	if (*s == TCHARACTER('}')) {++s; return false;}
+	if (*s == CH('}')) {++s; return false;}
 
 	start = s;
-	string_type name(start, (signed_t)(token_end(s, end, TCHARACTER('=')) - start));
-	sts_t<TCHARACTER> & sts = add_block(name);
+	string_type name(start, (signed_t)(token_end(s, end, CH('=')) - start));
+	sts_t<CH> & sts = add_block(name);
 #ifdef _DEBUG
 	sts.source_basis = source_basis;
 #endif
@@ -189,27 +189,27 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 
 	switch (*s)
 	{
-	case TCHARACTER('='):
+	case CH('='):
 		s++;
 		NOWARNING(4127, SKIP_SEPARATORS(true))
 
-		if (*s == TCHARACTER('`'))
+		if (*s == CH('`'))
 		{
 			string_type v;
 			start = ++s;
 			while (s<end)
 			{
-				if (*s == TCHARACTER('`'))
+				if (*s == CH('`'))
 				{
-					if (s<end-1 && *(s+1)==TCHARACTER('`')) // quoted '`'
+					if (s<end-1 && *(s+1)==CH('`')) // quoted '`'
 					{
-						v.append(std::basic_string_view<TCHARACTER>(start, (signed_t)(s+1-start)));
+						v.append(str::xstr_view<CH>(start, (signed_t)(s+1-start)));
 						start = s+=2;
 						continue;
 					}
 					else // line end
 					{
-						v.append(std::basic_string_view<TCHARACTER>(start, (signed_t)(s-start)));
+						v.append(str::xstr_view<CH>(start, (signed_t)(s-start)));
 						break;
 					}
 				}
@@ -223,8 +223,8 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 		else
 		{
 			start = s;
-			const TCHARACTER *t;
-			sts.set_value(std::basic_string_view<TCHARACTER>(start, (signed_t)((t=token_end(s, end, TCHARACTER('}'))) - start)));
+			const CH *t;
+			sts.set_value(str::xstr_view<CH>(start, (signed_t)((t=token_end(s, end, CH('}'))) - start)));
 			string_type comment(t, (signed_t)((!s?end:s)-t));
 			if (comment.length() >= 2)
 			{
@@ -233,11 +233,11 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 			}
 			if (!s) return false;
 		}
-		if (!(s<end && *s==TCHARACTER('{'))) break;
+		if (!(s<end && *s==CH('{'))) break;
 
 		[[fallthrough]];
 
-	case TCHARACTER('{'):
+	case CH('{'):
 		if ((s = sts.load(s+1, end)) == nullptr) return false;
 		break;
 
@@ -251,7 +251,7 @@ template <typename TCHARACTER> bool sts_t<TCHARACTER>::read_sts(const TCHARACTER
 	return true;
 }
 
-template <typename TCHARACTER> const TCHARACTER *sts_t<TCHARACTER>::load(const TCHARACTER *data, const TCHARACTER *end)
+template <typename CH> const CH *sts_t<CH>::load(const CH *data, const CH *end)
 {
 	if (data)
 	    while (read_sts(data, end));
@@ -260,7 +260,7 @@ template <typename TCHARACTER> const TCHARACTER *sts_t<TCHARACTER>::load(const T
 }
 
 
-template <typename TCHARACTER> static void append_value(std::basic_string<TCHARACTER> &s, const std::basic_string<TCHARACTER> &value)
+template <typename CH> static void append_value(str::xstr<CH> &s, const str::xstr<CH> &value)
 {
     if (value.empty())
 		return;
@@ -268,21 +268,21 @@ template <typename TCHARACTER> static void append_value(std::basic_string<TCHARA
 	s.append(value);
 }
 
-template <typename TCHARACTER> static const std::basic_string<TCHARACTER> store_value(const std::basic_string<TCHARACTER> &value, bool allow_unquoted = true)
+template <typename CH> static const str::xstr<CH> store_value(const str::xstr<CH> &value, bool allow_unquoted = true)
 {
-	if (allow_unquoted && value.find_first_of(CONST_STR_BUILD(TCHARACTER, " \t\r\n`{}"), 0) == std::basic_string<TCHARACTER>::npos) // any of these symbols mean string must be quoted
+	if (allow_unquoted && value.find_first_of(XSTR(CH, " \t\r\n`{}"), 0) == str::xstr<CH>::npos) // any of these symbols mean string must be quoted
 	{
 		signed_t i = 0;
 		for (; i<(signed_t)value.length()-1; i++)
-			if (value[i] == TCHARACTER('/') && (value[i+1] == TCHARACTER('/') || value[i+1] == TCHARACTER('*'))) break;
+			if (value[i] == CH('/') && (value[i+1] == CH('/') || value[i+1] == CH('*'))) break;
 		if (i >= (signed_t)value.length()-1) return value;
 	}
-	std::basic_string<TCHARACTER> r(value);
-	str::replace_all(r, CONST_STR_BUILD(TCHARACTER,"`"), CONST_STR_BUILD(TCHARACTER,"``"));
-	return std::basic_string<TCHARACTER>( CONST_STR_BUILD(TCHARACTER, "`")).append(r).append(1, '`');
+	str::xstr<CH> r(value);
+	str::replace_all(r, XSTR(CH,"`"), XSTR(CH,"``"));
+	return str::xstr<CH>(XSTR(CH, "`")).append(r).append(1, '`');
 }
 
-template <typename TCHARACTER> const std::basic_string<TCHARACTER> sts_t<TCHARACTER>::store(int level) const
+template <typename CH> const str::xstr<CH> sts_t<CH>::store(int level) const
 {
 	// can be block stored as single line?
 	bool one_line = true;
@@ -315,11 +315,11 @@ template <typename TCHARACTER> const std::basic_string<TCHARACTER> sts_t<TCHARAC
             // correct element skip
             if (e == last_element)
                 if ( !one_line && level > 0 )
-                    r.append( CONST_STR_BUILD( TCHARACTER, "\r\n" ) ).append( level - 1, '\t' );
+                    r.append( XSTR( CH, "\r\n" ) ).append( level - 1, '\t' );
             continue;
         }
 		if (!one_line && (level > 0 || e!=first_element))
-            r.append(CONST_STR_BUILD(TCHARACTER,"\r\n")).append(level, '\t');
+            r.append(XSTR(CH,"\r\n")).append(level, '\t');
 
 		size_t prev_len = r.length();
 		bool has_name = false;
@@ -348,13 +348,13 @@ template <typename TCHARACTER> const std::basic_string<TCHARACTER> sts_t<TCHARAC
         } else
         {
             if (!one_line && level > 0)
-                r.append(CONST_STR_BUILD(TCHARACTER,"\r\n")).append(level-1, '\t');
+                r.append(XSTR(CH,"\r\n")).append(level-1, '\t');
         }
 	}
 	return r;
 }
 
-template <typename TCHARACTER> std::basic_string<TCHARACTER> sts_t<TCHARACTER>::static_name_comment;
+template <typename CH> str::xstr<CH> sts_t<CH>::static_name_comment;
 
 template class sts_t<char>;
 // no need

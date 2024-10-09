@@ -1,0 +1,30 @@
+Help about handlers.
+Handler is part of listener.
+
+Each handler contains a type field that defines the behavior:
+  {type} (possible values: "direct", "socks", "socks4", "socks5", "shadowsocks")
+    "direct"      - simple port mapper; just maps incoming connection to specified address; supports both UDP and TCP
+    "socks"       - socks4 and socks5 server
+    "socks4"      - socks4 server
+    "socks5"      - socks5 server
+    "shadowsocks" - shadowsocks server (remote part of shadowsocks tunnel)
+
+Possible fields of handler "direct":
+  {to}          (address:port of target) required field
+  {udp-timeout} (timeout value in milliseconds) optional field for UDP type of listeners
+  {proxychain}  (comma separated list of proxies) optional field for TCP type of listeners
+
+Possible fields of handler "socks", "socks4", "socks5":
+  {userid}      (userid string) optional field for socks4
+  {auth}        (login:pass) optional field for socks5
+  {anon}        ("0" or "1") optional field for socks5; {anon}="0" means disable anon socks5 clients
+  {proxychain}  (comma separated list of proxies) optional field for TCP type of listeners
+
+Possible fields of handler "shadowsocks":
+  {method}      (possible values: "aes-128-gcm", "aes-192-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305") required field; optional field, if {url} field defined
+  {password}    (password) required field; optional field, if {url} field defined
+  {url}         (shadowsocks link ss://) optional field
+  {proxychain}  (comma separated list of proxies) optional field for TCP type of listeners
+
+To create the client part of the shadowsocks tunnel, create a socks5 server and specify the shadowsocks proxy as the upstream proxy.
+Type {$(EXE) help proxy} for more information about proxy.

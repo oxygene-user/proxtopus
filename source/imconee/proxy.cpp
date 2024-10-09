@@ -53,17 +53,19 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 
 }
 
-proxy::proxy(loader& ldr, const str::astr& name, const asts& bb):name(name)
+proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required):name(name)
 {
 	str::astr a = bb.get_string(ASTR("addr"));
 	if (a.empty())
 	{
-		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("addr not defined for proxy [%s]", str::printable(name));
-		return;
-	}
-
-	addr.preparse(a);
+		if (addr_required)
+		{
+			ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
+			LOG_E("addr not defined for proxy [%s]", str::printable(name));
+			return;
+		}
+	} else
+		addr.preparse(a);
 }
 
 str::astr proxy::desc() const
@@ -104,8 +106,8 @@ namespace {
 
 netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
 {
-	addr2.get_ip(netkit::GIP_ONLY4);
-	if (addr2.type() != netkit::AT_TCP_RESLOVED || addr2.port() == 0)
+	addr2.get_ip(conf::gip_only4);
+	if (addr2.state() != netkit::EPS_RESLOVED || addr2.port() == 0)
 	{
 		return netkit::pipe_ptr();
 	}
@@ -114,7 +116,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	connect_packet_socks4* pd = (connect_packet_socks4 *)_alloca(dsz);
 	pd->vn = 4; pd->cd = 1;
 	pd->destport = netkit::to_ne((u16)addr2.port());
-	pd->destip = addr2.get_ip(netkit::GIP_ONLY4);
+	pd->destip = addr2.get_ip(conf::gip_only4);
 	memcpy(pd + 1, userid.c_str(), userid.length());
 	((u8*)pd)[dsz - 1] = 0;
 
@@ -162,44 +164,135 @@ proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :
 
 }
 
-
-netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
+bool proxy_socks5::initial_setup(u8* packet, netkit::pipe* p2p) const
 {
-	if (addr2.type() == netkit::AT_ERROR || addr2.port() == 0)
-		return netkit::pipe_ptr();
-
-	u8 packet[512];
 	packet[0] = 5;
 	packet[1] = 1;
 	packet[2] = authpacket.empty() ? 0 : 2;
 
-	if (pipe_to_proxy->send(packet, 3) == netkit::pipe::SEND_FAIL)
-		return netkit::pipe_ptr();
+	if (p2p->send(packet, 3) == netkit::pipe::SEND_FAIL)
+		return false;
 
-	signed_t rb = pipe_to_proxy->recv(packet, -2);
+	signed_t rb = p2p->recv(packet, -2);
 
 	if (rb != 2 || packet[0] != 5 || packet[1] != packet[2])
-		return netkit::pipe_ptr();
+		return false;
 
 	if (!authpacket.empty())
 	{
-		if (pipe_to_proxy->send(authpacket.data(), authpacket.size()) == netkit::pipe::SEND_FAIL)
-			return netkit::pipe_ptr();
+		if (p2p->send(authpacket.data(), authpacket.size()) == netkit::pipe::SEND_FAIL)
+			return false;
 
-		signed_t rb1 = pipe_to_proxy->recv(packet, -2);
+		signed_t rb1 = p2p->recv(packet, -2);
 		if (rb1 != 2 || packet[1] != 0)
-			return netkit::pipe_ptr();
+			return false;
 	}
+	return true;
+}
+
+bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep, str::astr_view addr2domain) const
+{
+	signed_t rb = p2p->recv(packet, -2);
+
+	if (rb != 2 || packet[0] != 5 || packet[1] != 0)
+	{
+		str::astr ers;
+		auto proxyfail = [&](signed_t code) -> const char*
+			{
+				switch (code)
+				{
+				case 1: return "general SOCKS server failure";
+				case 2: return "connection not allowed by ruleset";
+				case 3: return "Network unreachable";
+				case 4:
+					ers = ASTR("host unreachable (");
+					ers.append(addr2domain);
+					ers.push_back(')');
+					return ers.c_str();
+				case 5: return "connection refused";
+				case 6: return "TTL expired";
+				case 7: return "command not supported";
+				case 8: return "address type not supported";
+				}
+
+				ers = ASTR("unknown error code (");
+				ers.append(std::to_string(code));
+				ers.push_back(')');
+				return ers.c_str();
+
+			};
+
+		LOG_N("proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
+
+		return false;
+	}
+
+
+	rb = p2p->recv(packet, -2); // read next 2 bytes
+
+	if (rb != 2)
+		return false;
+
+	switch (packet[1])
+	{
+	case 1:
+		rb = p2p->recv(packet, -6); // read ip4 and port
+		if (rb != 6)
+			return false;
+
+		if (ep)
+			ep->read(packet, 6);
+
+		break;
+	case 3:
+		rb = p2p->recv(packet, -1); // read domain len
+		if (rb != 1)
+			return false;
+
+		rb = packet[0] + 2;
+		rb = p2p->recv(packet+1, rb); // read domain and port
+		if (rb != rb)
+			return false;
+
+		ep->set_domain( str::astr_view((const char *)packet + 1, packet[0]));
+		ep->set_port(((u16)packet[packet[0]+1] << 8) | packet[packet[0] + 2]);
+
+		break;
+	case 4:
+		rb = p2p->recv(packet, -18); // read ip6 and port
+		if (rb != 18)
+			return false;
+
+		if (ep)
+			ep->read(packet, 18);
+
+		break;
+
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
+{
+	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
+		return netkit::pipe_ptr();
+
+	u8 packet[512];
+	if (!initial_setup(packet, pipe_to_proxy.get()))
+		return netkit::pipe_ptr();
 
 	if (addr2.domain().empty())
 	{
-		netkit::pgen pg(packet, 10);
+		netkit::pgen pg(packet, 22);
 
 		pg.push8(5); // socks 5
 		pg.push8(1); // connect
 		pg.push8(0);
 
-		netkit::ipap a = addr2.get_ip(netkit::getip_def);
+		netkit::ipap a = addr2.get_ip(glb.cfg.ipstack);
 		pg.push8(a.v4 ? 1 : 4);
 		pg.push(a, true);
 
@@ -221,76 +314,139 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 			return netkit::pipe_ptr();
 	}
 
-
-	signed_t rb2 = pipe_to_proxy->recv(packet, -2);
-
-	if (rb != 2 || packet[0] != 5 || packet[1] != 0)
-	{
-		str::astr ers;
-		auto proxyfail = [&](signed_t code) -> const char*
-		{
-			switch (code)
-			{
-			case 1: return "general SOCKS server failure";
-			case 2: return "connection not allowed by ruleset";
-			case 3: return "Network unreachable";
-			case 4:
-				ers = ASTR("host unreachable (");
-				ers.append(addr2.domain());
-				ers.push_back(')');
-				return ers.c_str();
-			case 5: return "connection refused";
-			case 6: return "TTL expired";
-			case 7: return "command not supported";
-			case 8: return "address type not supported";
-			}
-
-			ers = ASTR("unknown error code (");
-			ers.append(std::to_string(code));
-			ers.push_back(')');
-			return ers.c_str();
-
-		};
-
-		LOG_N("proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
-
+	if (!recv_rep(packet, pipe_to_proxy.get(), nullptr, addr2.domain()))
 		return netkit::pipe_ptr();
-	}
-
-
-	rb2 = pipe_to_proxy->recv(packet, -2); // read next 2 bytes
-
-	if (rb != 2)
-		return netkit::pipe_ptr();
-
-	switch (packet[1])
-	{
-	case 1:
-		rb2 = pipe_to_proxy->recv(packet, -6); // read ip4 and port
-		if (rb2 != 6)
-			return netkit::pipe_ptr();
-		break;
-	case 3:
-		rb2 = pipe_to_proxy->recv(packet, -1); // read domain len
-		if (rb2 != 1)
-			return netkit::pipe_ptr();
-		rb = packet[0] + 2;
-		rb2 = pipe_to_proxy->recv(packet, rb); // read domain and port
-		if (rb2 != rb)
-			return netkit::pipe_ptr();
-
-		break;
-	case 4:
-		rb2 = pipe_to_proxy->recv(packet, -18); // read ip6 and port
-		if (rb2 != 18)
-			return netkit::pipe_ptr();
-		break;
-
-	default:
-		return netkit::pipe_ptr();
-	}
-
 
 	return pipe_to_proxy;
+}
+
+class udp_via_socks5 : public netkit::udp_pipe
+{
+	const proxy_socks5* basedon;
+	netkit::udp_pipe* transport;
+	netkit::ipap udpassoc;
+	netkit::pipe_ptr pipe2s;
+public:
+
+	udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, netkit::ipap udpassoc, netkit::pipe_ptr pipe2s):basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
+	{
+	}
+
+	// Inherited via udp_pipe
+	netkit::io_result send(const netkit::ipap& toaddr, const netkit::pgen& pg) override
+	{
+		if (!pipe2s->alive())
+		{
+			if (!basedon->prepare_udp_assoc(udpassoc, pipe2s, false))
+				return netkit::ior_timeout;
+		}
+
+		auto prepare_header = [&](u8* packet)
+			{
+				netkit::pgen pgx(packet, 32);
+				pgx.push16(0); // RSV
+				pgx.push8(0); // FRAG
+				pgx.push8(toaddr.v4 ? 1 : 4); // ATYP
+				pgx.push(toaddr, true);
+			};
+
+#ifdef _DEBUG
+		LOG_I("udp via proxy request (%s)", toaddr.to_string(true).c_str());
+#endif
+
+		signed_t presize = udpassoc.v4 ? 10 : 22;
+		if (presize <= pg.pre)
+		{
+			// pg has extra space before packet! so, we can use it for udp header for socks server
+			netkit::pgen pgh(const_cast<u8 *>(pg.to_span().data()) - presize, pg.sz + presize);
+			prepare_header(pgh.get_data());
+			return transport->send(udpassoc, pgh);
+		}
+
+		u8 *packet = (u8*)_alloca(presize + pg.sz);
+		prepare_header(packet);
+		memcpy(packet + presize, pg.to_span().data(), pg.sz);
+		return transport->send(udpassoc, netkit::pgen(packet, presize + pg.sz));
+	}
+	netkit::io_result recv(netkit::pgen& pg, signed_t max_bufer_size) override
+	{
+		pg.set_pre(0);
+		netkit::io_result r = transport->recv(pg, max_bufer_size);
+		if (netkit::ior_ok == r)
+		{
+			switch (pg.get_data()[3])
+			{
+			case 1:
+				pg.set_pre(10);
+				break;
+			case 4:
+				pg.set_pre(22);
+				break;
+			default:
+				return netkit::ior_proxy_fail;
+			}
+		}
+		return r;
+	}
+};
+
+bool proxy_socks5::prepare_udp_assoc(netkit::ipap& ip, netkit::pipe_ptr& pip_out, bool log_fails) const
+{
+#ifdef _DEBUG
+	LOG_I("udp assoc prepare to %s", addr.desc().c_str());
+#endif
+
+	netkit::pipe* pip = conn::connect(addr);
+	if (!pip)
+	{
+	not_success:
+		if (log_fails)
+			LOG_W("not connected to proxy (%s)", desc().c_str());
+		return false;
+	}
+	netkit::pipe_ptr p2p(pip);
+	u8 packet[512];
+	if (!initial_setup(packet, pip))
+		goto not_success;
+
+	netkit::pgen pg(packet, 10);
+
+	pg.push8(5); // socks 5
+	pg.push8(3); // UDP ASSOCIATE
+	pg.push8(0);
+
+	pg.push8(1); // ipv4
+	pg.pushz(6); // zero ipv4 addr and zero port
+	//const u8 a1[] = {8, 8, 8, 8, 53, 0};
+	//pg.pusha(a1, 6);
+
+	if (p2p->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
+		goto not_success;
+
+	netkit::endpoint ep;
+	if (!recv_rep(packet, pip, &ep, ASTR("udp")))
+		goto not_success;
+
+	ip = ep.get_ip(glb.cfg.ipstack | conf::gip_log_it);
+	if (ip.port == 0)
+		goto not_success;
+	u16 p = ip.port;
+	if (ip.is_wildcard())
+		ip = addr.get_ip(glb.cfg.ipstack | conf::gip_log_it).set_port(p);
+	if (ip.is_wildcard())
+		goto not_success;
+
+	pip_out = p2p;
+
+	return true;
+}
+
+/*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_socks5::prepare(netkit::udp_pipe* transport) const
+{
+	netkit::ipap ip;
+	netkit::pipe_ptr p2p;
+	if (prepare_udp_assoc(ip, p2p, true))
+		return std::make_unique<udp_via_socks5>(this, transport, ip, p2p);
+	return std::unique_ptr<netkit::udp_pipe>();
 }
 

@@ -2,7 +2,7 @@
 
 handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb) :handler(ldr, owner, bb)
 {
-	core.load(ldr, owner->name, bb);
+	core.load(ldr, owner->get_name(), bb);
 }
 
 void handler_ss::on_pipe(netkit::pipe* pipe)

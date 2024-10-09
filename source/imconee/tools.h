@@ -1,15 +1,5 @@
 #pragma once
 
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
-#define MODE64
-#define ARCHBITS 64
-#else
-#define ARCHBITS 32
-#endif
-
-typedef signed short i16;
-typedef ptrdiff_t signed_t;
-
 
 #include <emmintrin.h>
 #include <immintrin.h>
@@ -30,54 +20,6 @@ public:
 	static constexpr bool big = std::endian::native == std::endian::big;
 };
 
-#ifdef _MSC_VER
-#define DEBUGBREAK() __debugbreak()
-#define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
-#define NIXONLY(...)
-#define UNREACHABLE() __assume(0)
-#endif
-
-#ifdef __GNUC__
-#define UNREACHABLE() __builtin_unreachable()
-#define DEBUGBREAK() __builtin_trap()
-#define NOWARNING(n,...) __VA_ARGS__
-#endif
-
-#ifdef _NIX
-#define NIXONLY(...) __VA_ARGS__
-
-#define MB_OK 1
-#define MB_ICONWARNING 2
-#define FOREGROUND_RED 4
-#define FOREGROUND_GREEN 2
-#define FOREGROUND_BLUE 1
-#define FOREGROUND_INTENSITY 8
-#endif
-
-#ifndef _DEBUG
-#define SMART_DEBUG_BREAK (is_debugger_present() ? DEBUGBREAK(), false : false)
-#else
-#define SMART_DEBUG_BREAK DEBUGBREAK() // always break in debug
-#endif
-
-#define SLASSERT ASSERT
-#define ERRORM(fn, ln, ...) (([&]()->bool { Print(FOREGROUND_RED, "%s\n", str::build_string_d(fn, ln, ##__VA_ARGS__).c_str()); return true; })())
-#define SLERROR(...) do {ERRORM(__FILE__, __LINE__, ##__VA_ARGS__); DEBUGBREAK(); } while(false)
-#define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, ##__VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
-
-
-#define INLINE __inline
-
-inline bool is_debugger_present()
-{
-#ifdef _WIN32
-	return IsDebuggerPresent() != FALSE;
-#endif
-	return false;
-}
-
-
-#include "str_helpers.h"
 
 bool messagebox(const char* s1, const char* s2, int options);
 
@@ -85,15 +27,10 @@ bool messagebox(const char* s1, const char* s2, int options);
 
 //#define MESSAGE(...) messagebox("#", str::build_string(__VA_ARGS__).c_str(), MB_OK|MB_ICONINFORMATION)
 #define WARNING(...) messagebox("!?", str::build_string(__VA_ARGS__).c_str(), MB_OK|MB_ICONWARNING)
-template <typename T> INLINE T* BREAK_ON_NULL(T* ptr, const char* file, int line) { if (ptr == nullptr) { WARNING("nullptr pointer conversion: %s:%i", file, line); } return ptr; }
+template <typename T> inline T* BREAK_ON_NULL(T* ptr, const char* file, int line) { if (ptr == nullptr) { WARNING("nullptr pointer conversion: %s:%i", file, line); } return ptr; }
 #define NOT_NULL( x ) BREAK_ON_NULL(x, __FILE__, __LINE__)
-template<typename PTRT, typename TF> INLINE PTRT ptr_cast(TF* p) { if (!p) return nullptr; return NOT_NULL(dynamic_cast<PTRT>(p)); }
+template<typename PTRT, typename TF> inline PTRT ptr_cast(TF* p) { if (!p) return nullptr; return NOT_NULL(dynamic_cast<PTRT>(p)); }
 
-void Print(const char* format, ...);
-void Print(signed_t color, const char* format, ...);
-void Print(const std::vector<char> &txt);
-
-#include "spinlock.h"
 #include "logger.h"
 
 
@@ -102,21 +39,6 @@ void Print(const std::vector<char> &txt);
 
 #define PTR_TO_UNSIGNED( p ) ((size_t)p)
 #define ALIGN(n) __declspec( align( n ) )
-
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned long u32;
-typedef long i32;
-
-#if defined(_MSC_VER)
-typedef signed __int64		i64;
-typedef unsigned __int64	u64;
-#elif defined(__GNUC__)
-typedef int64_t	i64;
-typedef uint64_t u64;
-using WORD = uint16_t;
-#endif
-
 
 #ifdef MODE64
 struct u128
@@ -236,14 +158,14 @@ inline int timeGetTime()
 
 namespace chrono
 {
-	INLINE time_t now() // seconds
+	inline time_t now() // seconds
 	{
 		time_t t;
 		_time64(&t);
 		return t;
 	}
 
-    INLINE signed_t ms() // milliseconds
+	inline signed_t ms() // milliseconds
 	{
 		return (signed_t)timeGetTime();
 	}
@@ -257,12 +179,12 @@ namespace math
     template<> struct is_signed<float> { static const bool value = true; };
     template<> struct is_signed < double > { static const bool value = true; };
 
-    INLINE long int fround(float x)
+	inline long int fround(float x)
     {
         return _mm_cvtss_si32(_mm_load_ss(&x));
     }
 
-    INLINE long int dround(double x)
+	inline long int dround(double x)
     {
         return _mm_cvtsd_si32(_mm_load_sd(&x));
     }
@@ -288,12 +210,12 @@ namespace math
 
 namespace helpers
 {
-    template<typename IT> u8 INLINE clamp2byte(IT n)
+    template<typename IT> u8 inline clamp2byte(IT n)
     {
         return n < 0 ? 0 : (n > 255 ? 255 : (u8)n);
     }
 
-    template<typename IT> u8 INLINE clamp2byte_u(IT n)
+    template<typename IT> u8 inline clamp2byte_u(IT n)
     {
         return n > 255 ? 255 : (u8)n;
     }
@@ -349,27 +271,42 @@ namespace helpers
 
     template<bool s1, bool s2, typename T1, typename T2> struct getminmax
     {
-        typedef T1 type;
+        typedef T1 type_min;
+		typedef T1 type_max;
         static T1 getmin(T1 t1, T2 t2)
         {
             return t1 < t2 ? t1 : t2;
         }
+        static T1 getmax(T1 t1, T2 t2)
+        {
+			return t1 > t2 ? t1 : t2;
+        }
     };
 	template<typename T1, typename T2> struct getminmax<true, false, T1, T2> {
 
-        typedef T1 type;
+        typedef T1 type_min;
+        typedef T2 type_max;
         static T1 getmin(T1 t1, T2 t2)
 		{
 			return t1 < 0 || (size_t)t1 < t2 ? t1 : (T1)t2;
 		}
+        static T2 getmax(T1 t1, T2 t2)
+        {
+            return t1 < 0 || static_cast<size_t>(t1) < t2 ? t2 : static_cast<size_t>(t1);
+        }
     };
 	template<typename T1, typename T2> struct getminmax<false, true, T1, T2> {
 
-        typedef T2 type;
+        typedef T2 type_min;
+        typedef T1 type_max;
 		static T2 getmin(T1 t1, T2 t2)
 		{
 			return t2 < 0 || (size_t)t2 < t1 ? t2 : (T2)t1;
 		}
+        static T1 getmax(T1 t1, T2 t2)
+        {
+            return t2 < 0 || (size_t)t2 < t1 ? (T1)t1 : t2;
+        }
 	};
 
 
@@ -377,12 +314,12 @@ namespace helpers
 
 namespace math
 {
-    template < typename T1, typename T2, typename T3 > INLINE T1 clamp(const T1 & a, const T2 & vmin, const T3 & vmax)
+    template < typename T1, typename T2, typename T3 > inline T1 clamp(const T1 & a, const T2 & vmin, const T3 & vmax)
     {
         return (T1)(((a) > (vmax)) ? (vmax) : (((a) < (vmin)) ? (vmin) : (a)));
     }
 
-    template < typename RT, typename IT > INLINE RT clamp(IT b)
+    template < typename RT, typename IT > inline RT clamp(IT b)
     {
         return helpers::clamper<RT, IT, is_signed<IT>::value>::dojob(b);
     }
@@ -392,22 +329,22 @@ namespace math
 namespace tools
 {
 
-    template<class T> INLINE void swap(T& first, T& second)
+    template<class T> inline void swap(T& first, T& second)
     {
         T temp = std::move(first);
         first = std::move(second);
         second = std::move(temp);
     }
 
-	//u8 INLINE as_byte(signed_t b) { return static_cast<u8>(b & 0xFF); }
-    //u8 INLINE as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
-	u8 INLINE as_byte(u64 b) { return static_cast<u8>(b & 0xFF); }
+	u8 inline as_byte(signed_t b) { return static_cast<u8>(b & 0xFF); }
+    //u8 inline as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
+	u8 inline as_byte(u64 b) { return static_cast<u8>(b & 0xFF); }
 #ifdef MODE64
-	u8 INLINE as_byte(u128 b) { return as_byte((u64)b); }
+	u8 inline as_byte(u128 b) { return as_byte((u64)b); }
 #endif
-    wchar INLINE as_wchar(size_t x) { return static_cast<wchar>(x & 0xFFFF); }
-	u32 INLINE as_dword(size_t x) { return static_cast<u32>(x & 0xFFFFFFFF); }
-	u16 INLINE as_word(size_t x) { return static_cast<u16>(x & 0xFFFF); }
+    wchar inline as_wchar(size_t x) { return static_cast<wchar>(x & 0xFFFF); }
+	u32 inline as_dword(size_t x) { return static_cast<u32>(x & 0xFFFFFFFF); }
+	u16 inline as_word(size_t x) { return static_cast<u16>(x & 0xFFFF); }
 
 	template<typename EL, typename ELC> inline signed_t find(const std::vector<EL>& ar, const ELC& el)
 	{
@@ -422,191 +359,33 @@ namespace tools
 namespace math
 {
 
-    template < typename T1 > INLINE T1 abs(const T1 &x)
+    template < typename T1 > inline T1 abs(const T1 &x)
     {
         return x >= 0 ? x : (-x);
     }
 
-    int INLINE lerp_int(int a, int b, float t)
+    int inline lerp_int(int a, int b, float t)
     {
         float v = static_cast<float>(a) * (1.0f - (t)) + (t) * static_cast<float>(b);
         return fround(v);
     }
 
-	template < typename T1, typename T2 > INLINE typename helpers::getminmax<is_signed<T1>::value, is_signed<T2>::value, T1, T2>::type minv(const T1& x1, const T2& x2)
+	template < typename T1, typename T2 > inline constexpr typename helpers::getminmax<is_signed<T1>::value, is_signed<T2>::value, T1, T2>::type_min minv(T1 x1, T2 x2)
 	{
         return helpers::getminmax<is_signed<T1>::value, is_signed<T2>::value, T1, T2>::getmin(x1, x2);
 	}
 
-	template < typename T > INLINE T nmax(const T& x, const T& y)
-	{
-		return x >= y ? x : y;
-	}
+    template < typename T1, typename T2 > inline constexpr typename helpers::getminmax<is_signed<T1>::value, is_signed<T2>::value, T1, T2>::type_max maxv(T1 x1, T2 x2)
+    {
+        return helpers::getminmax<is_signed<T1>::value, is_signed<T2>::value, T1, T2>::getmax(x1, x2);
+    }
 
     /*
-	template < typename T > INLINE T nmin(const T& x, const T& y)
+	template < typename T > inline T nmin(const T& x, const T& y)
 	{
 		return x <= y ? x : y;
 	}
     */
-
-
-#ifdef _MSC_VER
-#ifdef MODE64
-	__forceinline void mul100add(udouble &d, usingle z) // d = d * 100 + z
-	{
-        __if_exists(_umul128) {
-
-            d.low = _umul128(100ull, d.low, &d.hi);
-            d += z;
-        }
-        __if_not_exists(_umul128) {
-            __debugbreak(); // sorry, only vs2019+ supported (no _umul128 intrinsic in older versions)
-		}
-
-	}
-    __forceinline usingle div(udouble d, usingle v, usingle *rm = nullptr)
-	{
-		__if_exists(_udiv128) {
-
-            usingle rm1;
-            if (rm == nullptr)
-                rm = &rm1;
-			return _udiv128(d.hi, d.low, v, rm);
-		}
-
-		__if_not_exists(_udiv128) {
-			return 0; // sorry, only vs2019+ supported (no _udiv128 intrinsic in older versions)
-		}
-
-	}
-    __forceinline void mul(udouble &d, usingle v) // d = d.low * v
-	{
-		__if_exists(_umul128) {
-			d.low = _umul128(v, d.low, &d.hi);
-		}
-
-		__if_not_exists(_umul128) {
-            __debugbreak(); // sorry, only vs2019+ supported (no _umul128 intrinsic in older versions)
-		}
-
-	}
-	__forceinline void mulplus(udouble& d, usingle v1, usingle v2) // d = d + v1 * v2
-	{
-		__if_exists(_umul128) {
-            udouble m;
-			m.low = _umul128(v1, v2, &m.hi);
-            d += m;
-		}
-
-		__if_not_exists(_umul128) {
-			__debugbreak(); // sorry, only vs2019+ supported (no _umul128 intrinsic in older versions)
-		}
-
-	}
-#else
-	__forceinline void mul100add(udouble &d, usingle z) // d = d * 100 + z
-	{
-		__if_exists(__emulu)
-		{
-			d = __emulu(d & 0xffffffff, 100) + z;
-		}
-        __if_not_exists(__emulu)
-        {
-            _asm
-            {
-                mov ecx, d
-                mov eax, 100
-                mul dword ptr[ecx]
-                add eax, z
-                mov dword ptr[ecx], eax
-                adc edx, 0
-                mov dword ptr[ecx + 4], edx
-            }
-        }
-
-	}
-	__forceinline usingle div(const udouble &d, usingle v) // 64 bit value (div) 32 bit value using native x86 div
-	{
-		__if_exists(_udiv64) {
-
-			unsigned int rm1;
-			return _udiv64(d, v, &rm1);
-		}
-
-		__if_not_exists(_udiv64) {
-			_asm {
-				mov ecx, d
-				mov eax, [ecx]
-				mov edx, [ecx + 4]
-				div v
-			}
-		}
-
-	}
-	__forceinline usingle div(const udouble &d, usingle v, usingle* rm) // 64 bit value (div) 32 bit value using native x86 div
-	{
-		__if_exists(_udiv64) {
-            unsigned int rm1;
-            if (rm == nullptr)
-                rm = (usingle *) & rm1;
-			return _udiv64(d, v, (unsigned int *)rm);
-		}
-
-        __if_not_exists(_udiv64) {
-
-			if (rm == nullptr)
-				return div(d, v);
-
-            _asm {
-                mov ecx, d
-                mov eax, [ecx]
-                mov edx, [ecx + 4]
-                mov ecx, rm
-                div v
-                mov[ecx], edx
-            }
-        }
-	}
-	__forceinline void mul(udouble& d, usingle v) // d = d.low * v
-	{
-		__if_exists(__emulu)
-		{
-			d += __emulu(d &0xffffffff, v);
-		}
-
-		__if_not_exists(__emulu)
-		{
-            _asm {
-                mov ecx, d
-                mov eax, dword ptr[ecx]
-                mul v
-                mov[ecx], eax
-                mov[ecx + 4], edx
-            }
-		}
-	}
-	__forceinline void mulplus(udouble& d, usingle v1, usingle v2) // d += v1 * v2
-	{
-        __if_exists(__emulu)
-        {
-            d += __emulu(v1, v2);
-        }
-
-		__if_not_exists(__emulu)
-		{
-			_asm {
-				mov ecx, d
-				mov eax, v1
-				mul v2
-				add dword ptr[ecx], eax
-				adc dword ptr[ecx + 4], edx
-			}
-		}
-	}
-#endif
-
-#endif
 }
 
 namespace ptr
@@ -672,9 +451,9 @@ namespace ptr
         const T *get() const { return object; }
     };
 
-    struct intref
+    template<typename N = int> struct intref
     {
-        int value = 0;
+        N value = 0;
 
         intref& operator++()
         {
@@ -687,52 +466,35 @@ namespace ptr
 			return *this;
 		}
 
-        bool operator()()
-        {
-            ASSERT(value > 0);
-            return --value == 0;
-        }
-        bool operator *() const
+		bool operator()()
+		{
+			auto nv = --value;
+			ASSERT(nv >= 0);
+			return nv == 0;
+		}
+		bool operator *() const
         {
             return value > 1;
         }
     };
 
-	struct intref_sync
-	{
-		std::atomic<ptrdiff_t> value = 0;
+	using intref_sync = intref<std::atomic<signed_t>>;
 
-		intref_sync& operator++()
-		{
-			++value;
-			return *this;
-		}
-
-		intref_sync& operator--()
-		{
-			--value;
-			return *this;
-		}
-
-		bool operator()()
-		{
-			ptrdiff_t nv = --value;
-			ASSERT(nv >= 0);
-			return nv == 0;
-		}
-		bool operator *() const
-		{
-			return value > 1;
-		}
-	};
-
-    struct DELETER
+	struct DELETER
     {
         template<typename T> static void kill(T* o)
         {
             delete o;
         }
     };
+
+	struct FREER
+	{
+		template<typename T> static void kill(T* o)
+		{
+			free(o);
+		}
+	};
 
 	struct RELEASER
 	{
@@ -748,12 +510,11 @@ namespace ptr
 
         shared_object_t(const shared_object_t &) = delete;
         void operator=(const shared_object_t &) = delete;
-
     public:
         shared_object_t() {}
 
         bool is_multi_ref() const { return *ref; }
-        void add_ref() { ++ref; }
+        void add_ref() const { ++ref; }
 		void dec_ref_no_check() const { --ref; }
         template <class T> static void dec_ref(T *object)
         {
@@ -762,7 +523,7 @@ namespace ptr
         }
     };
 
-    using shared_object = shared_object_t<intref>;
+    using shared_object = shared_object_t<intref<int>>;
 	using sync_shared_object = shared_object_t<intref_sync>;
     template <typename KILLER> using sync_shared_object_ck = shared_object_t<intref_sync, KILLER>; // with custom killer
 
@@ -927,12 +688,12 @@ namespace ptr
 #endif
 
 
-template<typename CH> INLINE bool is_letter(CH c)
+template<typename CH> inline bool is_letter(CH c)
 {
 	return c >= L'a' && c <= 'z';
 }
 
-template<typename CH> INLINE bool is_digit(CH c)
+template<typename CH> inline bool is_digit(CH c)
 {
 	return c >= L'0' && c <= '9';
 }
@@ -1291,10 +1052,118 @@ namespace tools
 
 		}
 	};
+
+	template<typename T> class fifo
+	{
+		std::vector<T> buf;
+		size_t head = 0;
+		size_t tail = 0;
+
+	public:
+		template <class... _Valty> void emplace(_Valty&&... _Val)
+		{
+			if (tail == buf.size())
+			{
+				if (head <= 1)
+				{
+					// full
+					buf.emplace_back(std::forward<_Valty>(_Val)...);
+					++tail;
+					return;
+				}
+				buf[0] = T(std::forward<_Valty>(_Val)...);
+				tail = 1;
+				return;
+			}
+			if (tail == head - 1)
+			{
+				buf.emplace(buf.begin() + tail, std::forward<_Valty>(_Val)...);
+				++head;
+				++tail;
+				return;
+			}
+			buf[tail++] = T(std::forward<_Valty>(_Val)...);
+		}
+
+		bool empty() const
+		{
+			return tail == head;
+		}
+
+		bool get(T &t)
+		{
+			if (tail == head)
+				return false;
+			t = std::move(buf[head++]);
+			if (head == tail)
+			{
+				// now empty
+				head = 0;
+				tail = 0;
+			}
+			else if (head == buf.size())
+				head = 0;
+			return true;
+		}
+	};
+
+	template<typename EL> void remove_fast(std::vector<EL>& arr, signed_t eli)
+	{
+		if (eli < (signed_t)arr.size() - 1)
+		{
+			arr[eli] = std::move( arr[arr.size()-1] );
+		}
+		arr.resize(arr.size()-1);
+	}
+
+
+} // namespace tools
+
+namespace str
+{
+#pragma pack(push)
+#pragma pack(1)
+	class shared_str : public ptr::shared_object_t<ptr::intref<i16>, ptr::FREER>
+	{
+		u8 len;
+		shared_str() = delete;
+		shared_str(const shared_str &) = delete;
+		shared_str(shared_str &&) = delete;
+		void operator=(const shared_str&) = delete;
+		void operator=(shared_str &&) = delete;
+	public:
+		using ptr = ptr::shared_ptr<shared_str>;
+		static ptr build(const astr_view& s)
+		{
+			shared_str* x = (shared_str*)malloc( s.length() + sizeof(shared_str) );
+			*(u16*)x = 0;
+			x->len = tools::as_byte(s.length());
+			memcpy(x + 1, s.data(), s.length());
+			return ptr(x);
+		}
+		str::astr_view cstr() const
+		{
+			return str::astr_view( (const char *)(this+1), len );
+		}
+		str::astr to_string() const
+		{
+			return str::astr((const char*)(this + 1), len);
+		}
+		bool equals(const str::astr_view& name) const
+		{
+			return name == cstr();
+		}
+		bool equals(const str::shared_str::ptr& name) const
+		{
+			return name->cstr() == cstr();
+		}
+	};
+#pragma pack(pop)
+	static_assert(sizeof(shared_str) == 3);
+
 }
 
 #ifdef _NIX
 void Sleep(int ms);
 #endif
 
-#include "fsys.h"

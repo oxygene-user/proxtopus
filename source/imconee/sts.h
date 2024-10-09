@@ -13,10 +13,10 @@ template<class T> inline void SWAP(T& first, T& second)
 	second = std::move(temp);
 }
 
-template <typename TCHARACTER=char> class sts_t
+template <typename CH=char> class sts_t
 {
-    typedef str::xstr<TCHARACTER> string_type;
-	typedef str::xstr_view<TCHARACTER> string_view_type;
+    typedef str::xstr<CH> string_type;
+	typedef str::xstr_view<CH> string_view_type;
 
 	static string_type static_name_comment;
 
@@ -25,12 +25,12 @@ template <typename TCHARACTER=char> class sts_t
     element *first_element = nullptr, *last_element = nullptr; // list with original order
 	mutable double double_value_cache = -DBL_MAX;
     string_type value;
-	std::unordered_map<string_type, sts_t*> elements;
+	tools::shashmap<CH, sts_t*> elements;
 #ifdef _DEBUG
-	const TCHARACTER* source_basis = nullptr;
+	const CH* source_basis = nullptr;
 #endif
 
-	int get_current_line(const TCHARACTER *s);
+	int get_current_line(const CH *s);
 
 	template<typename T> void _to_string(str::astr& v, T t)
 	{
@@ -157,9 +157,9 @@ public:
         return false;
     }
 
-	sts_t *get(const std::basic_string_view<TCHARACTER> &name)
+	sts_t *get(const string_view_type &name)
 	{
-		auto it = elements.find(std::basic_string<TCHARACTER>(name));
+		auto it = elements.find(name);
 		if (it != elements.end())
 		{
 #ifdef _DEBUG
@@ -176,7 +176,7 @@ public:
 		}
 		return nullptr;
 	}
-	const sts_t *get(const std::basic_string_view<TCHARACTER> &name) const {return const_cast<sts_t*>(this)->get(name);}
+	const sts_t *get(const string_view_type &name) const {return const_cast<sts_t*>(this)->get(name);}
 
     sts_t *get(signed_t index)
     {
@@ -186,27 +186,27 @@ public:
         return nullptr;
     }
 
-	sts_t &get_safe(const std::basic_string_view<TCHARACTER> &name)
+	sts_t &get_safe(const string_view_type &name)
 	{
 		if (sts_t *sts = get(name)) return *sts;
 		static sts_t defsts;
 		return defsts;
 	}
-	const sts_t &get_safe(const std::basic_string_view<TCHARACTER> &name) const {return const_cast<sts_t*>(this)->get_safe(name);}
+	const sts_t &get_safe(const string_view_type &name) const {return const_cast<sts_t*>(this)->get_safe(name);}
 
-	sts_t &set(const std::basic_string_view<TCHARACTER> &name)
+	sts_t &set(const string_view_type &name)
 	{
 		if (sts_t *sts = get(name)) return *sts;
 		return add_block( string_type(name) );
 	}
 
-	string_type as_string(const string_type &def) const
+	const string_type& as_string(const string_type &def) const
 	{
 		if (value_not_specified()) return def;
 		return value;
 	}
 
-    string_type as_string(const std::basic_string_view<TCHARACTER> &def = std::basic_string_view<TCHARACTER>()) const
+    string_type as_string(const string_view_type &def = string_view_type()) const
     {
         if (value_not_specified())
 			return string_type(def);
@@ -221,7 +221,7 @@ public:
 	}
 	int as_int(int def = 0) const {return (int)as_double(def);}
 
-	string_type get_string(const std::basic_string_view<TCHARACTER> &name, const string_type &def = string_type()) const
+	const string_type& get_string(const string_view_type &name, const string_type &def = string_type()) const
 	{
 		if (const sts_t *sts = get(name))
 			return sts->as_string(def);
@@ -230,7 +230,7 @@ public:
 
 	template <typename CR> void get_comments(const CR& cr) const
 	{
-		const std::basic_string<TCHARACTER> *c = nullptr;
+		const str::xstr<CH> *c = nullptr;
 		for (element* e = first_element; e; e = e->next)
 		{
 			if (e->sts.value.length() >= 2 && e->sts.value[0] == '/' && e->sts.value[1] == '/')
@@ -244,14 +244,14 @@ public:
 		}
 	}
 
-	double get_double(const std::basic_string_view<TCHARACTER> &name, double def = 0.0) const
+	double get_double(const string_view_type &name, double def = 0.0) const
 	{
 		if (const sts_t *sts = get(name))
 			return sts->as_double(def);
 		return def;
 	}
-	signed_t get_int(const std::basic_string_view<TCHARACTER> &name, signed_t def = 0) const {return (signed_t)get_double(name, (double)def);}
-	bool get_bool(const std::basic_string_view<TCHARACTER>& name, bool def = false) const { return (signed_t)get_double(name, def) != 0; }
+	signed_t get_int(const string_view_type &name, signed_t def = 0) const {return (signed_t)get_double(name, (double)def);}
+	bool get_bool(const string_view_type& name, bool def = false) const { return (signed_t)get_double(name, def) != 0; }
 
     void get_value( string_type &val, const string_type &name, const string_type &def )
     {
@@ -271,7 +271,7 @@ public:
 		val = (T)as_double(def);
 	}
 
-	sts_t&set_value(const std::basic_string_view<TCHARACTER> &val)
+	sts_t&set_value(const string_view_type &val)
 	{
 		value = val;
 		double_value_cache = -DBL_MAX;
@@ -305,40 +305,40 @@ public:
     sts_t *get_parent() { return parent; }
     const sts_t *get_parent() const { return parent; }
 
-	sts_t& add_comment(const std::basic_string_view<TCHARACTER>& comment); // return *this
+	sts_t& add_comment(const string_view_type& comment); // return *this
 	sts_t& add_block();
-    sts_t &add_block(const std::basic_string_view<TCHARACTER> &name);
+    sts_t &add_block(const string_view_type &name);
 	sts_t &add_block(const string_type &name);
     sts_t &add_block(const string_type &name, const sts_t &oth); // create copy
 
-	bool read_sts(const TCHARACTER *&s, const TCHARACTER *end);
-	const TCHARACTER *load(const TCHARACTER *data, const TCHARACTER *end);
-	const TCHARACTER *load(const std::basic_string_view<TCHARACTER> &data) {return load(data.data(), data.data() + data.length()); }
-	const TCHARACTER *load(const string_type &str) {return load(std::basic_string_view<TCHARACTER>(str));}
+	bool read_sts(const CH *&s, const CH *end);
+	const CH *load(const CH *data, const CH *end);
+	const CH *load(const string_view_type &data) {return load(data.data(), data.data() + data.length()); }
+	const CH *load(const string_type &str) {return load(string_view_type(str));}
 	const string_type store(int=0) const;
 };
 
-template <typename TCHARACTER> struct sts_t<TCHARACTER>::element
+template <typename CH> struct sts_t<CH>::element
 {
     const string_type *name = nullptr; // if name == &static_name_comment, then comment
-    sts_t<TCHARACTER> sts;
+    sts_t<CH> sts;
     element *next = nullptr;
-    element(sts_t<TCHARACTER> *parnt):sts(parnt) {}
-    element(sts_t<TCHARACTER> *parnt, const sts_t<TCHARACTER> &oth):sts(parnt, oth) {}
+    element(sts_t<CH> *parnt):sts(parnt) {}
+    element(sts_t<CH> *parnt, const sts_t<CH> &oth):sts(parnt, oth) {}
 };
 
-template <typename TCHARACTER> class stsreader
+template <typename CH> class stsreader
 {
-	const TCHARACTER *data, *end;
-	sts_t<TCHARACTER> sts;
+	const CH *data, *end;
+	sts_t<CH> sts;
 public:
 
-	stsreader(const TCHARACTER *data, const TCHARACTER *end) : data(data), end(end) {operator++();}
-	stsreader(const TCHARACTER *data, int size)  : data(data), end(data+size) {operator++();}
+	stsreader(const CH *data, const CH *end) : data(data), end(end) {operator++();}
+	stsreader(const CH *data, int size)  : data(data), end(data+size) {operator++();}
 	explicit operator bool() const {return !sts.empty();}
-	const std::basic_string<TCHARACTER> name() const {return sts.begin().name();}
-	operator   sts_t<TCHARACTER>*() {return sts.begin();}
-	sts_t<TCHARACTER> *operator->() {return sts.begin();}
+	const str::xstr<CH> name() const {return sts.begin().name();}
+	operator   sts_t<CH>*() {return sts.begin();}
+	sts_t<CH> *operator->() {return sts.begin();}
 	void operator++()
 	{
 		sts.clear();

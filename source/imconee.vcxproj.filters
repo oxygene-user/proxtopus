@@ -33,6 +33,12 @@
     <Filter Include="src\system">
       <UniqueIdentifier>{ebdef0b9-f1be-408c-a621-0a7d8fc0ee40}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\debug">
+      <UniqueIdentifier>{72ba5ded-2906-43cc-ab61-b21fb9984d6c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\dns">
+      <UniqueIdentifier>{0f2f76cf-6f8e-4b0a-91b0-2039702ae488}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="imconee.natvis" />
@@ -223,6 +229,15 @@
     </ClCompile>
     <ClCompile Include="imconee\mem.cpp">
       <Filter>src\system</Filter>
+    </ClCompile>
+    <ClCompile Include="debug\excpn.cpp">
+      <Filter>src\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="debug\stkwlk.cpp">
+      <Filter>src\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="imconee\dnsq.cpp">
+      <Filter>src\dns</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -503,6 +518,24 @@
     <ClInclude Include="imconee\rndgen.h">
       <Filter>src\botan</Filter>
     </ClInclude>
+    <ClInclude Include="debug\excpn.h">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="debug\stkwlk.h">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\main.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\base.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\arena.h">
+      <Filter>src\system</Filter>
+    </ClInclude>
+    <ClInclude Include="imconee\dnsq.h">
+      <Filter>src\dns</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="imconee\imconee.rc">
@@ -522,6 +555,9 @@
       <Filter>res</Filter>
     </Text>
     <Text Include="res\help_win.txt">
+      <Filter>res</Filter>
+    </Text>
+    <Text Include="res\help_handler.txt">
       <Filter>res</Filter>
     </Text>
   </ItemGroup>

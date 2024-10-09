@@ -57,6 +57,14 @@
 #include <charconv>
 #include <array>
 
+#include "botan/botan.h"
+#include "base.h"
+#include "str_helpers.h"
+#include "spinlock.h"
+#include "fsys.h"
+#include "arena.h"
+#include "../debug/excpn.h"
+#include "main.h"
 #include "resource.h"
 
 #include "rndgen.h"
@@ -69,5 +77,6 @@
 
 #include "engine.h"
 #include "connect.h"
+#include "dnsq.h"
 
 // reference additional headers your program requires here

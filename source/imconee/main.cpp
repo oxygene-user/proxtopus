@@ -1,18 +1,24 @@
 #include "pch.h"
 
+global_data glb;
+
 #ifdef _WIN32
+
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "Ws2_32.lib")
 
 #define SERVICENAME WSTR("imconee")
-static SERVICE_STATUS_HANDLE hSrv = nullptr;
+
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+void set_unhandled_exception_filter();
+#endif
 
 static BOOL WINAPI consoleHandler(DWORD signal)
 {
 	if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
 	{
 		LOG_I("imconeee has been received stop signal");
-		engine::stop();
+		glb.stop();
 	}
 	return TRUE;
 }
@@ -39,8 +45,6 @@ static void handle_signal(int sig) {
 }
 #endif // _NIX
 
-static FN path_config;
-
 static void shapka()
 {
 
@@ -51,18 +55,24 @@ static void shapka()
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
 #endif
 
-	Print("Imconee v0.2\n");
+
+	Print("Imconee v0.4 (build " __DATE__ " " __TIME__ ")\n");
+	Print();
 }
 
+#ifdef _DEBUG
+void dns_test();
+void fifo_test();
+#endif // _DEBUG
 
 int run_engine(bool as_service)
 {
-	engine e(std::move(path_config));
+	engine e;
 
 #ifdef _WIN32
 	if (as_service)
 	{
-		lg.mute();
+		logger::mute();
 	} else
 	{
 		if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
@@ -84,12 +94,17 @@ int run_engine(bool as_service)
     }
 #endif // _NIX
 
+#ifdef _DEBUG
+	dns_test();
+	fifo_test();
+#endif
+
 	for (;;)
 	{
 		signed_t ms = e.working();
 		if (ms < 0)
 			break;
-
+		Print();
 		Sleep((int)ms);
 	}
 
@@ -156,7 +171,7 @@ static int SetStatus(DWORD dwState, int dwExitCode, DWORD dwProgress)
 	srvStatus.dwServiceSpecificExitCode = dwExitCode;
 	srvStatus.dwCheckPoint = dwProgress;
 	srvStatus.dwWaitHint = 3000;
-	return SetServiceStatus(hSrv, &srvStatus);
+	return SetServiceStatus(glb.hSrv, &srvStatus);
 }
 
 
@@ -167,7 +182,7 @@ static void __stdcall CommandHandler(DWORD dwCommand)
 	case SERVICE_CONTROL_STOP:
 	case SERVICE_CONTROL_SHUTDOWN:
 		SetStatus(SERVICE_STOP_PENDING, 0, 1);
-		engine::stop();
+		glb.stop();
 		break;
 		/*
 	case SERVICE_CONTROL_PAUSE:
@@ -188,9 +203,13 @@ static void __stdcall CommandHandler(DWORD dwCommand)
 
 void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVectors*/)
 {
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+	set_unhandled_exception_filter();
+#endif
+
 	str::wstr sn(SERVICENAME);
-	hSrv = RegisterServiceCtrlHandlerW(sn.c_str(), (LPHANDLER_FUNCTION)CommandHandler);
-	if (hSrv == nullptr) return;
+	glb.hSrv = RegisterServiceCtrlHandlerW(sn.c_str(), (LPHANDLER_FUNCTION)CommandHandler);
+	if (glb.hSrv == nullptr) return;
 
 	LOG_N("pending start");
 	SetStatus(SERVICE_START_PENDING, 0, 1);
@@ -227,7 +246,7 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 	if (cmdl.help())
 		return EXIT_OK_EXIT;
 
-	path_config = cmdl.path_config();
+	glb.path_config = cmdl.path_config();
 
 #ifdef _WIN32
 	str::wstr sn(SERVICENAME);
@@ -375,15 +394,25 @@ std::vector<FN> makepa(int argc, char* argv[])
 
 int main(NIXONLY(int argc, char* argv[]))
 {
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+	set_unhandled_exception_filter();
+#endif
+
 	set_start_path();
 	shapka();
 
 	int ercode = handle_command_line(NIXONLY(std::move(makepa(argc, argv))));
 	if (ercode > 0)
+	{
+		Print();
 		return ercode;
+	}
 
 	if (ercode < 0)
+	{
+		Print();
 		return EXIT_OK;
+	}
 
 	return run_engine(false);
 }

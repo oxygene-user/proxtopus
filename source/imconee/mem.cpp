@@ -3,9 +3,6 @@
 namespace ma
 {
 
-#define COUNT_ALLOCS
-#define USE_ARENAS
-
 #if defined _DEBUG && defined COUNT_ALLOCS
 	struct aa
 	{
@@ -18,28 +15,8 @@ namespace ma
 			int peak = 0;
 			int total = 0;
 
-			void up()
-			{
-				spinlock::simple_lock(aaa.async);
-
-				++total;
-				++count;
-				if (peak < count)
-					peak = count;
-
-				spinlock::simple_unlock(aaa.async);
-
-			}
-
-			void dn()
-			{
-				spinlock::simple_lock(aaa.async);
-
-				--count;
-
-				spinlock::simple_unlock(aaa.async);
-
-			}
+			void up();
+			void dn();
 		};
 
 		meminfo allocs[22];
@@ -119,175 +96,74 @@ namespace ma
 			}
 		}
 
-	} aaa;
-#endif
-
-	template<size_t elsz, signed_t arsz, typename fallback> struct arena
-	{
-		volatile spinlock::long3264 ff = 0;
-		u8 buf[elsz * arsz];
-#ifdef _DEBUG
-		signed_t current = 0, peak = 0;
-#endif
-		arena()
-		{
-			static_assert(elsz >= sizeof(int));
-
-			for (signed_t i = 0; i < arsz; ++i)
-			{
-				int* ef = (int*)(buf + (elsz * i));
-				*ef = (int)(i + 1);
-			}
-		}
-
-		bool here(const void* p) const
-		{
-			const u8* pp = (u8*)p;
-			signed_t index = (pp - buf) / elsz;
-			if (index < 0 || index >= arsz)
-				return false;
-			return true;
-		}
-
-		void* alloc(size_t sz)
-		{
-			spinlock::long3264 unlockff = ff & ~(0x80000000ull);
-			if (unlockff < arsz)
-			{
-				spinlock::long3264 lockff;
-
-				for (;;)
-				{
-					unlockff = ff & ~(0x80000000ull);
-					lockff = 0x80000000ull | unlockff;
-					if (spinlock::atomic_replace(ff, unlockff, lockff))
-						break; // lock success
-					_mm_pause();
-				}
-
-				int* nf = (int*)(buf + (elsz * unlockff));
-				unlockff = *nf;
-
-#ifdef _DEBUG
-				++current;
-				if (current > peak)
-					peak = current;
-#endif
-
-				if (unlockff < 0)
-					DEBUGBREAK();
-				bool ok = spinlock::atomic_replace(ff, lockff, unlockff);
-				if (!ok)
-					DEBUGBREAK();
-
-				return nf;
-			}
-			return fallback::alloc(sz);
-		}
-
-		bool free(void* p)
-		{
-			u8* pp = (u8*)p;
-			signed_t index = (pp - buf) / elsz;
-			if (index < 0 || index >= arsz)
-				return false;
-
-			spinlock::long3264 unlockff;
-			spinlock::long3264 lockff;
-			for (;;)
-			{
-				unlockff = ff & ~(0x80000000ull);
-				lockff = 0x80000000ull | unlockff;
-				if (spinlock::atomic_replace(ff, unlockff, lockff))
-					break; // lock success
-				_mm_pause();
-			}
-
-			int* ef = (int*)(buf + (elsz * index));
-			*ef = (int)unlockff;
-			unlockff = index;
-
-#ifdef _DEBUG
-			--current;
-#endif
-
-			if (unlockff < 0)
-				DEBUGBREAK();
-			bool ok = spinlock::atomic_replace(ff, lockff, unlockff);
-			if (!ok)
-				DEBUGBREAK();
-
-			return true;
-		}
 	};
 
-#ifdef USE_ARENAS
-	struct fb0
+	u8 aaabuf[sizeof(aa)];
+	aa& aaa()
 	{
-		static void* alloc(size_t x)
-		{
-			return malloc(x);
-		}
-	};
+		return ref_cast<aa>(aaabuf);
+	}
 
-	arena<64, 2048, fb0> arena64;
-
-	struct fb1
+	void aa::meminfo::up()
 	{
-		static void* alloc(size_t x)
-		{
-			return arena64.alloc(x);
-		}
-	};
+		spinlock::simple_lock(aaa().async);
 
-	arena<32, 2048, fb1> arena32;
+		++total;
+		++count;
+		if (peak < count)
+			peak = count;
 
-	struct fb2
+		spinlock::simple_unlock(aaa().async);
+
+	}
+
+	void aa::meminfo::dn()
 	{
-		static void* alloc(size_t x)
-		{
-			return arena32.alloc(x);
-		}
-	};
+		spinlock::simple_lock(aaa().async);
 
-	arena<8, 1024, fb2> arena8;
+		--count;
+
+		spinlock::simple_unlock(aaa().async);
+
+	}
+
 #endif
 
 	void* rs(void* p, size_t size)
 	{
 #ifdef USE_ARENAS
-		if (arena8.here(p))
+		if (glb.arena16.here(p))
 		{
-			if (size <= 8)
+			if (size <= 16)
 				return p;
 			void* np = ma(size);
-			memcpy(np, p, 8);
-			arena8.free(p);
+			memcpy(np, p, 16);
+			glb.arena16.free(p);
 			return np;
 		}
-		if (arena32.here(p))
+		if (glb.arena32.here(p))
 		{
 			if (size <= 32)
 				return p;
 			void* np = ma(size);
 			memcpy(np, p, 32);
-			arena32.free(p);
+			glb.arena32.free(p);
 			return np;
 		}
-		if (arena64.here(p))
+		if (glb.arena64.here(p))
 		{
 			if (size <= 64)
 				return p;
 			void* np = ma(size);
 			memcpy(np, p, 64);
-			arena64.free(p);
+			glb.arena64.free(p);
 			return np;
 		}
 #endif
 
 #if defined _DEBUG && defined COUNT_ALLOCS
 		if (true)
-			return aaa.realloc(p, size);
+			return aaa().realloc(p, size);
 #endif
 
 		return realloc(p, size);
@@ -296,40 +172,55 @@ namespace ma
 	void* ma(size_t size)
 	{
 #ifdef USE_ARENAS
-		if (size <= 8)
-			return arena8.alloc(size);
+		if (size <= 16)
+			return glb.arena16.alloc(size);
 		if (size <= 32)
-			return arena32.alloc(size);
+			return glb.arena32.alloc(size);
 		if (size <= 64)
-			return arena64.alloc(size);
+			return glb.arena64.alloc(size);
 #endif
 
 #if defined _DEBUG && defined COUNT_ALLOCS
 		if (true)
-			return aaa.alloc(size);
+			return aaa().alloc(size);
 #endif
 		return malloc(size);
 	}
 	void mf(void* p)
 	{
 #ifdef USE_ARENAS
-		if (arena8.free(p))
+		if (glb.arena16.free(p))
 			return;
-		if (arena32.free(p))
+		if (glb.arena32.free(p))
 			return;
-		if (arena64.free(p))
+		if (glb.arena64.free(p))
 			return;
 #endif
 
 #if defined _DEBUG && defined COUNT_ALLOCS
 		if (true)
-			aaa.free(p);
+			aaa().free(p);
 		else
 #endif
 		free(p);
 	}
 }
 
+global_data::first_init::first_init()
+{
+#if defined _DEBUG && defined COUNT_ALLOCS
+	new (&ma::aaa()) ma::aa();
+#endif
+}
+
+global_data::global_data()
+{
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+	cfg.crash_log_file = str::astr(ASTR("imconee.crush.log"));
+	cfg.dump_file = str::astr(ASTR("imconee.dmp"));
+#endif
+
+}
 
 void* operator new(std::size_t size) {
 	return ma::ma(size);

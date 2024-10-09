@@ -6,18 +6,14 @@ class engine
 
 	std::vector<std::unique_ptr<listener>> listners;
 	std::vector<std::unique_ptr<proxy>> prox;
-	static volatile bool exit;
 
 public:
 
-	static volatile spinlock::long3264 numlisteners;
 	int exit_code = EXIT_OK;
 
-	engine(FN&& path_config);
+	engine();
 	~engine();
 
-	static void stop() { exit = true; }
-	static bool is_stop() { return exit; }
 	signed_t working();
 
 	const proxy* find_proxy(const str::astr_view& pn) const

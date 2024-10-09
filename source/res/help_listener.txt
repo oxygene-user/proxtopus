@@ -1,2 +1,24 @@
-under construction....
+Help about listeners.
+The config must contain a block of listeners:
 
+listeners \{
+  lstnr1 \{
+    ...
+  }
+  lstnr2 \{
+    ...
+  }
+  lstnr3 \{
+    ...
+  }
+  ...
+}
+
+lstnr1, lstnr2, lstnr3 - names of listeners. Listener's name can be anything. This only affects the display in the log.
+Each listener contains the following required fields:
+  {type} (possible values: "tcp", "udp"),
+  {port} (port the listener will listen to),
+  {bind} (bind address; typical values: "0.0.0.0", "127.0.0.1", "::", "::1" etc...),
+Also the listener must contain a required block {handler}.
+Thus, the listener only listens to the port. The work with packets arriving on this port is performed directly by the {handler}.
+Type {$(EXE) help handler} for more information about handlers.

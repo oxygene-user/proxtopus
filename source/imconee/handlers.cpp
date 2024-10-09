@@ -2,27 +2,38 @@
 
 #define BRIDGE_BUFFER_SIZE 65536
 
-handler* handler::build(loader& ldr, listener *owner, const asts& bb)
+handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type st)
 {
-	std::string t = bb.get_string(ASTR("type"));
+	const str::astr &t = bb.get_string(ASTR("type"));
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for handler of listener [%s]; type {imconee help handler} for more information", str::printable(owner->name));
+		LOG_E("{type} not defined for handler of listener [%s]; type {imconee help handler} for more information", str::printable(owner->get_name()));
 		return nullptr;
 	}
 
 	handler* h = nullptr;
 	if (ASTR("direct") == t)
 	{
-		h = new handler_direct(ldr, owner, bb);
+		h = new handler_direct(ldr, owner, bb, st);
 	}
 	else if (str::starts_with(t, ASTR("socks")))
 	{
-		h = new handler_socks(ldr, owner, bb, std::string_view(t).substr(5));
+		if (st != netkit::ST_TCP)
+        {
+		err:
+			ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
+            LOG_E("{%s} handler can only be used with TCP type of listener [%s]", t.c_str(), str::printable(owner->get_name()));
+            return nullptr;
+		}
+
+		h = new handler_socks(ldr, owner, bb, str::view(t).substr(5));
 	}
 	else if (ASTR("shadowsocks") == t)
 	{
+		if (st != netkit::ST_TCP)
+			goto err;
+
 		h = new handler_ss(ldr, owner, bb);
 	}
 
@@ -36,22 +47,22 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb)
 		return h;
 	}
 
-	LOG_E("unknown {type} [%s] for handler of lisnener [%s]; type {imconee help handler} for more information", str::printable(t), str::printable(owner->name));
+	LOG_E("unknown {type} [%s] for handler of lisnener [%s]; type {imconee help handler} for more information", str::printable(t), str::printable(owner->get_name()));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 	return nullptr;
 }
 
 handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 {
-	std::string pch = bb.get_string(ASTR("proxychain"));
+	str::astr pch = bb.get_string(ASTR("proxychain"));
 	if (!pch.empty())
 	{
-		for (str::token<char> tkn(pch, ','); tkn; ++tkn)
+		TFORa(tkn, pch, ',')
 		{
 			const proxy* p = ldr.find_proxy(*tkn);
 			if (p == nullptr)
 			{
-				LOG_E("unknown {proxy} [%s] for handler of lisnener [%s]", std::string(*tkn).c_str(), str::printable(owner->name));
+				LOG_E("unknown {proxy} [%s] for handler of lisnener [%s]", str::astr(*tkn).c_str(), str::printable(owner->get_name()));
 				ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
 				return;
 			}
@@ -65,34 +76,27 @@ void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 	ASSERT(!pipe1->is_multi_ref()); // avoid memory leak! bridge is now owner of pipe1 and pipe2
 	ASSERT(!pipe2->is_multi_ref());
 
-	auto st = state.lock_write();
-	std::unique_ptr<processing_thread>* ptr = &st().pth;
-	bool check_only = false;
-	for (processing_thread* t = ptr->get(); t;)
+	auto tcp = tcp_pth.lock_read();
+	tcp_processing_thread* ptr = tcp().get();
+	for (; ptr != nullptr; ptr = ptr->get_next())
 	{
-		signed_t x = check_only ? t->check() : t->try_add_bridge(/*ep,*/ pipe1, pipe2);
-		if (x < 0)
-		{
-			t = t->get_next_and_release();
-			ptr->reset(t); // it now deletes previous t
-			if (t == nullptr)
-				break;
-		}
+		signed_t x = ptr->try_add_bridge(/*ep,*/ pipe1, pipe2);
 		if (x > 0)
-			check_only = true;
-
-		ptr = t->get_next_ptr();
-		t = t->get_next();
+		{
+			tcp.unlock();
+			ptr->signal();
+			return;
+		}
 	}
+	tcp.unlock();
 
-	if (check_only)
-		return;
 
-	ASSERT(ptr->get() == nullptr);
-
-	processing_thread *npt = new processing_thread();
-	ptr->reset(npt);
-	st.unlock();
+	auto tcpw = tcp_pth.lock_write();
+	tcp_processing_thread *npt = new tcp_processing_thread();
+	npt->get_next_ptr()->reset(tcpw().get());
+	tcpw().release();
+	tcpw().reset(npt);
+	tcpw.unlock();
 
 	npt->try_add_bridge(pipe1, pipe2);
 	bridge(npt);
@@ -100,22 +104,97 @@ void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 	pipe1 = nullptr;
 	pipe2 = nullptr;
 
-	st = state.lock_write();
-	ptr = &st().pth;
-	for (processing_thread* t = ptr->get(); t;)
-	{
-		if (t == npt)
-		{
-			t = t->get_next_and_release();
-			ptr->reset(t); // it now deletes previous t
-			break;
-		}
-		ptr = t->get_next_ptr();
-		t = t->get_next();
-	}
-	st.unlock();
+	release_tcp(npt);
 
 }
+
+#ifdef LOG_TRAFFIC
+static volatile spinlock::long3264 idpool = 1;
+traffic_logger::traffic_logger()
+{
+}
+traffic_logger::~traffic_logger()
+{
+
+}
+void traffic_logger::prepare()
+{
+	if (id == 0)
+	{
+		id = spinlock::increment(idpool);
+		fn = ASTR("t:\\trl\\");
+		fn.append(std::to_string(GetCurrentProcessId()));
+		fn.push_back('_');
+		fn.append(std::to_string(id));
+		fn.append(ASTR("_12.traf"));
+	}
+
+}
+traffic_logger& traffic_logger::operator=(traffic_logger&&x)
+{
+	id = x.id;
+	x.id = 0;
+	fn = std::move(x.fn);
+	tools::swap(f12, x.f12);
+	tools::swap(f21, x.f21);
+	x.clear();
+
+	return *this;
+}
+void traffic_logger::clear()
+{
+	id = 0;
+	if (f12)
+	{
+		CloseHandle(f12);
+		f12 = nullptr;
+	}
+	if (f21)
+	{
+		CloseHandle(f21);
+		f21 = nullptr;
+	}
+}
+
+void traffic_logger::log12(u8* data, signed_t sz)
+{
+	if (f12 == nullptr)
+	{
+		prepare();
+		fn[fn.length() - 7] = '1';
+		fn[fn.length() - 6] = '2';
+		f12 = CreateFileA(fn.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (f12 == INVALID_HANDLE_VALUE)
+		{
+			f12 = nullptr;
+			return;
+		}
+	}
+
+	DWORD w;
+	WriteFile(f12, data, (DWORD)sz, &w, nullptr);
+
+}
+void traffic_logger::log21(u8* data, signed_t sz)
+{
+	if (f21 == nullptr)
+	{
+		prepare();
+		fn[fn.length() - 7] = '2';
+		fn[fn.length() - 6] = '1';
+		f21 = CreateFileA(fn.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (f21 == INVALID_HANDLE_VALUE)
+		{
+			f21 = nullptr;
+			return;
+		}
+	}
+
+	DWORD w;
+	WriteFile(f21, data, (DWORD)sz, &w, nullptr);
+}
+#endif
+
 
 handler::bridged::process_result handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
 {
@@ -140,6 +219,10 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 
 			if (r == netkit::pipe::SEND_OK)
 				masks.remove_write(mask2);
+
+#ifdef LOG_TRAFFIC
+			loger.log12(data, sz);
+#endif
 		}
 		rv = SLOT_PROCESSES;
 	}
@@ -158,6 +241,11 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 
 			if (r == netkit::pipe::SEND_OK)
 				masks.remove_write(mask1);
+
+#ifdef LOG_TRAFFIC
+			loger.log21(data, sz);
+#endif
+
 		}
 		rv = SLOT_PROCESSES;
 	}
@@ -181,9 +269,10 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 
 }
 
-signed_t handler::processing_thread::tick(u8* data)
+signed_t handler::tcp_processing_thread::tick(u8* data)
 {
 	auto ns = numslots.lock_write();
+
 	for (signed_t i = 0; i < ns(); ++i)
 	{
 		if (!slots[i].prepare_wait(waiter))
@@ -255,30 +344,76 @@ signed_t handler::processing_thread::tick(u8* data)
 	return cont_inue ? rv : -1;
 }
 
-void handler::bridge(processing_thread *npt)
+void handler::bridge(tcp_processing_thread *npt)
 {
 	u8 data[BRIDGE_BUFFER_SIZE];
 	netkit::pipe_waiter::mask mask;
-	for (; !state.lock_read()().need_stop;)
+	for (; !need_stop ;)
 	{
 		signed_t r = npt->tick(data);
 		if (r < 0)
 			break;
 
-		if (engine::is_stop())
+		if (glb.is_stop())
 			break;
 
 		if (r < MAXIMUM_SLOTS)
 		{
-			// forward idle slots to next thread to free up the current thread faster
+			// transplant idle slots to end of thread list to free up the current thread faster
 
-			auto st = state.lock_write();
-			if (processing_thread* next = npt->get_next())
-				if (npt->forward(r, next))
+			auto tcp = tcp_pth.lock_read(); // why lock read? due we do not kill or change list-pointers here. we just expect no one kill them while this job in progress
+
+			if (tcp_processing_thread * ptr = npt->get_next())
+				npt->transplant(r, ptr);
+
+			/*
+			tcp_processing_thread *ptr = tcp().get();
+			for (; ptr && ptr != npt; ptr = ptr->get_next())
+			{
+				if (npt->transplant(r, ptr))
 					break;
+			}
+			*/
 		}
 	}
 }
+
+void handler::release_udp(udp_processing_thread* udp_wt)
+{
+	auto udp = udp_pth.lock_write();
+	std::unique_ptr<udp_processing_thread>* ptr = &udp();
+	for (udp_processing_thread* t = ptr->get(); t;)
+	{
+		if (t == udp_wt)
+		{
+			t = t->get_next_and_forget();
+			ptr->reset(t); // it now deletes previous t
+			break;
+		}
+		ptr = t->get_next_ptr();
+		t = t->get_next();
+	}
+	udp.unlock();
+}
+
+void handler::release_tcp(tcp_processing_thread* tcp_wt)
+{
+	auto tcp = tcp_pth.lock_write();
+	std::unique_ptr<tcp_processing_thread>* ptr = &tcp();
+	for (tcp_processing_thread* t = ptr->get(); t;)
+	{
+		if (t == tcp_wt)
+		{
+			t = t->get_next_and_forget();
+			ptr->reset(t); // it now deletes previous t
+			break;
+		}
+		ptr = t->get_next_ptr();
+		t = t->get_next();
+	}
+
+}
+
 
 netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 {
@@ -290,7 +425,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 		{
 			if (proxychain.size() == 0)
 			{
-				LOG_N("connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
+				LOG_N("connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->get_name()));
 			}
 
 			netkit::pipe_ptr pp(pipe);
@@ -299,18 +434,18 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 
 		if (proxychain.size() == 0)
 		{
-			LOG_N("not connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->name));
+			LOG_N("not connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->get_name()));
 		}
 
 		return netkit::pipe_ptr();
 	}
 
 	spinlock::long3264 t = spinlock::increment(tag);
-	std::string stag(ASTR("[")); stag.append(std::to_string(t)); stag.append(ASTR("] "));
+	str::astr stag(ASTR("[")); stag.append(std::to_string(t)); stag.append(ASTR("] "));
 
 	size_t tl = stag.size();
 
-	auto ps = [&](const std::string_view& s)
+	auto ps = [&](const str::astr_view& s)
 	{
 		stag.resize(tl);
 		stag.append(s);
@@ -320,11 +455,11 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 
 	if (proxychain.size() == 1)
 	{
-		ps("connecting to upstream proxy (%s) via listener [%s]"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str(), str::printable(owner->name));
+		ps("connecting to upstream proxy (%s) via listener [%s]"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str(), str::printable(owner->get_name()));
 	}
 	else
 	{
-		ps("connecting through proxy chain via listener [%s]"); LOG_N(stag.c_str(), str::printable(owner->name));
+		ps("connecting through proxy chain via listener [%s]"); LOG_N(stag.c_str(), str::printable(owner->get_name()));
 		ps("connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str());
 	}
 
@@ -348,7 +483,7 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 	return pp;
 }
 
-bool handler::processing_thread::forward(signed_t slot, processing_thread* n)
+bool handler::tcp_processing_thread::transplant(signed_t slot, tcp_processing_thread* n)
 {
 	auto ns = numslots.lock_write();
 
@@ -370,7 +505,7 @@ bool handler::processing_thread::forward(signed_t slot, processing_thread* n)
 
 }
 
-void handler::processing_thread::close()
+void handler::tcp_processing_thread::close()
 {
 	signal();
 	{
@@ -390,19 +525,86 @@ void handler::processing_thread::close()
 		next->close();
 }
 
+void handler::udp_processing_thread::close()
+{
+	ts.data.reset();
+
+	if (next)
+		next->close();
+}
+
+void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
+{
+	std::array<u8, 65536> packet;
+	netkit::pgen pg(packet.data(), packet.max_size());
+	cutoff_time = chrono::ms() + timeout;
+
+	netkit::udp_pipe* pipe = this;
+
+	for (;;)
+	{
+		if (!sendb.lock_read()().empty())
+		{
+			auto x = sendb.lock_write();
+            sdptr b;
+			if (x().get(b))
+			{
+				if (b == nullptr)
+					break; // stop due error
+                x.unlock();
+				netkit::pgen spg(b->data(), b->datasz, b->pre());
+				pipe->send(b->tgt, spg);
+			}
+
+		}
+
+		if (!ts.data)
+		{
+			// wait for send and init thread storage for pipe
+			Sleep(0);
+			continue;
+		}
+
+		pg.sz = tools::as_word(packet.max_size());
+
+		pg.set_pre(0);
+		auto ior = pipe->recv(pg, packet.max_size());
+		if (ior != netkit::ior_ok)
+			break;
+		if (!from.sendto(initiator, pg.to_span()))
+			break;
+		cutoff_time = chrono::ms() + timeout;
+	}
+}
+
+/*virtual*/ netkit::io_result handler::udp_processing_thread::send(const netkit::ipap& toaddr, const netkit::pgen& pg)
+{
+	return netkit::udp_send(ts, toaddr, pg);
+}
+/*virtual*/ netkit::io_result handler::udp_processing_thread::recv(netkit::pgen& pg, signed_t max_bufer_size)
+{
+	return netkit::udp_recv(ts, pg, max_bufer_size);
+}
+
+
 void handler::stop()
 {
-	auto ss = state.lock_write();
-
-	if (ss().need_stop)
+	if (need_stop)
 		return;
 
-	ss().need_stop = true;
-	if (ss().pth)
-		ss().pth->close();
-	ss.unlock();
+	need_stop = true;
 
-	for (; state.lock_read()().pth != nullptr;)
+	auto tcp = tcp_pth.lock_write();
+	if (tcp())
+		tcp()->close();
+	tcp.unlock();
+
+	auto udp = udp_pth.lock_write();
+	if (udp())
+		udp()->close();
+	udp.unlock();
+
+	for (; tcp_pth.lock_read()().get() != nullptr || udp_pth.lock_read()().get() != nullptr;)
 		Sleep(100);
 }
 
@@ -414,29 +616,148 @@ void handler::stop()
 //////////////////////////////////////////////////////////////////////////////////
 
 
-handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb):handler(ldr, owner,bb)
+handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, netkit::socket_type st):handler(ldr, owner,bb)
 {
 	to_addr = bb.get_string(ASTR("to"));
 	if (!conn::is_valid_addr(to_addr))
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("{to} field of direct handler not defined or invalid (listener: [%s])", str::printable(owner->name));
+		LOG_E("{to} field of direct handler not defined or invalid (listener: [%s])", str::printable(owner->get_name()));
+		return;
+	}
+
+	if (netkit::ST_UDP == st)
+    {
+        udp_timeout_ms = bb.get_int(ASTR("udp-timeout"), udp_timeout_ms);
+		if (proxychain.size() > 1)
+		{
+            ldr.exit_code = EXIT_FAIL_PROXY_CHAIN;
+            LOG_E("proxy chains of more than one node are not supported for the UDP protocol (listener: [%s])", str::printable(owner->get_name()));
+            return;
+		}
+		if (proxychain.size() == 1)
+		{
+			const proxy* p = proxychain[0];
+			if (!p->support(netkit::ST_UDP))
+			{
+                ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
+                LOG_E("upstream proxy does not support UDP protocol (listener: [%s])", str::printable(owner->get_name()));
+                return;
+			}
+		}
 	}
 }
 
 void handler_direct::on_pipe(netkit::pipe* pipe)
 {
-	std::thread th(&handler_direct::worker, this, pipe);
+	std::thread th(&handler_direct::tcp_worker, this, pipe);
 	th.detach();
+}
+
+void handler_direct::on_udp(netkit::socket& lstnr, const netkit::udp_packet& p)
+{
+	udp_processing_thread* wt = nullptr;
+	
+    signed_t curtime = chrono::ms();
+
+	auto udp = udp_pth.lock_read();
+	for (udp_processing_thread* t = udp().get(); t; t = t->get_next())
+	{
+		if (t->has_from(p.from) && !t->is_timeout(curtime))
+		{
+			wt = t;
+		}
+	}
+
+	// don't do udp.unlock() here due if wt is not null, we must be sure it will not die
+
+	netkit::ipap tgtip;
+	bool new_thread = false;
+	if (wt == nullptr)
+	{
+		udp.unlock(); // do unlock here due wt is null and we create new wt
+
+		auto tip = tgt_ip.lock_read();
+		if (tip().port == 0)
+		{
+			tip.unlock();
+			netkit::endpoint ep(to_addr);
+
+			if (ep.state() == netkit::EPS_DOMAIN || ep.state() == netkit::EPS_RESLOVED)
+				tgtip = ep.get_ip(glb.cfg.ipstack | conf::gip_log_it);
+
+			if (ep.state() != netkit::EPS_RESLOVED)
+				return;
+
+			if (tgtip.is_wildcard() || tgtip.port == 0)
+			{
+				LOG_E("failed UDP mapping: can't use endpoint %s (listener [%s])", to_addr.c_str(), str::printable(owner->get_name()));
+				return;
+			}
+
+			// only [resolved] endpoint supported for now (udp proxy not yet ready, so, to_addr cannot be resolved via proxy)
+
+			tgt_ip.lock_write()() = tgtip;
+
+		}
+		else
+		{
+			tgtip = tip();
+			tip.unlock();
+		}
+
+		wt = new udp_processing_thread( udp_timeout_ms, p.from /*, tgtip.v4*/ );
+
+		// put wt to begin of list
+		auto udp4w = udp_pth.lock_write();
+		wt->get_next_ptr()->reset( udp4w().get() );
+		udp4w().release();
+		udp4w().reset(wt);
+		udp4w.unlock();
+
+		std::thread th(&handler_direct::udp_worker, this, &lstnr, wt);
+		th.detach();
+		new_thread = true;
+	}
+
+	wt->add2send(p.to_span(), tgtip);
+
+	if (new_thread)
+	{
+		LOG_N("new UDP mapping (%s <-> %s) via listener [%s]", p.from.to_string(true).c_str(), tgtip.to_string(true).c_str(), str::printable(owner->get_name()));
+	}
 
 }
 
-void handler_direct::worker(netkit::pipe* pipe)
+void handler::udp_processing_thread::add2send(std::span<const u8> data, const netkit::ipap& tgt)
+{
+	auto sb = sendb.lock_write();
+	if (send_data* b = (send_data*)malloc(send_data::shift() + data.size()))
+	{
+		b->datasz = data.size();
+		b->tgt = tgt;
+		memcpy(b->data(), data.data(), data.size());
+		sb().emplace(b);
+	}
+	else {
+		sb().emplace();
+	}
+}
+
+void handler_direct::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
+{
+	// handle answers
+	udp_wt->udp_bridge(lstnr->s);
+	release_udp(udp_wt);
+}
+
+void handler_direct::tcp_worker(netkit::pipe* pipe)
 {
 	// now try to connect to out
 
 	netkit::pipe_ptr p(pipe);
 	netkit::endpoint ep(to_addr);
+
 	if (netkit::pipe_ptr outcon = connect(ep, false))
 		bridge(std::move(p), std::move(outcon));
 }
@@ -448,7 +769,7 @@ void handler_direct::worker(netkit::pipe* pipe)
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-handler_socks::handler_socks(loader& ldr, listener* owner, const asts& bb, const std::string_view& st) :handler(ldr, owner, bb)
+handler_socks::handler_socks(loader& ldr, listener* owner, const asts& bb, const str::astr_view& st) :handler(ldr, owner, bb)
 {
 	userid = bb.get_string(ASTR("userid"));
 
@@ -517,7 +838,7 @@ void handler_socks::handshake4(netkit::pipe* pipe)
 	u16 port = (((u16)packet[1]) << 8) | packet[2];
 	netkit::ipap dst = netkit::ipap::build(packet + 3, 4, port);
 
-	std::string uid;
+	str::astr uid;
 	for (;;)
 	{
 		rb = pipe->recv(packet, -1);
@@ -613,7 +934,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 		rb = pipe->recv(packet, -loginlen);
 		if (rb != loginlen)
 			return;
-		std::string rlogin, rpass;
+		str::astr rlogin, rpass;
 		rlogin.append((const char *)packet, loginlen - 1);
 		signed_t passlen = packet[loginlen - 1];
 		rb = pipe->recv(packet, -passlen);
@@ -673,7 +994,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 		rb = pipe->recv(packet, -numauth);
 		if (rb != numauth)
 			return;
-		ep.set_domain( std::string((const char *)packet, numauth) );
+		ep.set_domain( str::astr((const char *)packet, numauth) );
 		break;
 
 	case 4: // ipv6
@@ -712,7 +1033,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 			break;
 		}
 
-		*(u32*)(rp + 4) = (u32)ep.get_ip(netkit::GIP_ONLY4);
+		*(u32*)(rp + 4) = 0; // (u32)ep.get_ip(conf::gip_only4);
 		rp[8] = (port >> 8) & 0xff;
 		rp[9] = port & 0xff;
 		p->send(rp, 10);

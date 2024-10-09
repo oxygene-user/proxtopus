@@ -5,13 +5,14 @@ class proxy;
 
 class loader
 {
-	asts cfg;
+	asts cfgsts;
 	engine* e;
 	const asts* listeners = nullptr;
 	const asts* prox = nullptr;
 	const asts* settings = nullptr;
 
 public:
+	const asts* nameservers = nullptr;
 
 	using listener_loader = std::function< bool(const str::astr&, const asts&) >;
 	using proxy_loader = std::function< bool(const str::astr&, const asts&) >;
@@ -30,3 +31,4 @@ public:
 	const proxy* find_proxy(const str::astr_view& pn) const;
 
 };
+

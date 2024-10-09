@@ -2,7 +2,7 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
   <PropertyGroup>
-    <IntDir>$(GARBAGE)\#garbage\$(MSBuildToolsVersion)\$(ProjectName)_$(Configuration)_$(Platform)\</IntDir>
+    <IntDir>$(GARBAGE)\#garbage\$(ProjectName)_$(Configuration)_$(Platform)\</IntDir>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectName)d64</TargetName>
@@ -84,7 +84,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_RELEASE;NDEBUG;_CRASH_HANDLER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_RELEASE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>

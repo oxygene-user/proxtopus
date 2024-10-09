@@ -30,7 +30,7 @@ namespace conn
 			{
 				// check it ip address
 				signed_t cnt = 0;
-				for (str::token<char> tkn(dm, '.'); tkn; ++tkn)
+				TFORa(tkn, dm, '.')
 				{
 					signed_t x = -1;
 					auto res = std::from_chars(tkn->data(), tkn->data() + tkn->length(), x);
@@ -51,10 +51,10 @@ namespace conn
 
 	netkit::pipe* connect(const netkit::endpoint& addr)
 	{
-		if (addr.type() == netkit::AT_TCP_DOMAIN)
-			addr.get_ip(netkit::getip_def | netkit::GIP_ANY | netkit::GIP_LOG_IT);
+		if (addr.state() == netkit::EPS_DOMAIN)
+			addr.get_ip(glb.cfg.ipstack | conf::gip_any | conf::gip_log_it);
 
-		if (addr.type() == netkit::AT_TCP_RESLOVED)
+		if (addr.state() == netkit::EPS_RESLOVED)
 		{
 
 			netkit::tcp_pipe* con = new netkit::tcp_pipe();

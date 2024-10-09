@@ -183,31 +183,45 @@ static void cprintf(console_buffer *cb, const char* s, signed_t sl)
 	};
 
 	signed_t p = 0;
+	bool prev_esc = false;
 	for (signed_t i = 0; i < sl; ++i)
 	{
 		char c = s[i];
-
-		for (const cpair& cp : cols)
+		if (c != '\\' && !prev_esc)
 		{
-			if (c == cp.left)
+			for (const cpair& cp : cols)
 			{
-				if (curca < 0)
-					curca = cb->get_attr();
-
-				if (p < i)
+				if (c == cp.left)
 				{
-					cb->write(s + p, i - p);
+					if (curca < 0)
+						curca = cb->get_attr();
+
+					if (p < i)
+					{
+						cb->write(s + p, i - p);
+					}
+					++i;
+					signed_t j = i;
+					for (; i < sl && s[i] != cp.right; ++i);
+					cb->set_text_color(cp.color);
+					cb->write(s + j, i - j);
+					cb->set_attr(curca & 0xffff);
+					p = i + 1;
+					i = p;
 				}
-				++i;
-				signed_t j = i;
-				for (; i < sl && s[i] != cp.right; ++i);
-				cb->set_text_color(cp.color);
-				cb->write(s + j, i - j);
-				cb->set_attr(curca & 0xffff);
+			}
+		}
+		prev_esc = c == '\\';
+		if (prev_esc)
+		{
+			if (p < i)
+			{
+				cb->write(s + p, i - p);
 				p = i + 1;
 				i = p;
 			}
 		}
+
 	}
 	if (p < sl)
 	{
@@ -215,43 +229,75 @@ static void cprintf(console_buffer *cb, const char* s, signed_t sl)
 	}
 }
 
+void Print()
+{
+	std::vector<str::astr> cp;
+	cp = std::move(glb.prints.lock_write()());
+	
+	static volatile spinlock::long3264 lock = 0;
+	SIMPLELOCK(lock);
+
+	for(auto s : cp)
+	{
+		if (s.size() > 4 && *(u16*)s.c_str() == 0)
+		{
+			u16 color = *(u16*)(s.c_str() + 2);
+			set_console_color cc(color);
+			cprintf(&cc, s.c_str() + 4, s.length() - 4);
+		}
+		else
+		{
+			set_console_color cc(FOREGROUND_WHITE);
+			cprintf(&cc, s.c_str(), s.length());
+		}
+	}
+
+}
+
 void Print(signed_t color, const char* format, ...)
 {
-	set_console_color cc(color);
-	char buf[2048];
+	char buf[1024];
+
+	*(u32 *)buf = tools::as_dword(Endian::little ? (color << 16) : (color)); // make 1st and 2nd bytes zero
+
 	va_list arglist;
 	va_start(arglist, format);
-	signed_t sl = vsnprintf(buf, sizeof(buf), format, arglist);
+	signed_t sl = vsnprintf(buf + 4, sizeof(buf) - 4, format, arglist);
 #ifdef _WIN32
-	CharToOemBuffA(buf, buf, tools::as_dword(sl));
+	CharToOemBuffA(buf + 4, buf + 4, tools::as_dword(sl));
 #endif
-	cprintf(&cc, buf, sl);
+	glb.prints.lock_write()().emplace_back(buf, sl + 4);
 }
 
 void Print(const char* format, ...)
 {
+	char buf[1024];
 	va_list arglist;
-	char buf[2048];
 	va_start(arglist, format);
 	signed_t sl = vsnprintf(buf, sizeof(buf), format, arglist);
 #ifdef _WIN32
 	CharToOemBuffA(buf, buf, tools::as_dword(sl));
 #endif
-	console_buffer cb;
-	cprintf(&cb, buf, sl);
+
+	glb.prints.lock_write()().emplace_back(buf, sl);
+}
+
+inline str::astr sln(const char* s, signed_t slen)
+{
+	str::astr x(s, slen);
+	x.push_back('\n');
+	return x;
 }
 
 void Println(const char* s, signed_t slen)
 {
-	console_buffer cb;
-	cprintf(&cb, s, slen);
-	cb.write("\n", 1);
+	glb.prints.lock_write()().push_back(sln(s,slen));
 }
 
 void Print(const std::vector<char> &txt)
 {
-	str::token<char> t( str::astr_view(txt.data(), txt.size()), '\n');
-	for (; t; ++t)
+	str::token<char, str::sep_onechar<char, '\n'>> t( str::astr_view(txt.data(), txt.size()));
+	for (; t; t())
 	{
 		Println( t->data(), t->size() );
 	}

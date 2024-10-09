@@ -10,7 +10,6 @@
 namespace netkit
 {
     static signed_t send_buffer_size = 128 * 1024; // 128k
-	getip_options getip_def = GIP_PRIOR4;
 
 #ifdef _NIX
         const int SD_SEND = SHUT_WR;
@@ -55,8 +54,24 @@ namespace netkit
 			return 255;
 		};
 
-		for (char c : s)
+		signed_t check_port = -1;
+		bool clexpected = s[0] == '[';
+		for (signed_t i = clexpected ? 1 : 0, sl = s.length(); i<sl; ++i )
 		{
+			char c = s[i];
+			if (c == '[')
+			{
+				return ipap();
+			}
+			if (c == ']')
+			{
+				if (!clexpected)
+					return ipap();
+				check_port = i + 1;
+				clexpected = false;
+				break;
+			}
+
 			if (c == ':')
 			{
 				if (somedigits > 0 && pushdig())
@@ -73,7 +88,7 @@ namespace netkit
 				somedigits = 0;
 				continue;
 			}
-
+			colon = false;
 			u8 hd = hexdig(c);
 			if (hd == 255)
 				return ipap();
@@ -82,6 +97,9 @@ namespace netkit
 			if (somedigits == 5)
 				return ipap();
 		}
+
+		if (clexpected)
+			return ipap();
 
 		if (somedigits)
 			pushdig();
@@ -100,11 +118,22 @@ namespace netkit
 		for (signed_t j = 0;i < 8; ++i, ++j)
 			w[i] = rite[j];
 
+		if (check_port > 0 && s[check_port] == ':')
+		{
+			rv.port = tools::as_word(str::parse_int(s.substr(check_port + 1), 65535, 0));
+		}
+
 		return rv;
 	}
 
 	ipap ipap::parse(const str::astr_view& s)
 	{
+		if (s.empty())
+			return ipap();
+
+		if (s[0] == '[')
+			return parse6(s);
+
 		signed_t numd = 0;
 		for( char c : s )
 			if (c == ':')
@@ -117,18 +146,35 @@ namespace netkit
 		ipap rv;
 
 		u8* dst = rv.octets();
-		u8* end = dst + 4;
-
-		for (str::token<char> tkn(s, '.'); tkn; ++tkn)
+		signed_t index = 0;
+		for (str::token<char, str::sep_onechar<char, '.'>> tkn(s); tkn; tkn(), ++index, ++dst)
 		{
-			*dst = (u8)std::stoi(str::astr(*tkn));
-			++dst;
-			if (dst > end)
+			if (index >= 4)
 			{
 				rv.ipv4.s_addr = 0;
-				break;
+				return rv;
 			}
+
+			if (index == 3)
+			{
+				size_t d = tkn->find(':');
+				if (d != str::astr::npos)
+				{
+					rv.port = tools::as_word(str::parse_int(tkn->substr(d + 1), 65535, 0));
+					tkn.trim(d);
+				}
+			}
+
+			signed_t oktet = str::parse_int(*tkn, 255, 256);
+			if (oktet > 255)
+			{
+				rv.ipv4.s_addr = 0;
+				return rv;
+			}
+			*dst = tools::as_byte(oktet);
+
 		}
+
 		return rv;
 	}
 
@@ -174,7 +220,25 @@ namespace netkit
 
 	}
 
-	void socket::close(bool flush_before_close)
+	bool ipap::sendto(SOCKET s, const std::span<const u8>& p) const
+	{
+		if (v4)
+		{
+			sockaddr_in addr = {};
+			addr.sin_family = AF_INET;
+			addr.sin_addr = ipv4;
+			addr.sin_port = netkit::to_ne((u16)port);
+			return SOCKET_ERROR != ::sendto(s, (const char*)p.data(), (int)p.size(), 0, (const sockaddr*)&addr, sizeof(addr));
+		}
+
+		sockaddr_in6 addr = {};
+		addr.sin6_family = AF_INET6;
+		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
+		addr.sin6_port = netkit::to_ne((u16)port);
+		return SOCKET_ERROR != ::sendto(s, (const char *)p.data(), (int)p.size(), 0, (const sockaddr*)&addr, sizeof(addr));
+	}
+
+	void waitable_socket::close(bool flush_before_close)
 	{
 #ifdef _WIN32
 		if (_socket.wsaevent)
@@ -192,14 +256,14 @@ namespace netkit
 		}
 	}
 
-	bool socket::tcp_listen(const ipap& bind2)
+	bool waitable_socket::listen(const str::astr& name, const ipap& bind2)
 	{
-		if (getip_def == GIP_ONLY6 && bind2.v4)
+		if (glb.cfg.ipstack == conf::gip_only6 && bind2.v4)
 		{
 			LOG_W("bind failed for listener [%s] due ipv4 addresses are disabled in config", str::printable(name));
 			return false;
 		}
-		if (getip_def == GIP_ONLY4 && !bind2.v4)
+		if (glb.cfg.ipstack == conf::gip_only4 && !bind2.v4)
 		{
 			LOG_W("bind failed for listener [%s] due ipv6 addresses are disabled in config", str::printable(name));
 			return false;
@@ -216,7 +280,7 @@ namespace netkit
 			return false;
 		}
 
-		if (SOCKET_ERROR == listen(sock(), SOMAXCONN))
+		if (SOCKET_ERROR == ::listen(sock(), SOMAXCONN))
 		{
 			LOG_W("listen failed for listener [%s]", str::printable(name));
 			close(false);
@@ -226,27 +290,135 @@ namespace netkit
 		return true;
 	}
 
-	tcp_pipe* socket::tcp_accept()
+	void socket::close(bool flush_before_close)
 	{
-		if (engine::is_stop())
+		if (s != INVALID_SOCKET)
+		{
+			if (flush_before_close)
+				/*int errm =*/ shutdown(s, SD_SEND);
+			closesocket(s);
+			s = INVALID_SOCKET;
+		}
+	}
+
+	bool socket::init(signed_t timeout, bool v4)
+	{
+		if (glb.cfg.ipstack == conf::gip_only6 && v4)
+		{
+			return false;
+		}
+		if (glb.cfg.ipstack == conf::gip_only4 && !v4)
+		{
+			return false;
+		}
+
+		if (INVALID_SOCKET != s)
+			close(false);
+
+		s = ::socket(v4 ? AF_INET : AF_INET6, SOCK_DGRAM, 0);
+		if (INVALID_SOCKET == s)
+			return false;
+
+		if (timeout > 0)
+		{
+#ifdef _WIN32
+			DWORD ms = tools::as_dword(timeout);
+			setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *) & ms, sizeof(ms));
+#endif
+#ifdef _NIX
+			struct timeval to = { timeout / 1000, 0 }; // seconds, microseconds
+			setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&to, sizeof(to));
+#endif
+		}
+
+		return true;
+	}
+
+	bool socket::listen_udp(const str::astr& name, const ipap& bind2)
+	{
+		if (glb.cfg.ipstack == conf::gip_only6 && bind2.v4)
+		{
+			LOG_W("bind failed for listener [%s] due ipv4 addresses are disabled in config", str::printable(name));
+			return false;
+		}
+		if (glb.cfg.ipstack == conf::gip_only4 && !bind2.v4)
+		{
+			LOG_W("bind failed for listener [%s] due ipv6 addresses are disabled in config", str::printable(name));
+			return false;
+		}
+
+		s = ::socket(bind2.v4 ? AF_INET : AF_INET6, SOCK_DGRAM, 0);
+		if (INVALID_SOCKET == s)
+			return false;
+
+		if (!bind2.bind(s))
+		{
+			LOG_W("bind failed for listener [%s]; check binding (%s)", str::printable(name), bind2.to_string(true).c_str());
+			close(false);
+			return false;
+		}
+
+		return true;
+	}
+
+	tcp_pipe* waitable_socket::tcp_accept(const str::astr &name)
+	{
+		if (glb.is_stop())
 			return nullptr;
 
-		sockaddr_in addr;
-		socklen_t AddrLen = sizeof(addr);
-		SOCKET s = accept(sock(), (sockaddr*)&addr, &AddrLen);
+
+#ifdef _NIX
+		int dom = -1;
+		int doml = sizeof(dom);
+		getsockopt(sock(), SOL_SOCKET, SO_DOMAIN, (char*)&dom, &doml));
+		bool v4 = dom == AF_INET;
+#endif
+#ifdef _WIN32
+		WSAPROTOCOL_INFO pi = {};
+		int pil = sizeof(pi);
+		getsockopt(sock(), SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&pi, &pil);
+		bool v4 = pi.iAddressFamily == AF_INET;
+#endif
+
+		union
+		{
+			sockaddr_in addr4;
+			sockaddr_in6 addr6;
+		} aaaa;
+		socklen_t addrlen = v4 ? sizeof(aaaa.addr4) : sizeof(aaaa.addr6);
+		SOCKET s = accept(sock(), (sockaddr*)&aaaa, &addrlen);
 		if (INVALID_SOCKET == s)
 			return nullptr;
 
-		if (engine::is_stop())
+		if (glb.is_stop())
         {
             closesocket(s);
             LOG_I("listener %s has been terminated", name.c_str());
             return nullptr;
         }
 
-		return new tcp_pipe(s, addr);
+		return new tcp_pipe(s, ipap(&aaaa, addrlen));
 	}
 
+	bool socket::recv(udp_packet& p)
+	{
+		sockaddr_in addr4 = {};
+		sockaddr_in6 addr6 = {};
+		int sz = p.from.v4 ? sizeof(addr4) : sizeof(addr6);
+		int recvsz = recvfrom(s, (char *)p.packet, sizeof(p.packet), 0, p.from.v4 ? (sockaddr *)&addr4 : (sockaddr*)&addr6, &sz);
+		if (recvsz <= 0)
+			return false;
+		if (p.from.v4)
+			p.from.set(&addr4, true);
+		else
+			p.from.set(&addr6, true);
+		p.sz = tools::as_word(recvsz);
+		return true;
+	}
+	bool socket::send(const std::span<const u8>& p, const ipap& tgt_ip)
+	{
+		return tgt_ip.sendto(s, p);
+	}
 
 	bool tcp_pipe::connect()
 	{
@@ -319,6 +491,13 @@ namespace netkit
 #ifdef _NIX
 #define CHECK_IF_NOT_NOW (errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
+
+	/*virtual*/ bool tcp_pipe::alive()
+	{
+		if (connected())
+			return wait(get_waitable(), 0) != WR_CLOSED;
+		return false;
+	}
 
 	pipe::sendrslt tcp_pipe::send(const u8* data, signed_t datasize)
 	{
@@ -421,7 +600,7 @@ namespace netkit
 
 	/*virtual*/ WAITABLE tcp_pipe::get_waitable()
 	{
-		return socket::get_waitable();
+		return waitable_socket::get_waitable();
 	}
 
 	bool tcp_pipe::rcv_all()
@@ -484,18 +663,17 @@ namespace netkit
 		return true;
 	}
 
-
 #ifdef _WIN32
-	bool dnsresolve(const str::astr& host, ipap& addr)
+	bool dnsresolve_sys(const str::astr& host, ipap& addr)
 	{
 		ADDRINFOEXA* result = nullptr;
 
 		ADDRINFOEXA hints = {};
 		hints.ai_family = AF_UNSPEC;
 
-		if (getip_def == GIP_ONLY4)
+		if (glb.cfg.ipstack == conf::gip_only4)
 			hints.ai_family = AF_INET;
-		else if (getip_def == GIP_ONLY6)
+		else if (glb.cfg.ipstack == conf::gip_only6)
 			hints.ai_family = AF_INET6;
 
 		hints.ai_socktype = SOCK_STREAM;
@@ -526,15 +704,15 @@ namespace netkit
 			}
 		}
 
-		if (a4 != nullptr && a6 == nullptr && getip_def != GIP_ONLY6)
+		if (a4 != nullptr && a6 == nullptr && glb.cfg.ipstack != conf::gip_only6)
 			addr.set(a4, false);
-		else if (a6 != nullptr && a4 == nullptr && getip_def != GIP_ONLY4)
+		else if (a6 != nullptr && a4 == nullptr && glb.cfg.ipstack != conf::gip_only4)
 			addr.set(a6, false);
 		else if (a4 != nullptr && a6 != nullptr)
 		{
-			if (getip_def == GIP_PRIOR4 || getip_def == GIP_ONLY4)
+			if (glb.cfg.ipstack == conf::gip_prior4 || glb.cfg.ipstack == conf::gip_only4)
 				addr.set(a4, false);
-			else if (getip_def == GIP_PRIOR6 || getip_def == GIP_ONLY6)
+			else if (glb.cfg.ipstack == conf::gip_prior6 || glb.cfg.ipstack == conf::gip_only6)
 				addr.set(a6, false);
 		}
 
@@ -547,7 +725,7 @@ namespace netkit
 	}
 #endif
 #ifdef _NIX
-	bool dnsresolve(const str::astr& host, ipap& addr)
+	bool dnsresolve_sys(const str::astr& host, ipap& addr)
 	{
 		addrinfo hints;
 		addrinfo* res;
@@ -555,9 +733,9 @@ namespace netkit
 		memset(&hints, 0, sizeof hints);
 		hints.ai_family = AF_UNSPEC;
 
-		if (getip_def == GIP_ONLY4)
+		if (cfg.ipstack == GIP_ONLY4)
 			hints.ai_family = AF_INET;
-		else if (getip_def == GIP_ONLY6)
+		else if (cfg.ipstack == GIP_ONLY6)
 			hints.ai_family = AF_INET6;
 
 		hints.ai_socktype = SOCK_STREAM;
@@ -586,15 +764,15 @@ namespace netkit
 			}
 		}
 
-		if (a4 != nullptr && a6 == nullptr && getip_def != GIP_ONLY6)
+		if (a4 != nullptr && a6 == nullptr && glb.cfg.ipstack != conf::gip_only6)
 			addr.set(a4, false);
-		else if (a6 != nullptr && a4 == nullptr && getip_def != GIP_ONLY4)
+		else if (a6 != nullptr && a4 == nullptr && glb.cfg.ipstack != conf::gip_only4)
 			addr.set(a6, false);
 		else if (a4 != nullptr && a6 != nullptr)
 		{
-			if (getip_def == GIP_PRIOR4 || getip_def == GIP_ONLY4)
+			if (glb.cfg.ipstack == conf::gip_prior4 || glb.cfg.ipstack == conf::gip_only4)
 				addr.set(a4, false);
-			else if (getip_def == GIP_PRIOR6 || getip_def == GIP_ONLY6)
+			else if (glb.cfg.ipstack == conf::gip_prior6 || glb.cfg.ipstack == conf::gip_only6)
 				addr.set(a6, false);
 		}
 		else
@@ -605,9 +783,60 @@ namespace netkit
 	}
 #endif
 
+	bool dnsresolve(const str::astr& host, ipap& addr, bool log_it)
+	{
+		auto int_resolve = [&]()
+			{
+				netkit::ipap ip = glb.dns->resolve(host, log_it);
+				if (!ip.is_wildcard())
+				{
+					addr.set(ip, false);
+					return true;
+				}
+				return false;
+			};
+
+		if ((glb.cfg.dnso & conf::dnso_mask) == conf::dnso_internal)
+		{
+			if (int_resolve())
+				return true;
+			if (0 == (glb.cfg.dnso & conf::dnso_bit_use_system))
+				return false;
+		}
+		if (dnsresolve_sys(host, addr))
+			return true;
+
+		if (log_it)
+		{
+			LOG_E("dns: name resolve failed: [%s]", host.c_str());
+		}
+
+		return false;
+	}
+
 	netkit::endpoint::endpoint(const str::astr& a_raw)
 	{
 		preparse(a_raw);
+	}
+
+	void netkit::endpoint::check_domain_or_ip()
+	{
+		state_ = EPS_DOMAIN;
+
+		if (domain_ == ASTR("localhost"))
+		{
+			ip.set(ipap::localhost(true), false);
+			state_ = EPS_RESLOVED;
+			return;
+		}
+
+		ip.set(ipap::parse(domain_), false);
+		if (!ip.is_wildcard())
+		{
+			domain_.clear();
+			state_ = EPS_RESLOVED;
+		}
+
 	}
 
 	void netkit::endpoint::preparse(const str::astr& a_raw)
@@ -616,7 +845,15 @@ namespace netkit
 
 		str::astr_view a = a_raw;
 		if (str::starts_with(a, ASTR("tcp://")))
+		{
+			sockt = ST_TCP;
 			a = a.substr(6);
+		}
+		else if (str::starts_with(a, ASTR("udp://")))
+		{
+			sockt = ST_UDP;
+			a = a.substr(6);
+		}
 
 		if (a.find(ASTR("://")) != str::astr::npos)
 			return;
@@ -625,7 +862,7 @@ namespace netkit
 		if (dv == str::astr::npos)
 		{
 			domain_ = a;
-			type_ = AT_TCP_DOMAIN;
+			check_domain_or_ip();
 			return;
 		}
 
@@ -653,42 +890,37 @@ namespace netkit
 		domain_ = a.substr(0, dv);
 		auto ports = a.substr(porti);
 		std::from_chars(ports.data(), ports.data() + ports.length(), ip.port);
-		type_ = AT_TCP_DOMAIN;
+		check_domain_or_ip();
 	}
 
 	ipap netkit::endpoint::get_ip(size_t options) const
 	{
-		if (type_ == AT_TCP_RESLOVED)
+		if (state_ == EPS_RESLOVED)
 		{
-			if ((options & GIP_ANY) != 0)
+			if ((options & conf::gip_any) != 0)
 				return ip;
 
-			if (ip.v4 && ((options & 0xff) == GIP_ONLY4 || (options & 0xff) == GIP_PRIOR4))
+			if (ip.v4 && ((options & 0xff) == conf::gip_only4 || (options & 0xff) == conf::gip_prior4))
 				return ip;
 
-			if (!ip.v4 && ((options & 0xff) == GIP_ONLY6 || (options & 0xff) == GIP_PRIOR6))
+			if (!ip.v4 && ((options & 0xff) == conf::gip_only6 || (options & 0xff) == conf::gip_prior6))
 				return ip;
 
 		}
 
-		if (type_ == AT_ERROR)
+		if (state_ == EPS_EMPTY)
 			return ipap();
 
-		if (netkit::dnsresolve(domain_, ip))
+		if (netkit::dnsresolve(domain_, ip, (0 != (options & conf::gip_log_it))))
 		{
-			type_ = AT_TCP_RESLOVED;
+			state_ = EPS_RESLOVED;
 			return ip;
-		}
-		else if (0 != (options & GIP_LOG_IT))
-		{
-			LOG_E("domain name resolve failed: [%s]", domain_.c_str());
 		}
 		return ipap();
 	}
 
 	wrslt wait(WAITABLE s, long microsec)
 	{
-
 		if (is_ready(s))
 			return WR_READY4READ;
 
@@ -995,5 +1227,68 @@ namespace netkit
 #endif
 	}
 
-}
+	namespace {
+		struct udpss : thread_storage_data
+		{
+			netkit::socket s;
+			bool v4;
+			udpss(bool v4) :v4(v4)
+			{
+				s.init(1000, v4);
+			}
+			~udpss()
+			{
+
+			}
+		};
+	}
+
+	/*
+	void udp_prepare(thread_storage& ts, bool v4)
+	{
+		if (ts.data == nullptr || static_cast<udpss*>(ts.data.get())->v4 != v4)
+			ts.data.reset(new udpss(v4));
+	}
+	*/
+
+    io_result udp_send(thread_storage& ts, const ipap& toaddr, const pgen& pg /* in/out */)
+    {
+        udpss* s = static_cast<udpss*>(ts.data.get());
+
+        if (s == nullptr || s->v4 != toaddr.v4)
+            s = new udpss(toaddr.v4);
+
+        if (!s->s.send(pg.to_span(), toaddr))
+            return ior_send_failed;
+
+		// IMPORTANT! thread_storage ts MUST be initialized just after send, not before
+		if (ts.data.get() != s)
+			ts.data.reset(s);
+
+        return ior_ok;
+    }
+
+	io_result udp_recv(thread_storage& ts, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/)
+	{
+		if (!ts.data)
+			return ior_general_fail; // it is forbidden to do recv before send; send will initialize ts
+
+		udpss* s = static_cast<udpss*>(ts.data.get());
+
+		udp_packet p(s->v4);
+		if (s->s.recv(p))
+		{
+			if (p.sz > max_bufer_size)
+				return ior_general_fail;
+
+			pg = p;
+
+			return ior_ok;
+		}
+
+		return ior_timeout;
+
+	}
+
+} // netkit
 

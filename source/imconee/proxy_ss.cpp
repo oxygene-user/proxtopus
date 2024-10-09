@@ -43,9 +43,18 @@ public:
 };
 */
 
-proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
+proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb, false)
 {
-	core.load(ldr, name, bb);
+	str::astr a = core.load(ldr, name, bb);
+	if (!a.empty())
+		addr.preparse(a);
+
+	if (addr.state() == netkit::EPS_EMPTY)
+	{
+		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
+		LOG_E("addr not defined for proxy [%s]", str::printable(name));
+		return;
+	}
 
 
 	/*
@@ -75,7 +84,7 @@ proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const a
 
 netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const netkit::endpoint& addr2) const
 {
-	if (addr2.type() == netkit::AT_ERROR || addr2.port() == 0)
+	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
 
 	netkit::pipe_ptr p_enc(new ss::core::crypto_pipe(pipe_2_proxy, std::move(core.cb()), core.masterKey, core.cp));
@@ -94,7 +103,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const
 	{
 		netkit::pgen pg(packet, 7);
 
-		netkit::ipap ip = addr2.get_ip(netkit::getip_def);
+		netkit::ipap ip = addr2.get_ip(glb.cfg.ipstack);
 
 		pg.push8(ip.v4 ? 1 : 4);
 		pg.push(ip, true);

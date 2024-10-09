@@ -2,10 +2,38 @@
 
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
-	<Type Name="netkit::ip4">
-		<DisplayString>ipv4={S_un.S_un_b.s_b1,nvo}.{S_un.S_un_b.s_b2,nvo}.{S_un.S_un_b.s_b3,nvo}.{S_un.S_un_b.s_b4,nvo}</DisplayString>
+	<Type Name="netkit::ipap">
+		<DisplayString Condition="v4">{(unsigned char)(ipv4.S_un.S_un_b.s_b1),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b2),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b3),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b4),nvo}:{port}</DisplayString>
+		<DisplayString Condition="!v4">{(unsigned short)(ipv6.u.Byte[0]*256+ipv6.u.Byte[1]),hb}:{(unsigned short)(ipv6.u.Byte[2]*256+ipv6.u.Byte[3]),hb}:{(unsigned short)(ipv6.u.Byte[4]*256+ipv6.u.Byte[5]),hb}:{(unsigned short)(ipv6.u.Byte[6]*256+ipv6.u.Byte[7]),hb}:{(unsigned short)(ipv6.u.Byte[8]*256+ipv6.u.Byte[9]),hb}:{(unsigned short)(ipv6.u.Byte[10]*256+ipv6.u.Byte[11]),hb}:{(unsigned short)(ipv6.u.Byte[12]*256+ipv6.u.Byte[13]),hb}:{(unsigned short)(ipv6.u.Byte[14]*256+ipv6.u.Byte[15]),hb}</DisplayString>
 		<Expand>
-			<Item Name="u32">S_un.S_addr</Item>
+			<Item Name="port">port</Item>
+			<Item Name="v4">v4</Item>
+		</Expand>
+	</Type>
+	<Type Name="str::shared_str">
+		<Intrinsic Name="data" Expression="(char *)(this+1)" />
+		<DisplayString>{data(),[len]}</DisplayString>
+		<StringView>data(),[len]</StringView>
+		<Expand>
+			<Item Name="[len]">len</Item>
+			<Item Name="[ref]">ref</Item>
+			<ArrayItems>
+				<Size>len</Size>
+				<ValuePointer>(char *)(this+1)</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+
+	<Type Name="ptr::shared_ptr&lt;str::shared_str&gt;">
+		<DisplayString Condition="!object">empty</DisplayString>
+		<DisplayString Condition="object">{*object}</DisplayString>
+	</Type>
+
+	<Type Name="ptr::shared_ptr&lt;*&gt;">
+		<DisplayString Condition="!object">empty</DisplayString>
+		<DisplayString Condition="object">{*object}</DisplayString>
+		<Expand>
+			<Item Name="[obj]">*object</Item>
 		</Expand>
 	</Type>
 

@@ -10,6 +10,7 @@ enum AppExitCode
 										// "empty (or not loaded) \"listeners\" block
 	EXIT_FAIL_NOHANDLER = 3,			// handler not defined for listener [%s]
 	EXIT_FAIL_PROXY_NOTFOUND = 4,		// unknown {proxy} [%s] for handler of lisnener [%s].
+	EXIT_FAIL_INCOMPATIBLE_HANDLER = 5,	// handler not compatible
 
 	EXIT_FAIL_PORT_UNDEFINED = 10,		// port not defined for listener [%s]
 	EXIT_FAIL_TYPE_UNDEFINED = 11,      // {type} not defined for lisnener [%s]. Type {imconee help listener} for more information.
@@ -21,8 +22,9 @@ enum AppExitCode
 	EXIT_FAIL_ADDR_UNDEFINED = 12,		// addr not defined for proxy [%s]
 	EXIT_FAIL_METHOD_UNDEFINED = 13,	// {method} not defined for proxy [%s]
 										// {to} field of direct handler not defined or invalid (listener: [%s]). Valid format of {to} field is: domain_or_ipv4:port
-
 	EXIT_FAIL_IPV46_VALS = 14,
+    EXIT_FAIL_SOCKET_TYPE = 15,
+	EXIT_FAIL_PROXY_CHAIN = 16,
 
 	EXIT_FAIL_ELEVATION = 98,
 	EXIT_FAIL_CTLHANDLE = 99,

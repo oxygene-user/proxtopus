@@ -1,4 +1,4 @@
-Type {imconee help <topic>} for more information.
+Type {$(EXE) help <topic>} for more information.
  <topic> can be:
   {listener} - information about listener settings
   {handler} - information about handler settings

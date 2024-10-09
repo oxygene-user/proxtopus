@@ -11,11 +11,9 @@ class logger
 
 public:
 
-	void mute() { muted = true; }
-	void newline(int color_, const str::astr& s);
+	static void mute();
+	static void newline(int color_, const str::astr& s);
 };
-
-extern logger lg;
 
 enum severity_e
 {
@@ -23,12 +21,18 @@ enum severity_e
 	SEV_IMPORTANT,
 	SEV_WARNING,
 	SEV_ERROR,
+	SEV_DEBUG,
 };
 
-#define LOG_N(...) lg.newline(SEV_NOTE, str::build_string(__VA_ARGS__))
-#define LOG_I(...) lg.newline(SEV_IMPORTANT, str::build_string(__VA_ARGS__))
-#define LOG_W(...) lg.newline(SEV_WARNING, str::build_string(__VA_ARGS__))
-#define LOG_E(...) lg.newline(SEV_ERROR, str::build_string(__VA_ARGS__))
+#define LOG_N(...) logger::newline(SEV_NOTE, str::build_string(__VA_ARGS__))
+#define LOG_I(...) logger::newline(SEV_IMPORTANT, str::build_string(__VA_ARGS__))
+#define LOG_W(...) logger::newline(SEV_WARNING, str::build_string(__VA_ARGS__))
+#define LOG_E(...) logger::newline(SEV_ERROR, str::build_string(__VA_ARGS__))
+#ifdef _DEBUG
+#define LOG_D(...) logger::newline(SEV_DEBUG, str::build_string(__VA_ARGS__))
+#else
+#define LOG_D(...) do {} while(false)
+#endif
 
 #else
 #if LOGGER == 1
@@ -36,11 +40,13 @@ enum severity_e
 #define LOG_I(...) Print(FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY, __VA_ARGS__)
 #define LOG_W(...) Print(FOREGROUND_RED | FOREGROUND_GREEN, __VA_ARGS__)
 #define LOG_E(...) Print(FOREGROUND_RED, __VA_ARGS__)
+#define LOG_D(...) do {} while(false)
 #else
 #define LOG_N(...) do {} while(false)
 #define LOG_I(...) do {} while(false)
 #define LOG_E(...) do {} while(false)
 #define LOG_W(...) do {} while(false)
+#define LOG_D(...) do {} while(false)
 #endif
 
 #endif

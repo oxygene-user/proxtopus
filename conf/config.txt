@@ -3,16 +3,52 @@ settings {
 	// higher priority - resolve and use first
 	ipv4=1  // 0 - disable, 1 - enable with priority 1, 2 - enable with priority 2
 	ipv6=0  // 0 - disable, 1 - enable with priority 1, 2 - enable with priority 2
+
+	// int - internal; if nameservers block is empty (or no available servers), google dns (8.8.8.8) will be used to resolve names
+		// int options
+		// |host - also hosts file parsing
+		// |sys - first internal, then system if internal failed
+	// sys - system
+	dns=int|hosts
+
+	// only for win32
+	crash_log_file=`${tmp}\imconee.log`
+	dump_file=`${tmp}\imconee.dmp`
+}
+
+nameservers {
+	// this list of name servers (dns list) is only used by internal dns resolver (dns=int in settings); servers are processed in order (except servers with zone)
+	// if there are several IP addresses on the DNS server, each next one will be used only if an error occurs when using the previous one
+	// format:
+	// name=[ip1] [ip2] .../[option]/...
+	// where:
+	//	name - domain name of dns server (with dots) or just a name (without dots)
+	//  [ip1] [ip2] - ipv4 and/or ipv6 addresses separated by space (port also supported)
+	//  [option][option] - optional parameters with format name:value
+	//    available options:
+	//      zone:com        - use this dns server for resolving only domain names in specified zone (com in this example); this option can be used multiple times with different values
+	//      proxy:proxyname - use proxy to access this dns server; only socks5 proxy with udp support can be used (see proxy section)
+	//                        note: access to name servers that were obtained by accessing a non-recursive DNS server that was accessed through a proxy will also be accessed through the same proxy
+	//                        important: this is not name resolution via proxy, this is access to the dns server using udp proxy
+	// examples:
+	//  a.root-servers.net=198.41.0.4 2001:503:ba3e::2:30/zone:com/zone:org
+	//  dns.umbrella.com=208.67.222.222 208.67.220.220
+	//  local=192.168.1.101:5353 // ipv4 address and custom port
+	//  open-dns=2620:119:35::35 // ipv6 address
+	//  open-dns=[2620:119:35::35]:53 // ipv6 address with port
+
+	dns.google=8.8.8.8 8.8.4.4 2001:4860:4860::8888
+	one.one.one.one=1.1.1.1
 }
 
 listeners {
 
 	// simple port mapper
-	// used with upstream proxy localsocks5 (see proxy section)
+	// used with upstream proxy 'localsocks5' (see proxy section: 'localsocks5' is name of proxy)
+	// 'test-pm' is just name of listener and used only in logs
 	test-pm {
 		type=tcp
-		port=110
-		bind=127.0.0.1
+		bind=127.0.0.1:110
 		handler {
 			type=direct
 			to=`tcp://10.10.10.11:110`
@@ -23,11 +59,11 @@ listeners {
 
 	// shadowsocks client
 	// start socks server on 1080 port
-	// use shadowsocks upstream proxy 
+	// use shadowsocks upstream proxy named 'shadowss'
+	// 'shadowscl' is just name of listener and used only in logs
 	shadowscl {
 		type=tcp
-		port=1180
-		bind=127.0.0.1
+		bind=127.0.0.1:1180
 		handler {
 			type=socks
 			proxychain=shadowss
@@ -36,10 +72,10 @@ listeners {
 	}
 
 	// run shadowsocks server on 8989 port
+	// 'shadow-serv' is just name of listener and used only in logs
 	shadow-serv {
 		type=tcp
-		port=8989
-		bind=127.0.0.1
+		bind=127.0.0.1:8989
 		handler {
 			type=shadowsocks
 			method=chacha20-ietf-poly1305
@@ -52,6 +88,18 @@ listeners {
 			password=sspass
 		}
 
+	}
+
+	// run udp port mapper
+	// listen udp port 1111 and map packets to 8.8.8.8:53 (google dns)
+	udp-pm {
+		type=udp
+		bind=[::1]:1111
+		handler {
+			type=direct
+			to=8.8.8.8:53
+			udp-timeout=10000
+		}
 	}
 
 }
@@ -75,6 +123,7 @@ proxy {
 		addr=127.0.0.1:8989
 		method=chacha20-ietf-poly1305
 		password=sspass
+		// or direct ss url (addr, method and password can be omitted)
+		//url=`ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpzc3Bhc3M@127.0.0.1:8989#server`
 	}
-
 }

@@ -48,9 +48,12 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(GARBAGE)\libs\</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(GARBAGE)\bin\imconee.pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="imconee\arena.h" />
+    <ClInclude Include="imconee\base.h" />
     <ClInclude Include="botan\aead.h" />
     <ClInclude Include="botan\allocator.h" />
     <ClInclude Include="botan\assert.h" />
@@ -125,6 +128,9 @@
     <ClInclude Include="botan\sym_algo.h" />
     <ClInclude Include="botan\system_rng.h" />
     <ClInclude Include="botan\types.h" />
+    <ClInclude Include="debug\excpn.h" />
+    <ClInclude Include="debug\stkwlk.h" />
+    <ClInclude Include="imconee\dnsq.h" />
     <ClInclude Include="imconee\cipher_ss.h" />
     <ClInclude Include="imconee\cmdline.h" />
     <ClInclude Include="imconee\connect.h" />
@@ -144,6 +150,7 @@
     <ClInclude Include="imconee\str_helpers.h" />
     <ClInclude Include="imconee\sts.h" />
     <ClInclude Include="imconee\tools.h" />
+    <ClInclude Include="imconee\main.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="botan\aes.cpp">
@@ -314,6 +321,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
+    <ClCompile Include="imconee\dnsq.cpp" />
     <ClCompile Include="imconee\cipher_ss.cpp" />
     <ClCompile Include="imconee\cmdline.cpp" />
     <ClCompile Include="imconee\connect.cpp" />
@@ -335,7 +343,12 @@
     <ClCompile Include="imconee\proxy_ss.cpp" />
     <ClCompile Include="imconee\rndgen.cpp" />
     <ClCompile Include="imconee\sts.cpp" />
+    <ClCompile Include="imconee\tests.cpp" />
     <ClCompile Include="imconee\tools.cpp" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile Include="debug\excpn.cpp" />
+    <ClCompile Include="debug\stkwlk.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="imconee.natvis" />
@@ -348,6 +361,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="res\help.txt" />
+    <Text Include="res\help_handler.txt" />
     <Text Include="res\help_listener.txt" />
     <Text Include="res\help_win.txt" />
   </ItemGroup>

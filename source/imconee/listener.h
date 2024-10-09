@@ -6,21 +6,28 @@
 class loader;
 class proxy;
 
-class listener : public netkit::socket
+class listener
 {
 protected:
+	str::astr name;
 	std::unique_ptr<handler> hand;
 public:
 	listener(loader& ldr, const str::astr& name, const asts& bb);
-	/*virtual*/ ~listener() {}
+	virtual ~listener() {}
 
 	virtual void open() = 0;
 	virtual void stop() = 0;
+	virtual void close(bool fbc) = 0;
+
+	const str::astr& get_name() const
+	{
+		return name;
+	}
 
 	static listener* build(loader& ldr, const str::astr& name, const asts& bb);
 };
 
-class tcp_listener : public listener
+class socket_listener : public listener
 {
 	enum state_stage : u8
 	{
@@ -36,21 +43,61 @@ class tcp_listener : public listener
 		bool need_stop = false;
 	};
 
-	static_assert( sizeof(statestruct) == 24 );
+	static_assert(sizeof(statestruct) == 24);
 
+protected:
 	spinlock::syncvar<statestruct> state;
 	void acceptor();
-
+	virtual void accept_impl(const netkit::ipap& bind2) = 0;
 
 public:
 
-	tcp_listener(loader& ldr, const str::astr& name, const asts& bb);
-	//tcp_listener(handler *h) { hand.reset(h); }
-	/*virtual*/ ~tcp_listener() {}
+	socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type st);
+	/*virtual*/ ~socket_listener() {}
 
-	void prepare(const netkit::ipap &bind2);
+	void prepare(const netkit::ipap& bind2);
 
 	/*virtual*/ void open() override;
 	/*virtual*/ void stop() override;
 
 };
+
+
+class tcp_listener : public socket_listener
+{
+	netkit::waitable_socket sock;
+
+protected:
+	virtual void accept_impl(const netkit::ipap& bind2);
+
+public:
+
+	tcp_listener(loader& ldr, const str::astr& name, const asts& bb);
+	/*virtual*/ ~tcp_listener() {}
+
+	/*virtual*/ void close(bool fbc) override
+	{
+		sock.close(fbc);
+	}
+};
+
+
+class udp_listener : public socket_listener
+{
+	netkit::socket sock;
+
+protected:
+	virtual void accept_impl(const netkit::ipap& bind2);
+
+public:
+
+	udp_listener(loader& ldr, const str::astr& name, const asts& bb);
+	/*virtual*/ ~udp_listener() {}
+
+	/*virtual*/ void close(bool fbc) override
+	{
+		sock.close(fbc);
+	}
+
+};
+

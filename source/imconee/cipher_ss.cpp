@@ -181,10 +181,35 @@ bool ss::cipher_dec::process(std::span<const u8> input, data_acceptor &output)
 
 
 
-void ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
+str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 {
+	str::astr url = bb.get_string(ASTR("url"));
+
 	str::astr method = bb.get_string(ASTR("method"));
 	str::astr password = bb.get_string(ASTR("password"));
+	str::astr addr;
+
+	if (url.starts_with(ASTR("ss://")))
+	{
+		size_t x = url.find('@');
+		if (x != url.npos)
+		{
+			size_t y = url.find('#', x+1);
+			if (y == url.npos) y = url.length();
+			addr = url.substr(x + 1, y);
+			char *outb = (char*)_alloca(x);
+			signed_t sz = str::decode_base64(str::astr_view(url.data() + 5, x - 5), outb, x);
+			url = str::astr_view(outb, sz);
+			size_t z = url.find(':');
+			if (z != url.npos)
+			{
+				method = url.substr(0, z);
+				password = url.substr(z + 1);
+			}
+		}
+	}
+
+
 
 	if (method == ASTR("xchacha20-ietf-poly1305"))
 	{
@@ -219,11 +244,11 @@ void ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 	{
 		ldr.exit_code = EXIT_FAIL_METHOD_UNDEFINED;
 		LOG_E("{method} not defined for proxy [%s]", str::printable(name));
-		return;
+		return str::astr();
 	}
 
 	masterKey = evpBytesToKey(cp.KeySize, password);
-
+	return addr;
 }
 
 ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, str::astr masterKey, crypto_par cp) :pipe(pipe), masterKey(masterKey), cp(cp)
@@ -237,6 +262,11 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	c->init_encryptor(skey);
 	crypto = std::move(c);
 
+}
+
+/*virtual*/ bool ss::core::crypto_pipe::alive()
+{
+	return pipe && pipe->alive();
 }
 
 /*virtual*/ netkit::pipe::sendrslt ss::core::crypto_pipe::send(const u8* data, signed_t datasize)

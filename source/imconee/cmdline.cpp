@@ -116,7 +116,6 @@ str::astr lazy_os_desc()
 #endif
 
 #ifdef _NIX
-
     auto product = get_system_output("lsb_release -dsc");
     str::replace_one(product, ASTR("\n"), ASTR(" ("));
     str::replace_one(product, ASTR("\n"), ASTR(") "));
@@ -132,6 +131,12 @@ str::astr lazy_os_desc()
 	product.append(n.machine);
 #endif
 	return product;
+}
+
+str::astr lazy_exe()
+{
+	return str::to_utf8(get_name(get_exec_full_name()));
+	
 }
 
 void rpl(std::vector<char>& file, const str::astr_view& var, std::function<str::astr()> lazyrepl)
@@ -180,7 +185,13 @@ std::vector<char> load_res(int idr)
             file.insert(file.begin(), data.begin(), data.end());
         }
         break;
-        case IDR_HELP_PLATFORM:
+		case IDR_HELP_HANDLER:
+		{
+			std::span<const char> data(&_binary_res_help_handler_txt_start, &_binary_res_help_handler_txt_end - &_binary_res_help_handler_txt_start);
+			file.insert(file.begin(), data.begin(), data.end());
+		}
+		break;
+		case IDR_HELP_PLATFORM:
         {
             std::span<const char> data(&_binary_res_help_nix_txt_start, &_binary_res_help_nix_txt_end-&_binary_res_help_nix_txt_start);
             file.insert(file.begin(), data.begin(), data.end());
@@ -196,6 +207,7 @@ std::vector<char> load_res(int idr)
 		rpl(file, ASTR("$(OS_DESC)"), lazy_os_desc);
 	}
 
+	rpl(file, ASTR("$(EXE)"), lazy_exe);
 
 	return file;
 }
@@ -215,6 +227,11 @@ bool commandline::help() const
 			if (parar_[2] == MAKEFN("listener"))
 			{
 				Print(load_res(IDR_HELP_LISTENER));
+				return true;
+			}
+			if (parar_[2] == MAKEFN("handler"))
+			{
+				Print(load_res(IDR_HELP_HANDLER));
 				return true;
 			}
 

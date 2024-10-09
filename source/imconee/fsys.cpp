@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#define MAX_PATH_LENGTH 4096
-
 #ifdef _WIN32
 #define NATIVE_SLASH '\\'
 #define NATIVE_SLASH_S "\\"
@@ -235,6 +233,14 @@ FN get_path(const FN& full_file_path)
 	return p;
 }
 
+FN get_name(const FN& full_file_path)
+{
+	size_t z = full_file_path.find_last_of(MAKEFN("\\/"));
+	if (z == FN::npos)
+		return full_file_path;
+	return full_file_path.substr(z+1);
+}
+
 void path_simplify(FN& path)
 {
 	str::replace_all<FNc>(path, ENEMY_SLASH, NATIVE_SLASH);
@@ -255,10 +261,17 @@ FN path_fix(const FN& path)
 FN path_concat(const FNview &path, const FNview &fn)
 {
 	FN c(path);
-	if (c[c.length() - 1] != '\\')
+	if (c.length() > 0 && c[c.length() - 1] != '\\')
 		c.push_back('\\');
 	c.append(fn);
 	return c;
+}
+
+void path_append(FN& path, const FNview& fn)
+{
+	if (path.length() > 0 && path[path.length() - 1] != '\\')
+		path.push_back('\\');
+	path.append(fn);
 }
 
 bool load_buf(const FN& fn, buffer& b)
