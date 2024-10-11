@@ -127,22 +127,12 @@ void socket_listener::acceptor()
 		return;
 
 	state.lock_write()().need_stop = true;
-	hand->stop();
 
 	// holly stupid linux behaviour...
 	// we have to make a fake connection to the listening socket so that the damn [accept] will deign to give control.
 	// There is no such crap in Windows
 
-#ifdef _NIX
-	auto st = state.lock_read();
-	netkit::ipap cnct = netkit::ipap::localhost(st().bind.v4);
-	if (!st().bind.is_wildcard())
-        cnct = st().bind;
-
-    SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-    cnct.connect(s);
-    closesocket(s);
-#endif
+	NIXONLY(kick_socket());
 
 	close(false);
 
@@ -164,10 +154,28 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 	}
 }
 
+#ifdef _NIX
+/*virtual*/ void tcp_listener::kick_socket()
+{
+    auto st = state.lock_read();
+    netkit::ipap cnct = netkit::ipap::localhost(st().bind.v4);
+    if (!st().bind.is_wildcard())
+        cnct = st().bind;
+
+    SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+    cnct.connect(s);
+    closesocket(s);
+}
+#endif
+
 /*virtual*/ void tcp_listener::accept_impl(const netkit::ipap& bind2)
 {
 	if (sock.listen(name, bind2))
 	{
+#ifdef _DEBUG
+        accept_tid = spinlock::tid_self();
+#endif // _DEBUG
+
 		LOG_N("listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string(false).c_str(), bind2.port);
 
 		for (; !state.lock_read()().need_stop;)
@@ -193,11 +201,32 @@ udp_listener::udp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 	}
 }
 
+#ifdef _NIX
+/*virtual*/ void udp_listener::kick_socket()
+{
+    auto st = state.lock_read();
+    netkit::ipap cnct = netkit::ipap::localhost(st().bind.v4);
+    if (!st().bind.is_wildcard())
+        cnct = st().bind;
+
+    SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+	u8 tmp = 0;
+    cnct.sendto(s, std::span<const u8>(&tmp,1));
+    closesocket(s);
+}
+#endif
+
+
 /*virtual*/ void udp_listener::accept_impl(const netkit::ipap& bind2)
 {
-	if (sock.listen_udp(name, bind2))
+	signed_t port = sock.listen_udp(name, bind2);
+	if (port > 0)
 	{
-		LOG_N("listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string(false).c_str(), bind2.port);
+#ifdef _DEBUG
+		accept_tid = spinlock::tid_self();
+#endif // _DEBUG
+
+		LOG_N("udp listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string(false).c_str(), port);
 
 		for (; !state.lock_read()().need_stop;)
 		{

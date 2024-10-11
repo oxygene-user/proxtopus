@@ -50,6 +50,7 @@ struct global_data
 	struct first_init { first_init(); } _finint;
 
 	FN path_config;
+	str::astr emptys;
 
 #if LOGGER==2
 	bool log_muted = false;

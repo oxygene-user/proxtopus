@@ -48,7 +48,7 @@ class proxy_socks5 : public proxy
 {
 	buffer authpacket;
 	bool initial_setup(u8* packet, netkit::pipe* p2p) const;
-	bool recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint*ep, str::astr_view addr2domain) const;
+	bool recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint*ep, const str::astr_view *addr2domain) const; // addr2domain not null means logging
 public:
 	proxy_socks5(loader& ldr, const str::astr& name, const asts& bb);
 	/*virtual*/ ~proxy_socks5() {}

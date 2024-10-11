@@ -190,40 +190,43 @@ bool proxy_socks5::initial_setup(u8* packet, netkit::pipe* p2p) const
 	return true;
 }
 
-bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep, str::astr_view addr2domain) const
+bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep, const str::astr_view *addr2domain) const
 {
 	signed_t rb = p2p->recv(packet, -2);
 
 	if (rb != 2 || packet[0] != 5 || packet[1] != 0)
 	{
-		str::astr ers;
-		auto proxyfail = [&](signed_t code) -> const char*
-			{
-				switch (code)
-				{
-				case 1: return "general SOCKS server failure";
-				case 2: return "connection not allowed by ruleset";
-				case 3: return "Network unreachable";
-				case 4:
-					ers = ASTR("host unreachable (");
-					ers.append(addr2domain);
-					ers.push_back(')');
-					return ers.c_str();
-				case 5: return "connection refused";
-				case 6: return "TTL expired";
-				case 7: return "command not supported";
-				case 8: return "address type not supported";
-				}
+		if (addr2domain)
+		{
+            str::astr ers;
+            auto proxyfail = [&](signed_t code) -> const char*
+                {
+                    switch (code)
+                    {
+                    case 1: return "general SOCKS server failure";
+                    case 2: return "connection not allowed by ruleset";
+                    case 3: return "Network unreachable";
+                    case 4:
+                        ers = ASTR("host unreachable (");
+                        ers.append(*addr2domain);
+                        ers.push_back(')');
+                        return ers.c_str();
+                    case 5: return "connection refused";
+                    case 6: return "TTL expired";
+                    case 7: return "command not supported";
+                    case 8: return "address type not supported";
+                    }
 
-				ers = ASTR("unknown error code (");
-				ers.append(std::to_string(code));
-				ers.push_back(')');
-				return ers.c_str();
+                    ers = ASTR("unknown error code (");
+                    ers.append(std::to_string(code));
+                    ers.push_back(')');
+                    return ers.c_str();
 
-			};
+                };
 
-		LOG_N("proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
+            LOG_N("proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
 
+		}
 		return false;
 	}
 
@@ -314,7 +317,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 			return netkit::pipe_ptr();
 	}
 
-	if (!recv_rep(packet, pipe_to_proxy.get(), nullptr, addr2.domain()))
+	if (!recv_rep(packet, pipe_to_proxy.get(), nullptr, makeptr(str::view(addr2.domain()))))
 		return netkit::pipe_ptr();
 
 	return pipe_to_proxy;
@@ -328,13 +331,15 @@ class udp_via_socks5 : public netkit::udp_pipe
 	netkit::pipe_ptr pipe2s;
 public:
 
-	udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, netkit::ipap udpassoc, netkit::pipe_ptr pipe2s):basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
+	udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, const netkit::ipap &udpassoc, netkit::pipe_ptr pipe2s):basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
 	{
 	}
 
 	// Inherited via udp_pipe
-	netkit::io_result send(const netkit::ipap& toaddr, const netkit::pgen& pg) override
+	netkit::io_result send(const netkit::ipap& tgt, const netkit::pgen& pg) override
 	{
+		netkit::ipap toaddr = tgt; // make copy due tgt can be part of pg
+
 		if (!pipe2s->alive())
 		{
 			if (!basedon->prepare_udp_assoc(udpassoc, pipe2s, false))
@@ -351,6 +356,8 @@ public:
 			};
 
 #ifdef _DEBUG
+		if (toaddr.is_wildcard())
+			__debugbreak();
 		LOG_I("udp via proxy request (%s)", toaddr.to_string(true).c_str());
 #endif
 
@@ -424,7 +431,7 @@ bool proxy_socks5::prepare_udp_assoc(netkit::ipap& ip, netkit::pipe_ptr& pip_out
 		goto not_success;
 
 	netkit::endpoint ep;
-	if (!recv_rep(packet, pip, &ep, ASTR("udp")))
+	if (!recv_rep(packet, pip, &ep, log_fails ? makeptr(ASTR("udp")) : nullptr))
 		goto not_success;
 
 	ip = ep.get_ip(glb.cfg.ipstack | conf::gip_log_it);

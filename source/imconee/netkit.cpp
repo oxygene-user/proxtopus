@@ -178,7 +178,7 @@ namespace netkit
 		return rv;
 	}
 
-	bool ipap::bind(SOCKET s) const
+	signed_t ipap::bind(SOCKET s) const
 	{
 		if (v4)
 		{
@@ -188,7 +188,18 @@ namespace netkit
 			addr.sin_addr = ipv4;
 			addr.sin_port = netkit::to_ne((u16)port);
 
-			return SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
+			bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
+			if (!ok)
+				return -1;
+
+			signed_t rp = port;
+			if (rp == 0)
+			{
+				int x = sizeof(addr);
+				getsockname(s, (sockaddr*)&addr, &x);
+				rp = netkit::to_ne(addr.sin_port);
+			}
+			return rp;
 		}
 
 		sockaddr_in6 addr = {};
@@ -197,8 +208,19 @@ namespace netkit
 		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
 		addr.sin6_port = netkit::to_ne((u16)port);
 
-		return SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
+		bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
 
+        if (!ok)
+            return -1;
+
+        signed_t rp = port;
+        if (rp == 0)
+        {
+            int x = sizeof(addr);
+            getsockname(s, (sockaddr*)&addr, &x);
+            rp = netkit::to_ne(addr.sin6_port);
+        }
+        return rp;
 	}
 
 	bool ipap::connect(SOCKET s) const
@@ -273,7 +295,7 @@ namespace netkit
 		if (INVALID_SOCKET == sock())
 			return false;
 
-		if (!bind2.bind(sock()))
+		if (bind2.bind(sock()) < 0)
 		{
 			LOG_W("bind failed for listener [%s]; check binding (%s)", str::printable(name), bind2.to_string(true).c_str());
 			close(false);
@@ -315,7 +337,7 @@ namespace netkit
 		if (INVALID_SOCKET != s)
 			close(false);
 
-		s = ::socket(v4 ? AF_INET : AF_INET6, SOCK_DGRAM, 0);
+		s = ::socket(v4 ? AF_INET : AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 		if (INVALID_SOCKET == s)
 			return false;
 
@@ -334,31 +356,32 @@ namespace netkit
 		return true;
 	}
 
-	bool socket::listen_udp(const str::astr& name, const ipap& bind2)
+	signed_t socket::listen_udp(const str::astr& name, const ipap& bind2)
 	{
 		if (glb.cfg.ipstack == conf::gip_only6 && bind2.v4)
 		{
 			LOG_W("bind failed for listener [%s] due ipv4 addresses are disabled in config", str::printable(name));
-			return false;
+			return -1;
 		}
 		if (glb.cfg.ipstack == conf::gip_only4 && !bind2.v4)
 		{
 			LOG_W("bind failed for listener [%s] due ipv6 addresses are disabled in config", str::printable(name));
-			return false;
+			return -1;
 		}
 
-		s = ::socket(bind2.v4 ? AF_INET : AF_INET6, SOCK_DGRAM, 0);
+		s = ::socket(bind2.v4 ? AF_INET : AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 		if (INVALID_SOCKET == s)
-			return false;
+			return -1;
 
-		if (!bind2.bind(s))
+		signed_t bport = bind2.bind(s);
+		if (bport < 0)
 		{
 			LOG_W("bind failed for listener [%s]; check binding (%s)", str::printable(name), bind2.to_string(true).c_str());
 			close(false);
-			return false;
+			return -1;
 		}
 
-		return true;
+		return bport;
 	}
 
 	tcp_pipe* waitable_socket::tcp_accept(const str::astr &name)

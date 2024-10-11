@@ -118,6 +118,18 @@ namespace netkit
 			if (v4) ipv4.s_addr = 0; else memset(&ipv6, 0, sizeof(ipv6));
 		}
 
+		std::size_t calc_hash() const
+		{
+            std::size_t h = std::hash<u16>()(port);
+			if (v4)
+			{
+				return h ^ std::hash<u32>()(ipv4.s_addr);
+			}
+			
+			return h ^ std::hash<u128>()(ref_cast<u128>(ipv6));
+			
+		}
+
 		ipap &init_localhost()
 		{
             if (u8* dst = octets())
@@ -156,16 +168,6 @@ namespace netkit
 		{
 		}
 
-		/*
-		explicit ipap(const sockaddr_in &a) {
-			ipv4.s_addr = a.sin_addr.s_addr;
-			port = netkit::to_he(a.sin_port);
-		}
-		explicit ipap(const sockaddr_in6& a):v4(false) {
-			memcpy(&ipv6, &a.sin6_addr, sizeof(a.sin6_addr));
-			port = netkit::to_he(a.sin6_port);
-		};
-		*/
 		explicit ipap(const void *aaaa, signed_t aaaa_size) :v4(aaaa_size == sizeof(sockaddr_in)) {
 			if (v4)
 			{
@@ -327,7 +329,7 @@ namespace netkit
 			UNREACHABLE();
 		}
 
-		bool copmpare(const ipap& a) const
+		bool copmpare(const ipap& a) const // compare address and port
 		{
 			if (v4 && a.v4)
 				return port == a.port && ipv4.s_addr == a.ipv4.s_addr;
@@ -335,7 +337,7 @@ namespace netkit
 				return port == a.port && memcmp(&ipv6, &a.ipv6, sizeof(ipv6)) == 0;
 			return false;
 		}
-		bool copmpare_a(const ipap& a) const
+		bool copmpare_a(const ipap& a) const // compare only address (not port)
 		{
 			if (v4 && a.v4)
 				return ipv4.s_addr == a.ipv4.s_addr;
@@ -344,7 +346,10 @@ namespace netkit
 			return false;
 		}
 
-		bool operator==(const ipap& a) = delete;
+		bool operator==(const ipap& a) const // compare address and port
+		{
+			return copmpare(a);
+		}
 
 		operator u32() const {
 			return v4 ? ipv4.s_addr : 0;
@@ -361,7 +366,7 @@ namespace netkit
 		}
 		*/
 
-		bool bind(SOCKET s) const;
+		signed_t bind(SOCKET s) const; // returns -1 if fail, or port
 		bool connect(SOCKET s) const;
 		bool sendto(SOCKET s, const std::span<const u8> &p) const;
 	};
@@ -652,7 +657,7 @@ namespace netkit
 		void close(bool flush_before_close);
 
 		bool init(signed_t timeout, bool v4);
-		bool listen_udp(const str::astr& name, const ipap& bind2);
+		signed_t listen_udp(const str::astr& name, const ipap& bind2); // returns port or -1 if fail
 		bool recv(udp_packet& p);
 		bool send(const std::span<const u8>& p, const ipap& tgt_ip);
 	};
@@ -1006,5 +1011,13 @@ namespace netkit
 	io_result udp_recv(thread_storage& ts, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/);
 
 
-}
+} // namespace netkit
+
+template <> struct std::hash<netkit::ipap>
+{
+    std::size_t operator()(const netkit::ipap& k) const
+    {
+        return k.calc_hash();
+    }
+};
 

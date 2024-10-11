@@ -12,6 +12,11 @@ protected:
 	str::astr name;
 	std::unique_ptr<handler> hand;
 public:
+
+#ifdef _DEBUG
+	u32 accept_tid = 0;
+#endif // _DEBUG
+
 	listener(loader& ldr, const str::astr& name, const asts& bb);
 	virtual ~listener() {}
 
@@ -49,7 +54,7 @@ protected:
 	spinlock::syncvar<statestruct> state;
 	void acceptor();
 	virtual void accept_impl(const netkit::ipap& bind2) = 0;
-
+	NIXONLY(virtual void kick_socket()=0);
 public:
 
 	socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type st);
@@ -68,7 +73,8 @@ class tcp_listener : public socket_listener
 	netkit::waitable_socket sock;
 
 protected:
-	virtual void accept_impl(const netkit::ipap& bind2);
+	/*virtual*/ void accept_impl(const netkit::ipap& bind2) override;
+	NIXONLY(virtual void kick_socket());
 
 public:
 

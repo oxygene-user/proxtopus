@@ -30,6 +30,7 @@ bool messagebox(const char* s1, const char* s2, int options);
 template <typename T> inline T* BREAK_ON_NULL(T* ptr, const char* file, int line) { if (ptr == nullptr) { WARNING("nullptr pointer conversion: %s:%i", file, line); } return ptr; }
 #define NOT_NULL( x ) BREAK_ON_NULL(x, __FILE__, __LINE__)
 template<typename PTRT, typename TF> inline PTRT ptr_cast(TF* p) { if (!p) return nullptr; return NOT_NULL(dynamic_cast<PTRT>(p)); }
+template<typename T> const T* makeptr(const T& t) { return &t; }
 
 #include "logger.h"
 
@@ -104,6 +105,15 @@ struct u128
 	}
 };
 #endif
+
+template <> struct std::hash<u128>
+{
+    std::size_t operator()(const u128& k) const
+    {
+        return std::hash<u64>()(k.low) ^ std::hash<u64>()(k.hi);
+    }
+};
+
 
 #ifdef MODE64
 typedef u64 usingle;

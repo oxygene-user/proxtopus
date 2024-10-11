@@ -378,22 +378,21 @@ void handler::bridge(tcp_processing_thread *npt)
 	}
 }
 
+void handler::release_udps()
+{
+#ifdef _DEBUG
+	ASSERT(spinlock::tid_self() == owner->accept_tid);
+#endif // _DEBUG
+
+	auto keys = std::move( finished.lock_write()() );
+
+	for(const auto &k : keys)
+		udp_pth.erase(k);
+}
+
 void handler::release_udp(udp_processing_thread* udp_wt)
 {
-	auto udp = udp_pth.lock_write();
-	std::unique_ptr<udp_processing_thread>* ptr = &udp();
-	for (udp_processing_thread* t = ptr->get(); t;)
-	{
-		if (t == udp_wt)
-		{
-			t = t->get_next_and_forget();
-			ptr->reset(t); // it now deletes previous t
-			break;
-		}
-		ptr = t->get_next_ptr();
-		t = t->get_next();
-	}
-	udp.unlock();
+	finished.lock_write()().push_back(udp_wt->key());
 }
 
 void handler::release_tcp(tcp_processing_thread* tcp_wt)
@@ -525,14 +524,6 @@ void handler::tcp_processing_thread::close()
 		next->close();
 }
 
-void handler::udp_processing_thread::close()
-{
-	ts.data.reset();
-
-	if (next)
-		next->close();
-}
-
 void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 {
 	std::array<u8, 65536> packet;
@@ -540,41 +531,61 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 	cutoff_time = chrono::ms() + timeout;
 
 	netkit::udp_pipe* pipe = this;
+    std::unique_ptr<netkit::udp_pipe> proxypipe;
+
+	if (prx)
+	{
+		proxypipe = prx->prepare(this);
+		pipe = proxypipe.get();
+		if (!pipe)
+			return;
+
+		LOG_N("UDP connection from %s via proxy %s established", hashkey.to_string(true).c_str(), prx->desc().c_str());
+	}
+
+    for(;;)
+    {
+        auto x = sendb.lock_write();
+        sdptr b;
+        if (x().get(b))
+        {
+            if (b == nullptr)
+                return; // stop due error
+            x.unlock();
+            netkit::pgen spg(b->data(), b->datasz, b->pre());
+            pipe->send(b->tgt, spg);
+		}
+		else
+		{
+            if (!ts.data)
+            {
+                // wait for send and init thread storage for pipe
+                Sleep(0);
+                continue;
+            }
+
+			sendor = pipe;
+			break;
+		}
+    }
 
 	for (;;)
 	{
-		if (!sendb.lock_read()().empty())
-		{
-			auto x = sendb.lock_write();
-            sdptr b;
-			if (x().get(b))
-			{
-				if (b == nullptr)
-					break; // stop due error
-                x.unlock();
-				netkit::pgen spg(b->data(), b->datasz, b->pre());
-				pipe->send(b->tgt, spg);
-			}
-
-		}
-
-		if (!ts.data)
-		{
-			// wait for send and init thread storage for pipe
-			Sleep(0);
-			continue;
-		}
-
-		pg.sz = tools::as_word(packet.max_size());
-
 		pg.set_pre(0);
 		auto ior = pipe->recv(pg, packet.max_size());
 		if (ior != netkit::ior_ok)
+		{
+			if (ior == netkit::ior_timeout && !is_timeout(chrono::ms()))
+				continue;
 			break;
-		if (!from.sendto(initiator, pg.to_span()))
+		}
+		if (!hashkey.sendto(initiator, pg.to_span()))
 			break;
+
 		cutoff_time = chrono::ms() + timeout;
 	}
+
+	sendor = nullptr;
 }
 
 /*virtual*/ netkit::io_result handler::udp_processing_thread::send(const netkit::ipap& toaddr, const netkit::pgen& pg)
@@ -592,6 +603,10 @@ void handler::stop()
 	if (need_stop)
 		return;
 
+#ifdef _DEBUG
+	ASSERT(spinlock::tid_self() == owner->accept_tid);
+#endif // _DEBUG
+
 	need_stop = true;
 
 	auto tcp = tcp_pth.lock_write();
@@ -599,13 +614,17 @@ void handler::stop()
 		tcp()->close();
 	tcp.unlock();
 
-	auto udp = udp_pth.lock_write();
-	if (udp())
-		udp()->close();
-	udp.unlock();
+	for (auto &pp : udp_pth)
+	{
+		if (pp.second)
+			pp.second->close();
+	}
 
-	for (; tcp_pth.lock_read()().get() != nullptr || udp_pth.lock_read()().get() != nullptr;)
+	for (; tcp_pth.lock_read()().get() != nullptr || !udp_pth.empty();)
+	{
 		Sleep(100);
+		release_udps();
+	}
 }
 
 
@@ -654,29 +673,28 @@ void handler_direct::on_pipe(netkit::pipe* pipe)
 	th.detach();
 }
 
-void handler_direct::on_udp(netkit::socket& lstnr, const netkit::udp_packet& p)
+void handler_direct::on_udp(netkit::socket& lstnr, netkit::udp_packet& p)
 {
-	udp_processing_thread* wt = nullptr;
+	ptr::shared_ptr<udp_processing_thread> wt;
 	
-    signed_t curtime = chrono::ms();
+	release_udps();
+	auto rslt = udp_pth.insert(std::pair(p.from, nullptr));
 
-	auto udp = udp_pth.lock_read();
-	for (udp_processing_thread* t = udp().get(); t; t = t->get_next())
+	if (!rslt.second)
 	{
-		if (t->has_from(p.from) && !t->is_timeout(curtime))
+		wt = rslt.first->second; // already exist, return it
+		
+		if (wt != nullptr)
 		{
-			wt = t;
+			wt->update_cutoff_time();
 		}
+
 	}
 
-	// don't do udp.unlock() here due if wt is not null, we must be sure it will not die
-
-	netkit::ipap tgtip;
-	bool new_thread = false;
+    bool new_thread = false;
+    netkit::ipap tgtip;
 	if (wt == nullptr)
 	{
-		udp.unlock(); // do unlock here due wt is null and we create new wt
-
 		auto tip = tgt_ip.lock_read();
 		if (tip().port == 0)
 		{
@@ -698,7 +716,6 @@ void handler_direct::on_udp(netkit::socket& lstnr, const netkit::udp_packet& p)
 			// only [resolved] endpoint supported for now (udp proxy not yet ready, so, to_addr cannot be resolved via proxy)
 
 			tgt_ip.lock_write()() = tgtip;
-
 		}
 		else
 		{
@@ -706,21 +723,19 @@ void handler_direct::on_udp(netkit::socket& lstnr, const netkit::udp_packet& p)
 			tip.unlock();
 		}
 
-		wt = new udp_processing_thread( udp_timeout_ms, p.from /*, tgtip.v4*/ );
+		wt = new udp_processing_thread(proxychain.empty() ? nullptr : proxychain[0], udp_timeout_ms, p.from /*, tgtip.v4*/);
+		rslt.first->second = wt;
 
-		// put wt to begin of list
-		auto udp4w = udp_pth.lock_write();
-		wt->get_next_ptr()->reset( udp4w().get() );
-		udp4w().release();
-		udp4w().reset(wt);
-		udp4w.unlock();
-
-		std::thread th(&handler_direct::udp_worker, this, &lstnr, wt);
+		std::thread th(&handler_direct::udp_worker, this, &lstnr, wt.get());
 		th.detach();
-		new_thread = true;
+        new_thread = true;
 	}
+	else
+    {
+        tgtip = tgt_ip.lock_read()();
+    }
 
-	wt->add2send(p.to_span(), tgtip);
+	wt->convey(p, tgtip);
 
 	if (new_thread)
 	{
@@ -729,23 +744,35 @@ void handler_direct::on_udp(netkit::socket& lstnr, const netkit::udp_packet& p)
 
 }
 
-void handler::udp_processing_thread::add2send(std::span<const u8> data, const netkit::ipap& tgt)
+void handler::udp_processing_thread::close()
 {
-	auto sb = sendb.lock_write();
-	if (send_data* b = (send_data*)malloc(send_data::shift() + data.size()))
-	{
-		b->datasz = data.size();
-		b->tgt = tgt;
-		memcpy(b->data(), data.data(), data.size());
-		sb().emplace(b);
-	}
-	else {
-		sb().emplace();
-	}
+
+}
+
+void handler::udp_processing_thread::convey(netkit::udp_packet& p, const netkit::ipap& tgt)
+{
+    if (sendor)
+    {
+        // send now
+        netkit::pgen spg(p.packet, p.sz, 0);
+        sendor->send(tgt, spg);
+        return;
+    }
+
+    auto sb = sendb.lock_write();
+    if (send_data* b = send_data::build(p.to_span(), tgt))
+    {
+        sb().emplace(b);
+    }
+    else {
+        sb().emplace();
+    }
 }
 
 void handler_direct::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
 {
+	ptr::shared_ptr<udp_processing_thread> lock(udp_wt); // lock
+
 	// handle answers
 	udp_wt->udp_bridge(lstnr->s);
 	release_udp(udp_wt);
@@ -887,6 +914,15 @@ void handler_socks::handshake4(netkit::pipe* pipe)
 	});
 }
 
+namespace
+{
+    class udp_assoc_listener : public udp_listener
+    {
+
+    };
+
+}
+
 void handler_socks::handshake5(netkit::pipe* pipe)
 {
 	if (!allow_5)
@@ -969,6 +1005,34 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 	if (rb != 5 || packet[0] != 5)
 	{
 		fail_answer(1); // FAILURE
+		return;
+	}
+
+	if (packet[1] == 3 /* udp assoc */)
+	{
+		// skip addr and port
+		switch (packet[3])
+		{
+        case 1: // ip4
+            rb = pipe->recv(packet + 5, -3-2);
+            if (rb != 3)
+                return;
+            break;
+        case 3: // domain name
+
+            numauth = packet[4]; // len of domain
+            rb = pipe->recv(packet, -numauth-2);
+            if (rb != numauth)
+                return;
+            break;
+
+        case 4: // ipv6
+            rb = pipe->recv(packet + 5, -15-2); // read 15 of 16 bytes of ipv6 address (1st byte already read) and 2 bytes port
+            if (rb != 15)
+                return;
+            break;
+		}
+		//udp_assoc_listener udpl;
 		return;
 	}
 

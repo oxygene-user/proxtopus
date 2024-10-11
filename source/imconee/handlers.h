@@ -181,6 +181,21 @@ protected:
 		{
 			return tools::as_word(shift());
 		}
+
+		static send_data* build(std::span<const u8> data, const netkit::ipap& tgt)
+		{
+			if (send_data* sd = (send_data*)malloc(shift() + data.size()))
+            {
+                sd->datasz = data.size();
+                sd->tgt = tgt;
+                memcpy(sd->data(), data.data(), data.size());
+				return sd;
+			}
+			return nullptr;
+		}
+
+	private:
+		send_data() {} // do not allow direct creation
 	};
 
 	struct mfrees
@@ -193,33 +208,37 @@ protected:
 
 	using sdptr = std::unique_ptr<send_data, mfrees>;
 
-	class udp_processing_thread : public netkit::udp_pipe
+	class udp_processing_thread : public netkit::udp_pipe, public ptr::sync_shared_object
 	{
 		netkit::thread_storage ts; // for udp send
-		netkit::ipap from;
+		netkit::ipap hashkey;
 		signed_t cutoff_time = 0;
 		signed_t timeout = 5000;
-
+		const proxy* prx = nullptr;
 		spinlock::syncvar<tools::fifo<sdptr>> sendb;
+		netkit::udp_pipe *sendor = nullptr;
 
-		std::unique_ptr<udp_processing_thread> next;
 	public:
-		void close();
 
-		udp_processing_thread(signed_t timeout, const netkit::ipap &from /*, bool v4*/):timeout(timeout), from(from)
+		udp_processing_thread(const proxy* prx, signed_t timeout, const netkit::ipap & k /*, bool v4*/):prx(prx), timeout(timeout), hashkey(k)
 		{
 			//udp_prepare(ts, v4);
 		}
+		const netkit::ipap& key() const
+		{
+			return hashkey;
+		}
 
-		void add2send(std::span<const u8> data, const netkit::ipap& tgt);
+		void update_cutoff_time()
+		{
+			cutoff_time = chrono::ms() + timeout;
+		}
+		void close();
+
+		void convey(netkit::udp_packet &p, const netkit::ipap& tgt);
 
 		/*virtual*/ netkit::io_result send(const netkit::ipap& toaddr, const netkit::pgen& pg) override;
 		/*virtual*/ netkit::io_result recv(netkit::pgen& pg, signed_t max_bufer_size) override;
-
-		bool has_from(const netkit::ipap& fa) const
-		{
-			return from.copmpare(fa);
-		}
 
 		bool is_timeout( signed_t curtime ) const
 		{
@@ -228,25 +247,11 @@ protected:
 
 		void udp_bridge(SOCKET initiator);
 
-		udp_processing_thread* get_next()
-		{
-			return next.get();
-		}
-		udp_processing_thread* get_next_and_forget()
-		{
-			udp_processing_thread* n = next.get();
-			next.release();
-			return n;
-		}
-		std::unique_ptr<udp_processing_thread>* get_next_ptr()
-		{
-			return &next;
-		}
-
 	};
 
 	spinlock::syncvar<std::unique_ptr<tcp_processing_thread>> tcp_pth; // list of tcp threads
-	spinlock::syncvar<std::unique_ptr<udp_processing_thread>> udp_pth; // list of udp threads
+	std::unordered_map<netkit::ipap, ptr::shared_ptr<udp_processing_thread>> udp_pth; // only accept thread can modify this map
+	spinlock::syncvar<std::vector<netkit::ipap>> finished; // keys of finished threads
 
 	listener* owner;
 	std::vector<const proxy*> proxychain;
@@ -256,6 +261,7 @@ protected:
 	void bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr &&pipe2); // either does job in current thread or forwards job to another thread with same endpoint
 	void bridge(tcp_processing_thread *npt);
 
+	void release_udps(); // must be called from listener thread
 	void release_udp(udp_processing_thread *udp_wt);
 	void release_tcp(tcp_processing_thread* udp_wt);
 
@@ -280,7 +286,7 @@ public:
 		delete pipe; 
 	}
 
-	virtual void on_udp(netkit::socket &, const netkit::udp_packet& )
+	virtual void on_udp(netkit::socket &, netkit::udp_packet& )
 	{
 		// do nothing by default
 	}
@@ -311,7 +317,7 @@ public:
 	}
 
 	/*virtual*/ void on_pipe(netkit::pipe* pipe) override;
-	/*virtual*/ void on_udp(netkit::socket& lstnr, const netkit::udp_packet& p) override;
+	/*virtual*/ void on_udp(netkit::socket& lstnr, netkit::udp_packet& p) override;
 };
 
 class handler_socks : public handler // socks4 and socks5

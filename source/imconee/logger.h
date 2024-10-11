@@ -24,12 +24,12 @@ enum severity_e
 	SEV_DEBUG,
 };
 
-#define LOG_N(...) logger::newline(SEV_NOTE, str::build_string(__VA_ARGS__))
-#define LOG_I(...) logger::newline(SEV_IMPORTANT, str::build_string(__VA_ARGS__))
-#define LOG_W(...) logger::newline(SEV_WARNING, str::build_string(__VA_ARGS__))
-#define LOG_E(...) logger::newline(SEV_ERROR, str::build_string(__VA_ARGS__))
+#define LOG_N(...) logger::newline(SEV_NOTE, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
+#define LOG_I(...) logger::newline(SEV_IMPORTANT, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
+#define LOG_W(...) logger::newline(SEV_WARNING, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
+#define LOG_E(...) logger::newline(SEV_ERROR, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
 #ifdef _DEBUG
-#define LOG_D(...) logger::newline(SEV_DEBUG, str::build_string(__VA_ARGS__))
+#define LOG_D(...) logger::newline(SEV_DEBUG, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
 #else
 #define LOG_D(...) do {} while(false)
 #endif
