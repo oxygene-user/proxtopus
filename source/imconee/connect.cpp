@@ -49,10 +49,10 @@ namespace conn
 		return port > 0;
 	}
 
-	netkit::pipe* connect(const netkit::endpoint& addr)
+	netkit::pipe* connect(netkit::endpoint& addr)
 	{
 		if (addr.state() == netkit::EPS_DOMAIN)
-			addr.get_ip(glb.cfg.ipstack | conf::gip_any | conf::gip_log_it);
+			addr.resolve_ip(glb.cfg.ipstack | conf::gip_any | conf::gip_log_it);
 
 		if (addr.state() == netkit::EPS_RESLOVED)
 		{

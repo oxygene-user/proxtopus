@@ -261,7 +261,11 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	deriveAeadSubkey(skey, cp.KeySize, masterKey, encrypted_data);
 	c->init_encryptor(skey);
 	crypto = std::move(c);
+}
 
+/*virtual*/ ss::core::crypto_pipe::~crypto_pipe()
+{
+	close(true);
 }
 
 /*virtual*/ bool ss::core::crypto_pipe::alive()

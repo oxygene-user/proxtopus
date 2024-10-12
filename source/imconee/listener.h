@@ -5,6 +5,8 @@
 
 class loader;
 class proxy;
+class listener;
+using larray = std::vector<std::unique_ptr<listener>>;
 
 class listener
 {
@@ -29,7 +31,7 @@ public:
 		return name;
 	}
 
-	static listener* build(loader& ldr, const str::astr& name, const asts& bb);
+	static void build(larray &arr, loader& ldr, const str::astr& name, const asts& bb);
 };
 
 class socket_listener : public listener
@@ -106,4 +108,3 @@ public:
 	}
 
 };
-

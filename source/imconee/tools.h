@@ -35,7 +35,6 @@ template<typename T> const T* makeptr(const T& t) { return &t; }
 #include "logger.h"
 
 
-
 #define ONEBIT(x) (static_cast<size_t>(1)<<(x))
 
 #define PTR_TO_UNSIGNED( p ) ((size_t)p)

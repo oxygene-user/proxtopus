@@ -31,6 +31,6 @@ public:
 	proxy_shadowsocks(loader& ldr, const str::astr& name, const asts& bb);
 	/*virtual*/ ~proxy_shadowsocks() {}
 
-	netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr) const;
+	netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const;
 };
 

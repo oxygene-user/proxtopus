@@ -1,40 +1,47 @@
 #include "pch.h"
 
-listener* listener::build(loader &ldr, const str::astr& name, const asts& bb)
+void listener::build(larray& arr, loader &ldr, const str::astr& name, const asts& bb)
 {
 	str::astr t = bb.get_string(ASTR("type"));
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 		LOG_E("{type} not defined for lisnener [%s]; type {imconee help listener} for more information", str::printable(name));
-		return nullptr;
+		return;
 	}
 
-	if (ASTR("tcp") == t)
+	for (str::token<char, str::sep_onechar<char, '|'>> tkn(str::view(t)); tkn; tkn())
 	{
-		tcp_listener *tcpl = new tcp_listener(ldr, name, bb);
-		if (ldr.exit_code != EXIT_OK)
+		listener* l = nullptr;
+		if (ASTR("tcp") == *tkn)
 		{
-			delete tcpl;
-			return nullptr;
-		}
-		return tcpl;
-	}
-	if (ASTR("udp") == t)
-	{
-		udp_listener* tcpl = new udp_listener(ldr, name, bb);
-		if (ldr.exit_code != EXIT_OK)
+			l = new tcp_listener(ldr, name, bb);
+			if (ldr.exit_code != EXIT_OK)
+			{
+				delete l;
+				return;
+			}
+		} else if (ASTR("udp") == *tkn)
 		{
-			delete tcpl;
-			return nullptr;
+			l = new udp_listener(ldr, name, bb);
+			if (ldr.exit_code != EXIT_OK)
+			{
+				delete l;
+				return;
+			}
 		}
-		return tcpl;
+		if (l)
+		{
+			arr.emplace_back(l);
+		}
+		else
+        {
+			t = *tkn;
+            LOG_E("unknown {type} [%s] for lisnener [%s]; type {imconee help listener} for more information", t.c_str(), str::printable(name));
+            ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
+			return;
+		}
 	}
-
-	LOG_E("unknown {type} [%s] for lisnener [%s]; type {imconee help listener} for more information", t.c_str(), str::printable(name));
-	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-
-	return nullptr;
 }
 
 listener::listener(loader& /*ldr*/, const str::astr& name, const asts& /*bb*/)
@@ -117,7 +124,7 @@ void socket_listener::acceptor()
 
 	spinlock::increment(glb.numlisteners);
 
-	std::thread th(&tcp_listener::acceptor, this);
+	std::thread th(&socket_listener::acceptor, this);
 	th.detach();
 }
 
@@ -239,3 +246,4 @@ udp_listener::udp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 	}
 
 }
+

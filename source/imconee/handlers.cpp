@@ -198,10 +198,7 @@ void traffic_logger::log21(u8* data, signed_t sz)
 
 handler::bridged::process_result handler::bridged::process(u8* data, netkit::pipe_waiter::mask &masks)
 {
-	if (masks.have_closed(mask1 | mask2))
-		return SLOT_DEAD;
-
-	process_result rv = SLOT_SKIPPED;
+	process_result rv = masks.have_closed(mask1 | mask2) ? SLOT_DEAD : SLOT_SKIPPED;
 
 	if (masks.have_read(mask1))
 	{
@@ -224,7 +221,7 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 			loger.log12(data, sz);
 #endif
 		}
-		rv = SLOT_PROCESSES;
+		if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
 	}
 	if (masks.have_read(mask2))
 	{
@@ -247,7 +244,7 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 #endif
 
 		}
-		rv = SLOT_PROCESSES;
+		if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
 	}
 
 	if (masks.have_write(mask1))
@@ -255,14 +252,14 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 		netkit::pipe::sendrslt r = pipe1->send(data, 0); // just send unsent buffer
 		if (r == netkit::pipe::SEND_FAIL)
 			return SLOT_DEAD;
-		rv = SLOT_PROCESSES;
+		if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
 	}
 	if (masks.have_write(mask2))
 	{
 		netkit::pipe::sendrslt r = pipe2->send(data, 0); // just send unsent buffer
 		if (r == netkit::pipe::SEND_FAIL)
 			return SLOT_DEAD;
-		rv = SLOT_PROCESSES;
+		if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
 	}
 
 	return rv;
@@ -414,7 +411,7 @@ void handler::release_tcp(tcp_processing_thread* tcp_wt)
 }
 
 
-netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
+netkit::pipe_ptr handler::connect( netkit::endpoint& addr, bool direct)
 {
 	static spinlock::long3264 tag = 1;
 
@@ -462,12 +459,19 @@ netkit::pipe_ptr handler::connect(const netkit::endpoint& addr, bool direct)
 		ps("connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str());
 	}
 
-	netkit::pipe_ptr pp = connect(proxychain[0]->get_addr(), true);
+	netkit::endpoint prx_ep;
+	auto get_proxy_addr = [&](signed_t i) -> netkit::endpoint&
+		{
+			prx_ep = proxychain[i]->get_addr();
+			return prx_ep;
+		};
+	
+	netkit::pipe_ptr pp = connect(get_proxy_addr(0), true);
 
 	for (signed_t i = 0; pp != nullptr && i < (signed_t)proxychain.size(); ++i)
 	{
 		bool finala = i + 1 >= (signed_t)proxychain.size();
-		const netkit::endpoint &na = finala ? addr : proxychain[i + 1]->get_addr();
+		netkit::endpoint &na = finala ? addr : get_proxy_addr(i + 1);
 		if (finala)
 		{
 			ps("connecting to address (%s)"); LOG_N(stag.c_str(), na.desc().c_str());
@@ -588,7 +592,7 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 	sendor = nullptr;
 }
 
-/*virtual*/ netkit::io_result handler::udp_processing_thread::send(const netkit::ipap& toaddr, const netkit::pgen& pg)
+/*virtual*/ netkit::io_result handler::udp_processing_thread::send(const netkit::endpoint& toaddr, const netkit::pgen& pg)
 {
 	return netkit::udp_send(ts, toaddr, pg);
 }
@@ -685,42 +689,39 @@ void handler_direct::on_udp(netkit::socket& lstnr, netkit::udp_packet& p)
 		wt = rslt.first->second; // already exist, return it
 		
 		if (wt != nullptr)
-		{
 			wt->update_cutoff_time();
-		}
-
 	}
 
     bool new_thread = false;
     netkit::ipap tgtip;
 	if (wt == nullptr)
 	{
-		auto tip = tgt_ip.lock_read();
-		if (tip().port == 0)
+		if (ep.state() == netkit::EPS_EMPTY)
 		{
-			tip.unlock();
-			netkit::endpoint ep(to_addr);
+			ep.preparse(to_addr);
 
-			if (ep.state() == netkit::EPS_DOMAIN || ep.state() == netkit::EPS_RESLOVED)
-				tgtip = ep.get_ip(glb.cfg.ipstack | conf::gip_log_it);
-
-			if (ep.state() != netkit::EPS_RESLOVED)
-				return;
-
-			if (tgtip.is_wildcard() || tgtip.port == 0)
+			if (ep.state() == netkit::EPS_DOMAIN)
 			{
-				LOG_E("failed UDP mapping: can't use endpoint %s (listener [%s])", to_addr.c_str(), str::printable(owner->get_name()));
-				return;
+				if (!proxychain.empty())
+				{
+					// keep unresolved, resolve via proxy
+				}
+				else
+				{
+					// try resolve
+					ep.resolve_ip(glb.cfg.ipstack | conf::gip_log_it);
+					if (ep.state() != netkit::EPS_RESLOVED)
+					{
+					cant:
+						ep = netkit::endpoint();
+                        LOG_E("failed UDP mapping: can't use endpoint %s (listener [%s])", to_addr.c_str(), str::printable(owner->get_name()));
+                        return;
+					}
+				}
 			}
 
-			// only [resolved] endpoint supported for now (udp proxy not yet ready, so, to_addr cannot be resolved via proxy)
-
-			tgt_ip.lock_write()() = tgtip;
-		}
-		else
-		{
-			tgtip = tip();
-			tip.unlock();
+			if (ep.port() == 0)
+				goto cant;
 		}
 
 		wt = new udp_processing_thread(proxychain.empty() ? nullptr : proxychain[0], udp_timeout_ms, p.from /*, tgtip.v4*/);
@@ -730,16 +731,12 @@ void handler_direct::on_udp(netkit::socket& lstnr, netkit::udp_packet& p)
 		th.detach();
         new_thread = true;
 	}
-	else
-    {
-        tgtip = tgt_ip.lock_read()();
-    }
 
-	wt->convey(p, tgtip);
+	wt->convey(p, ep);
 
 	if (new_thread)
 	{
-		LOG_N("new UDP mapping (%s <-> %s) via listener [%s]", p.from.to_string(true).c_str(), tgtip.to_string(true).c_str(), str::printable(owner->get_name()));
+		LOG_N("new UDP mapping (%s <-> %s) via listener [%s]", p.from.to_string(true).c_str(), ep.desc().c_str(), str::printable(owner->get_name()));
 	}
 
 }
@@ -749,7 +746,7 @@ void handler::udp_processing_thread::close()
 
 }
 
-void handler::udp_processing_thread::convey(netkit::udp_packet& p, const netkit::ipap& tgt)
+void handler::udp_processing_thread::convey(netkit::udp_packet& p, const netkit::endpoint& tgt)
 {
     if (sendor)
     {
@@ -783,7 +780,7 @@ void handler_direct::tcp_worker(netkit::pipe* pipe)
 	// now try to connect to out
 
 	netkit::pipe_ptr p(pipe);
-	netkit::endpoint ep(to_addr);
+	ep.preparse(to_addr);
 
 	if (netkit::pipe_ptr outcon = connect(ep, false))
 		bridge(std::move(p), std::move(outcon));
@@ -1105,7 +1102,7 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 }
 
 
-void handler_socks::worker(netkit::pipe* pipe, const netkit::endpoint &inf, sendanswer answ)
+void handler_socks::worker(netkit::pipe* pipe, netkit::endpoint &inf, sendanswer answ)
 {
 	// now try to connect to out
 

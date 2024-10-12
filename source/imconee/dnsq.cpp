@@ -355,7 +355,7 @@ dns_resolver::dns_resolver(bool parse_hosts)
 				{
 					if (!rec)
 					{
-						ip = netkit::ipap::parse(*lt);
+						ip = netkit::ipap::parse(*lt, false);
 						if (ONLYIPV4 && !ip.v4)
 							break;
 						if (ONLYIPV6 && ip.v4)
@@ -801,6 +801,10 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::start_resolving(const str
 
 netkit::ipap dns_resolver::resolve(const str::astr& hn_, bool log_it)
 {
+	netkit::ipap temp = netkit::ipap::parse(str::view(hn_), false);
+	if (!temp.is_wildcard())
+		return temp;
+
 	query_internals qi( hn_ );
 	qi.rindex = rndindex++;
 
@@ -1211,7 +1215,7 @@ netkit::io_result dns_resolver::query_internals::query(netkit::pgen& pg /* in/ou
 	return r;
 }
 
-netkit::io_result dns_resolver::udp_transport::send(const netkit::ipap& toaddr, const netkit::pgen& pg)
+netkit::io_result dns_resolver::udp_transport::send(const netkit::endpoint& toaddr, const netkit::pgen& pg)
 {
 	return udp_send(*this, toaddr, pg);
 }

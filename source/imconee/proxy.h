@@ -17,8 +17,9 @@ public:
 	* caller must establish connection to current proxy (addr) and pass pipe
 	* function will force the proxy to establish a connection to addr2
 	* returned pipe is ready-to-communicate pipe with remote host at addr2
+	* addr2 can be modified (resolved)
 	*/
-	virtual netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2 ) const = 0;
+	virtual netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2 ) const = 0;
 	/*
 	* udp communication via proxy
 	* caller must provide low-level udp transport for sending custom udp packets
@@ -41,7 +42,7 @@ public:
 	proxy_socks4(loader& ldr, const str::astr& name, const asts& bb);
 	/*virtual*/ ~proxy_socks4() {}
 
-	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr) const override;
+	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override;
 };
 
 class proxy_socks5 : public proxy
@@ -53,11 +54,14 @@ public:
 	proxy_socks5(loader& ldr, const str::astr& name, const asts& bb);
 	/*virtual*/ ~proxy_socks5() {}
 
-	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr) const override; // tcp tunnel
+	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override; // tcp tunnel
 	/*virtual*/ std::unique_ptr<netkit::udp_pipe> prepare(netkit::udp_pipe* /*transport*/) const override; //udp tunnel
 	/*virtual*/ bool support(netkit::socket_type) const { return true; }
 
-	bool prepare_udp_assoc(netkit::ipap &ip, netkit::pipe_ptr &pip, bool log_fails) const;
+	bool prepare_udp_assoc(netkit::endpoint & udp_assoc_ep, netkit::pipe_ptr &pip, bool log_fails) const;
+	static void push_atyp(netkit::pgen& pg, const netkit::endpoint& addr);
+	static signed_t atyp_size(const netkit::endpoint& addr); // including ATYP octet
+
 };
 
 #include "proxy_ss.h"

@@ -252,6 +252,7 @@ namespace ss
 
 		public:
 			crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, str::astr masterKey, crypto_par cp);
+			/*virtual*/ ~crypto_pipe();
 
 			/*virtual*/ bool alive() override;
 			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;

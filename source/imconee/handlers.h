@@ -160,34 +160,33 @@ protected:
 
 	struct send_data
 	{
+        netkit::endpoint tgt;
         signed_t datasz;
-		netkit::ipap tgt;
 
-		static constexpr signed_t shift()
+		static consteval signed_t plain_tail_start() // get size of plain tail of this structure
 		{
-			return math::maxv(32, sizeof(send_data));
+			return netkit::endpoint::plain_tail_start(); /* + offsetof(send_data, tgt) */
 		}
 
 		u8* data()
 		{
-			return ((u8 *)this) + shift();
+			return ((u8 *)(this+1));
 		}
         const u8* data() const
         {
-			return ((const u8*)this) + shift();
+			return ((const u8*)(this+1));
         }
 
-		u16 pre() const
+		static u16 pre()
 		{
-			return tools::as_word(shift());
+			return tools::as_word(sizeof(send_data) - plain_tail_start());
 		}
 
-		static send_data* build(std::span<const u8> data, const netkit::ipap& tgt)
+		static send_data* build(std::span<const u8> data, const netkit::endpoint& tgt)
 		{
-			if (send_data* sd = (send_data*)malloc(shift() + data.size()))
+			if (send_data* sd = (send_data*)malloc(sizeof(send_data) + data.size()))
             {
-                sd->datasz = data.size();
-                sd->tgt = tgt;
+				new (sd) send_data(tgt, data.size());
                 memcpy(sd->data(), data.data(), data.size());
 				return sd;
 			}
@@ -195,13 +194,15 @@ protected:
 		}
 
 	private:
-		send_data() {} // do not allow direct creation
+        send_data(const netkit::endpoint &tgt, signed_t datasz):tgt(tgt), datasz(datasz) {} // do not allow direct creation
+
 	};
 
 	struct mfrees
 	{
 		void operator()(send_data* p)
 		{
+			p->~send_data();
 			free(p);
 		}
 	};
@@ -235,9 +236,9 @@ protected:
 		}
 		void close();
 
-		void convey(netkit::udp_packet &p, const netkit::ipap& tgt);
+		void convey(netkit::udp_packet &p, const netkit::endpoint& tgt);
 
-		/*virtual*/ netkit::io_result send(const netkit::ipap& toaddr, const netkit::pgen& pg) override;
+		/*virtual*/ netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg) override;
 		/*virtual*/ netkit::io_result recv(netkit::pgen& pg, signed_t max_bufer_size) override;
 
 		bool is_timeout( signed_t curtime ) const
@@ -270,7 +271,7 @@ public:
 	virtual ~handler() { stop(); }
 
 	void stop();
-	netkit::pipe_ptr connect(const netkit::endpoint& addr, bool direct); // just connect to remote host using current handler's proxy settings
+	netkit::pipe_ptr connect(netkit::endpoint& addr, bool direct); // just connect to remote host using current handler's proxy settings
 
 	virtual str::astr desc() const = 0;
 	virtual bool compatible(netkit::socket_type /*st*/) const
@@ -299,8 +300,7 @@ public:
 class handler_direct : public handler // just port mapper
 {
 	str::astr to_addr; // in format like: tcp://domain_or_ip:port
-
-	spinlock::syncvar<netkit::ipap> tgt_ip;
+	netkit::endpoint ep; // only accessed from listener thread
 
 	void tcp_worker(netkit::pipe* pipe); // sends all from pipe to out connection
 	void udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt);
@@ -344,7 +344,7 @@ class handler_socks : public handler // socks4 and socks5
 
 	using sendanswer = std::function< void(netkit::pipe* pipe, rslt ecode) >;
 
-	void worker(netkit::pipe* pipe, const netkit::endpoint& inf, sendanswer answ);
+	void worker(netkit::pipe* pipe, netkit::endpoint& inf, sendanswer answ);
 
 public:
 	handler_socks(loader& ldr, listener* owner, const asts& bb, const str::astr_view &st);

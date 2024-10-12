@@ -55,7 +55,7 @@ namespace netkit
 		return cvt<Endian::little>::to_he(v_network);
 	}
 
-	enum socket_type
+	enum socket_type : u8
 	{
 		ST_UNDEFINED,
 		ST_TCP,
@@ -65,8 +65,8 @@ namespace netkit
 	struct udp_packet;
 	struct ipap // ip address and port
 	{
-		static ipap parse6(const str::astr_view& s); // assume s is ipv6 address
-		static ipap parse(const str::astr_view& s);
+		static ipap parse6(const str::astr_view& s, bool parse_port = true); // assume s is ipv6 address
+		static ipap parse(const str::astr_view& s, bool parse_port = true);
 		static void build(ipap* r, const u8* packet, signed_t plen, u16 port = 0)
 		{
 			bool readport = false;
@@ -371,7 +371,7 @@ namespace netkit
 		bool sendto(SOCKET s, const std::span<const u8> &p) const;
 	};
 
-	enum endpoint_state
+	enum endpoint_state : u8
 	{
 		EPS_EMPTY,
 		EPS_DOMAIN,
@@ -514,9 +514,9 @@ namespace netkit
 	class endpoint
 	{
 		str::astr domain_;
-		mutable ipap ip;
-		mutable endpoint_state state_ = EPS_EMPTY;
-		mutable socket_type sockt = ST_UNDEFINED;
+		ipap ip;
+		endpoint_state state_ = EPS_EMPTY;
+		socket_type sockt = ST_UNDEFINED;
 
 		void check_domain_or_ip();
 
@@ -525,6 +525,11 @@ namespace netkit
 		endpoint() {}
 		explicit endpoint(const str::astr& addr);
 		endpoint(const ipap &ip):ip(ip), state_(EPS_RESLOVED) {}
+
+        static consteval signed_t plain_tail_start()
+		{
+			return sizeof(domain_);
+		}
 
 		bool operator==(const endpoint& ep)
 		{
@@ -553,6 +558,12 @@ namespace netkit
 			state_ = EPS_RESLOVED;
 		}
 
+        void set_addr(const ipap& ip_)
+        {
+            this->ip.set(ip_, false);
+            state_ = EPS_RESLOVED;
+        }
+
 		void set_ipap(const ipap &ip_)
 		{
 			this->ip = ip_;
@@ -568,14 +579,21 @@ namespace netkit
 		{
 			this->domain_ = dom;
 			state_ = EPS_DOMAIN;
+			check_domain_or_ip();
 		}
 		void set_domain(const str::astr_view& dom)
 		{
 			this->domain_ = dom;
 			state_ = EPS_DOMAIN;
+			check_domain_or_ip();
 		}
 
-		ipap get_ip(size_t options) const;
+		ipap resolve_ip(size_t options);
+		const ipap& get_ip() const
+		{
+			ASSERT(state_ == EPS_RESLOVED);
+			return ip;
+		}
 
 		signed_t port() const
 		{
@@ -725,8 +743,9 @@ namespace netkit
 		tcp_pipe(const tcp_pipe&) = delete;
 		tcp_pipe(tcp_pipe&&) = delete;
 
-		~tcp_pipe()
+		/*virtual*/ ~tcp_pipe()
 		{
+			close(true);
 		}
 
 		/*virtual*/ void close(bool flush_before_close) override
@@ -744,9 +763,9 @@ namespace netkit
 		{
 			addr = ipp;
 		}
-		void set_address(const endpoint & ainf)
+		void set_address(endpoint & ainf)
 		{
-			set_address( ainf.get_ip(glb.cfg.ipstack | conf::gip_any) );
+			set_address( ainf.resolve_ip(glb.cfg.ipstack | conf::gip_any) );
 		}
 
 		bool connect();
@@ -1002,12 +1021,12 @@ namespace netkit
 	public:
 		virtual ~udp_pipe() {}
 
-		virtual io_result send(const ipap &toaddr, const pgen& pg /* in */) = 0;
+		virtual io_result send(const endpoint &toaddr, const pgen& pg /* in */) = 0;
 		virtual io_result recv(pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/) = 0;
 	};
 
 	void udp_prepare(thread_storage& ts, bool v4);
-	io_result udp_send(thread_storage& ts, const ipap& toaddr, const pgen& pg /* in */);
+	io_result udp_send(thread_storage& ts, const endpoint& toaddr, const pgen& pg /* in */);
 	io_result udp_recv(thread_storage& ts, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/);
 
 

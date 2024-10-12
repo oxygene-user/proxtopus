@@ -15,7 +15,7 @@ namespace netkit
         const int SD_SEND = SHUT_WR;
 #endif
 
-	ipap ipap::parse6(const str::astr_view& s)
+	ipap ipap::parse6(const str::astr_view& s, bool parse_port)
 	{
 		bool colon = false;
 		bool fillright = false;
@@ -67,7 +67,8 @@ namespace netkit
 			{
 				if (!clexpected)
 					return ipap();
-				check_port = i + 1;
+				if (parse_port)
+					check_port = i + 1;
 				clexpected = false;
 				break;
 			}
@@ -126,13 +127,13 @@ namespace netkit
 		return rv;
 	}
 
-	ipap ipap::parse(const str::astr_view& s)
+	ipap ipap::parse(const str::astr_view& s, bool parse_port)
 	{
 		if (s.empty())
 			return ipap();
 
 		if (s[0] == '[')
-			return parse6(s);
+			return parse6(s, parse_port);
 
 		signed_t numd = 0;
 		for( char c : s )
@@ -140,7 +141,7 @@ namespace netkit
 			{
 				++numd;
 				if (numd == 2)
-					return parse6(s);
+					return parse6(s, false);
 			}
 
 		ipap rv;
@@ -160,7 +161,8 @@ namespace netkit
 				size_t d = tkn->find(':');
 				if (d != str::astr::npos)
 				{
-					rv.port = tools::as_word(str::parse_int(tkn->substr(d + 1), 65535, 0));
+					if (parse_port)
+						rv.port = tools::as_word(str::parse_int(tkn->substr(d + 1), 65535, 0));
 					tkn.trim(d);
 				}
 			}
@@ -853,7 +855,7 @@ namespace netkit
 			return;
 		}
 
-		ip.set(ipap::parse(domain_), false);
+		ip.set(ipap::parse(domain_,false), false);
 		if (!ip.is_wildcard())
 		{
 			domain_.clear();
@@ -916,7 +918,7 @@ namespace netkit
 		check_domain_or_ip();
 	}
 
-	ipap netkit::endpoint::get_ip(size_t options) const
+	ipap netkit::endpoint::resolve_ip(size_t options)
 	{
 		if (state_ == EPS_RESLOVED)
 		{
@@ -1274,14 +1276,14 @@ namespace netkit
 	}
 	*/
 
-    io_result udp_send(thread_storage& ts, const ipap& toaddr, const pgen& pg /* in/out */)
+    io_result udp_send(thread_storage& ts, const endpoint& toaddr, const pgen& pg /* in/out */)
     {
         udpss* s = static_cast<udpss*>(ts.data.get());
 
-        if (s == nullptr || s->v4 != toaddr.v4)
-            s = new udpss(toaddr.v4);
+        if (s == nullptr || s->v4 != toaddr.get_ip().v4)
+            s = new udpss(toaddr.get_ip().v4);
 
-        if (!s->s.send(pg.to_span(), toaddr))
+        if (!s->s.send(pg.to_span(), toaddr.get_ip()))
             return ior_send_failed;
 
 		// IMPORTANT! thread_storage ts MUST be initialized just after send, not before

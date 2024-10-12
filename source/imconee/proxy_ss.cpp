@@ -82,7 +82,7 @@ proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const a
 	*/
 }
 
-netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const netkit::endpoint& addr2) const
+netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netkit::endpoint& addr2) const
 {
 	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
@@ -92,36 +92,14 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, const
 	// just send connect request (shadowsocks 2012 protocol spec)
 	// no need to wait answer: stream mode just after request
 
-	// (1) atyp
-	// (v) domain/ip
-	// (2) port
-
 
 	u8 packet[512];
+	netkit::pgen pg(packet, 512);
 
-	if (addr2.domain().empty())
-	{
-		netkit::pgen pg(packet, 7);
+	proxy_socks5::push_atyp(pg, addr2);
 
-		netkit::ipap ip = addr2.get_ip(glb.cfg.ipstack);
-
-		pg.push8(ip.v4 ? 1 : 4);
-		pg.push(ip, true);
-
-		if (p_enc->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
-			return netkit::pipe_ptr();
-	}
-	else
-	{
-		netkit::pgen pg(packet, addr2.domain().length() + 4);
-
-		pg.push8(3); // atyp: domain name
-		pg.pushs(addr2.domain());
-		pg.push16(addr2.port());
-
-		if (p_enc->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
-			return netkit::pipe_ptr();
-	}
+    if (p_enc->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL)
+        return netkit::pipe_ptr();
 
 	return p_enc;
 }

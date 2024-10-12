@@ -50,11 +50,7 @@ engine::engine()
 			return true;
 		}
 
-		listener* ls = listener::build(ldr, name, lb);
-		if (nullptr == ls)
-			return false;
-
-		listners.emplace_back(ls);
+		listener::build(listners, ldr, name, lb);
 		return true;
 	});
 

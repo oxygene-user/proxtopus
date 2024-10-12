@@ -104,9 +104,9 @@ namespace {
 #define _alloca alloca
 #endif
 
-netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
+netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2) const
 {
-	addr2.get_ip(conf::gip_only4);
+	addr2.resolve_ip(conf::gip_only4);
 	if (addr2.state() != netkit::EPS_RESLOVED || addr2.port() == 0)
 	{
 		return netkit::pipe_ptr();
@@ -116,7 +116,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	connect_packet_socks4* pd = (connect_packet_socks4 *)_alloca(dsz);
 	pd->vn = 4; pd->cd = 1;
 	pd->destport = netkit::to_ne((u16)addr2.port());
-	pd->destip = addr2.get_ip(conf::gip_only4);
+	pd->destip = addr2.get_ip();
 	memcpy(pd + 1, userid.c_str(), userid.length());
 	((u8*)pd)[dsz - 1] = 0;
 
@@ -278,7 +278,7 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 	return true;
 }
 
-netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const netkit::endpoint& addr2) const
+netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2) const
 {
 	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
@@ -287,35 +287,15 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, const net
 	if (!initial_setup(packet, pipe_to_proxy.get()))
 		return netkit::pipe_ptr();
 
-	if (addr2.domain().empty())
-	{
-		netkit::pgen pg(packet, 22);
+	netkit::pgen pg(packet, 512);
 
-		pg.push8(5); // socks 5
-		pg.push8(1); // connect
-		pg.push8(0);
+    pg.push8(5); // socks 5
+    pg.push8(1); // connect
+    pg.push8(0);
 
-		netkit::ipap a = addr2.get_ip(glb.cfg.ipstack);
-		pg.push8(a.v4 ? 1 : 4);
-		pg.push(a, true);
-
-		if (pipe_to_proxy->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
-			return netkit::pipe_ptr();
-	}
-	else
-	{
-		netkit::pgen pg(packet, addr2.domain().length() + 7);
-
-		pg.push8(5); // socks 5
-		pg.push8(1); // connect
-		pg.push8(0);
-		pg.push8(3); // domain name
-		pg.pushs(addr2.domain());
-		pg.push16(addr2.port());
-
-		if (pipe_to_proxy->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
-			return netkit::pipe_ptr();
-	}
+	push_atyp(pg, addr2);
+    if (pipe_to_proxy->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL)
+        return netkit::pipe_ptr();
 
 	if (!recv_rep(packet, pipe_to_proxy.get(), nullptr, makeptr(str::view(addr2.domain()))))
 		return netkit::pipe_ptr();
@@ -327,51 +307,47 @@ class udp_via_socks5 : public netkit::udp_pipe
 {
 	const proxy_socks5* basedon;
 	netkit::udp_pipe* transport;
-	netkit::ipap udpassoc;
+	netkit::endpoint udpassoc;
 	netkit::pipe_ptr pipe2s;
 public:
 
-	udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, const netkit::ipap &udpassoc, netkit::pipe_ptr pipe2s):basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
+	udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, const netkit::endpoint &udpassoc, netkit::pipe_ptr pipe2s):basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
 	{
 	}
 
 	// Inherited via udp_pipe
-	netkit::io_result send(const netkit::ipap& tgt, const netkit::pgen& pg) override
+	netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg) override
 	{
-		netkit::ipap toaddr = tgt; // make copy due tgt can be part of pg
-
 		if (!pipe2s->alive())
 		{
 			if (!basedon->prepare_udp_assoc(udpassoc, pipe2s, false))
 				return netkit::ior_timeout;
 		}
 
-		auto prepare_header = [&](u8* packet)
+		auto prepare_header = [](u8* packet, const netkit::endpoint &ep)
 			{
-				netkit::pgen pgx(packet, 32);
+				netkit::pgen pgx(packet, 512);
 				pgx.push16(0); // RSV
 				pgx.push8(0); // FRAG
-				pgx.push8(toaddr.v4 ? 1 : 4); // ATYP
-				pgx.push(toaddr, true);
+
+				proxy_socks5::push_atyp(pgx, ep);
 			};
 
 #ifdef _DEBUG
-		if (toaddr.is_wildcard())
-			__debugbreak();
-		LOG_I("udp via proxy request (%s)", toaddr.to_string(true).c_str());
+		LOG_I("udp via proxy request (%s)", toaddr.desc().c_str());
 #endif
-
-		signed_t presize = udpassoc.v4 ? 10 : 22;
+		signed_t presize = proxy_socks5::atyp_size(toaddr) + 3 /* 3 octets is: RSV and FRAG (see prepare_header) */;
 		if (presize <= pg.pre)
 		{
 			// pg has extra space before packet! so, we can use it for udp header for socks server
+			netkit::endpoint epc = toaddr;
 			netkit::pgen pgh(const_cast<u8 *>(pg.to_span().data()) - presize, pg.sz + presize);
-			prepare_header(pgh.get_data());
+			prepare_header(pgh.get_data(), epc);
 			return transport->send(udpassoc, pgh);
 		}
 
 		u8 *packet = (u8*)_alloca(presize + pg.sz);
-		prepare_header(packet);
+		prepare_header(packet, toaddr);
 		memcpy(packet + presize, pg.to_span().data(), pg.sz);
 		return transport->send(udpassoc, netkit::pgen(packet, presize + pg.sz));
 	}
@@ -397,13 +373,51 @@ public:
 	}
 };
 
-bool proxy_socks5::prepare_udp_assoc(netkit::ipap& ip, netkit::pipe_ptr& pip_out, bool log_fails) const
+void proxy_socks5::push_atyp(netkit::pgen& pg, const netkit::endpoint& addr2)
+{
+    //  +------+----------+----------+
+    //  | ATYP | DST.ADDR | DST.PORT |
+    //  +------+----------+----------+
+    //  |   1  | Variable |    2     |
+    //  +------+----------+----------+
+    //  o  ATYP address type of following addresses:
+    //    o  IP V4 address : X'01'
+    //    o  DOMAINNAME : X'03'
+    //    o  IP V6 address : X'04'
+
+    if (addr2.domain().empty())
+    {
+        const netkit::ipap &ip = addr2.get_ip();
+
+        pg.push8(ip.v4 ? 1 : 4);
+        pg.push(ip, true);
+    }
+    else
+    {
+        pg.push8(3); // atyp: domain name
+        pg.pushs(addr2.domain());
+        pg.push16(addr2.port());
+    }
+}
+
+signed_t proxy_socks5::atyp_size(const netkit::endpoint& addr)
+{
+    if (addr.domain().empty())
+    {
+        const netkit::ipap& ip = addr.get_ip();
+		return ip.v4 ? 7 : 19;
+    }
+
+	return 1 + 2 + 1 + addr.domain().length(); // ATYP(1) + port(2) + size_of_domain(1) + size_of_domain
+}
+
+bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pipe_ptr& pip_out, bool log_fails) const
 {
 #ifdef _DEBUG
 	LOG_I("udp assoc prepare to %s", addr.desc().c_str());
 #endif
-
-	netkit::pipe* pip = conn::connect(addr);
+	netkit::endpoint addrr(addr);
+	netkit::pipe* pip = conn::connect(addrr);
 	if (!pip)
 	{
 	not_success:
@@ -424,24 +438,15 @@ bool proxy_socks5::prepare_udp_assoc(netkit::ipap& ip, netkit::pipe_ptr& pip_out
 
 	pg.push8(1); // ipv4
 	pg.pushz(6); // zero ipv4 addr and zero port
-	//const u8 a1[] = {8, 8, 8, 8, 53, 0};
-	//pg.pusha(a1, 6);
 
 	if (p2p->send(packet, pg.sz) == netkit::pipe::SEND_FAIL)
 		goto not_success;
 
-	netkit::endpoint ep;
-	if (!recv_rep(packet, pip, &ep, log_fails ? makeptr(ASTR("udp")) : nullptr))
+	if (!recv_rep(packet, pip, &udp_assoc_ep, log_fails ? makeptr(ASTR("udp")) : nullptr))
 		goto not_success;
 
-	ip = ep.get_ip(glb.cfg.ipstack | conf::gip_log_it);
-	if (ip.port == 0)
-		goto not_success;
-	u16 p = ip.port;
-	if (ip.is_wildcard())
-		ip = addr.get_ip(glb.cfg.ipstack | conf::gip_log_it).set_port(p);
-	if (ip.is_wildcard())
-		goto not_success;
+	if (udp_assoc_ep.get_ip().is_wildcard() && udp_assoc_ep.domain().empty())
+		udp_assoc_ep.set_addr(addrr.get_ip());
 
 	pip_out = p2p;
 
@@ -450,10 +455,10 @@ bool proxy_socks5::prepare_udp_assoc(netkit::ipap& ip, netkit::pipe_ptr& pip_out
 
 /*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_socks5::prepare(netkit::udp_pipe* transport) const
 {
-	netkit::ipap ip;
+	netkit::endpoint ep;
 	netkit::pipe_ptr p2p;
-	if (prepare_udp_assoc(ip, p2p, true))
-		return std::make_unique<udp_via_socks5>(this, transport, ip, p2p);
+	if (prepare_udp_assoc(ep, p2p, true))
+		return std::make_unique<udp_via_socks5>(this, transport, ep, p2p);
 	return std::unique_ptr<netkit::udp_pipe>();
 }
 
