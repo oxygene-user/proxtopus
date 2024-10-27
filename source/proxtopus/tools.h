@@ -756,14 +756,19 @@ namespace tools
 
 	public:
 
+		void clear()
+		{
+            first.reset();
+            last = nullptr;
+            first_skip = 0;
+            last_size = 0;
+		}
+
 		void assign(std::span<const u8> data)
 		{
 			if (data.size() == 0)
 			{
-				first.reset();
-				last = nullptr;
-				first_skip = 0;
-				last_size = 0;
+				clear();
 				return;
 			}
 

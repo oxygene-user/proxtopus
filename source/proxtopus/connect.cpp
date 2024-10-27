@@ -23,8 +23,7 @@ namespace conn
 		if (dm[0] == '.' || str::get_last_char(dm) == '.')
 			return false;
 
-		size_t dmp = dm.rfind('.');
-		if (dmp > 0 && dmp != str::astr::npos)
+		if (size_t dmp = dm.rfind('.'); dmp > 0 && dmp != str::astr::npos)
 		{
 			if (is_digit(dm[dmp + 1]))
 			{

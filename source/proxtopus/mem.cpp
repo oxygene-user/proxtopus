@@ -216,8 +216,8 @@ global_data::first_init::first_init()
 global_data::global_data()
 {
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
-	cfg.crash_log_file = str::astr(ASTR("imconee.crush.log"));
-	cfg.dump_file = str::astr(ASTR("imconee.dmp"));
+	cfg.crash_log_file = str::astr(ASTR("proxtopus.crush.log"));
+	cfg.dump_file = str::astr(ASTR("proxtopus.dmp"));
 #endif
 
 }

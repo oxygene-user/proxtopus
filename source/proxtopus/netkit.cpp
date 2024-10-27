@@ -1279,11 +1279,24 @@ namespace netkit
     io_result udp_send(thread_storage& ts, const endpoint& toaddr, const pgen& pg /* in/out */)
     {
         udpss* s = static_cast<udpss*>(ts.data.get());
+		const netkit::endpoint* ep = &toaddr;
+        netkit::endpoint epl;
+        if (toaddr.state() != netkit::EPS_RESLOVED)
+        {
+			epl = toaddr;
+            epl.resolve_ip(glb.cfg.ipstack | conf::gip_log_it);
+			if (epl.state() != netkit::EPS_RESLOVED)
+				return io_result::ior_notresolved;
+			ep = &epl;
+        }
 
-        if (s == nullptr || s->v4 != toaddr.get_ip().v4)
-            s = new udpss(toaddr.get_ip().v4);
 
-        if (!s->s.send(pg.to_span(), toaddr.get_ip()))
+		if (s == nullptr || s->v4 != ep->get_ip().v4)
+		{
+			s = new udpss(ep->get_ip().v4);
+		}
+
+        if (!s->s.send(pg.to_span(), ep->get_ip()))
             return ior_send_failed;
 
 		// IMPORTANT! thread_storage ts MUST be initialized just after send, not before
@@ -1293,7 +1306,7 @@ namespace netkit
         return ior_ok;
     }
 
-	io_result udp_recv(thread_storage& ts, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/)
+	io_result udp_recv(thread_storage& ts, netkit::ipap& from, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/)
 	{
 		if (!ts.data)
 			return ior_general_fail; // it is forbidden to do recv before send; send will initialize ts
@@ -1306,7 +1319,8 @@ namespace netkit
 			if (p.sz > max_bufer_size)
 				return ior_general_fail;
 
-			pg = p;
+			from = p.from;
+			pg.copy_from(p);
 
 			return ior_ok;
 		}

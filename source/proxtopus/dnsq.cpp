@@ -79,7 +79,7 @@ bool dnspp::prepare(const str::astr_view& hn)
 
 bool dnspp::build_query(qtype qt, netkit::pgen& pg)
 {
-	pg.set_pre(32); // always keep 32 bytes pre-buffer for udp proxy
+	pg.set_extra(32); // always keep 32 bytes pre-buffer for udp proxy
 	pg.start();
 	pg.sz = dnspp::request_size;
 
@@ -1200,18 +1200,14 @@ netkit::io_result dns_resolver::query_internals::query(netkit::pgen& pg /* in/ou
 		if (!sender)
 			return netkit::ior_general_fail;
 	}
-	else
-	{
-#ifdef _DEBUG
-		if (n2s->name)
-			LOG_I("direct dns request (%s)", n2s->name->to_string().c_str());
-#endif
-	}
 
 
 	netkit::io_result r = sender->send(n2s->ip, pg);
 	if (r == netkit::ior_ok)
-		return sender->recv(pg, dnspp::max_buf_size);
+	{
+		netkit::ipap from;
+		return sender->recv(from, pg, dnspp::max_buf_size);
+	}
 	return r;
 }
 
@@ -1220,9 +1216,9 @@ netkit::io_result dns_resolver::udp_transport::send(const netkit::endpoint& toad
 	return udp_send(*this, toaddr, pg);
 }
 
-netkit::io_result dns_resolver::udp_transport::recv(netkit::pgen& pg, signed_t max_bufer_size)
+netkit::io_result dns_resolver::udp_transport::recv(netkit::ipap& from, netkit::pgen& pg, signed_t max_bufer_size)
 {
-	return udp_recv(*this, pg, max_bufer_size);
+	return udp_recv(*this, from, pg, max_bufer_size);
 }
 
 void dns_resolver::load_serves(engine* e, const asts* s)

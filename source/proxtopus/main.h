@@ -52,6 +52,7 @@ struct global_data
 	FN path_config;
 	str::astr emptys;
 
+
 #if LOGGER==2
 	bool log_muted = false;
 #endif
@@ -99,6 +100,7 @@ struct global_data
 #endif
 
 	spinlock::syncvar<std::vector<str::astr>> prints;
+    Botan::HKDF kdf = Botan::HKDF(std::make_unique<Botan::HMAC>(std::make_unique<Botan::SHA_1>()));
 
 private:
 	volatile bool exit = false;

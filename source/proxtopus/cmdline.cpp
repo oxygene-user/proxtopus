@@ -191,6 +191,12 @@ std::vector<char> load_res(int idr)
 			file.insert(file.begin(), data.begin(), data.end());
 		}
 		break;
+        case IDR_HELP_PROXY:
+        {
+            std::span<const char> data(&_binary_res_help_proxy_txt_start, &_binary_res_help_proxy_txt_end - &_binary_res_help_proxy_txt_start);
+            file.insert(file.begin(), data.begin(), data.end());
+        }
+        break;
 		case IDR_HELP_PLATFORM:
         {
             std::span<const char> data(&_binary_res_help_nix_txt_start, &_binary_res_help_nix_txt_end-&_binary_res_help_nix_txt_start);
@@ -234,6 +240,11 @@ bool commandline::help() const
 				Print(load_res(IDR_HELP_HANDLER));
 				return true;
 			}
+            if (parar_[2] == MAKEFN("proxy"))
+            {
+                Print(load_res(IDR_HELP_PROXY));
+                return true;
+            }
 
 		}
 
@@ -247,9 +258,7 @@ bool commandline::help() const
 
 FN commandline::path_config() const
 {
-	signed_t ci = tools::find(parar_, MAKEFN("conf"));
-
-	if (ci > 0 && (size_t)(ci + 1) < parar_.size())
+	if (signed_t ci = tools::find(parar_, MAKEFN("conf")); ci > 0 && (size_t)(ci + 1) < parar_.size())
 	{
 		FN pc(parar_[ci+1]);
 		path_simplify(pc);

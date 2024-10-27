@@ -7,7 +7,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for proxy [%s]; type {imconee help proxy} for more information", str::printable(name));
+		LOG_E("{type} not defined for proxy [%s]; type {proxtopus help proxy} for more information", str::printable(name));
 		return nullptr;
 	}
 
@@ -44,7 +44,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 		return p;
 	}
 
-	LOG_E("unknown {type} [%s] for proxy [%s]; type {imconee help proxy} for more information", str::printable(t), str::printable(name));
+	LOG_E("unknown {type} [%s] for proxy [%s]; type {proxtopus help proxy} for more information", str::printable(t), str::printable(name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 
 	return nullptr;
@@ -139,8 +139,7 @@ proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :
 {
 
 	str::astr pwd, user = bb.get_string(ASTR("auth"));
-	size_t dv = user.find(':');
-	if (dv != user.npos)
+	if (size_t dv = user.find(':'); dv != user.npos)
 	{
 		pwd = user.substr(dv + 1);
 		user.resize(dv);
@@ -303,75 +302,112 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 	return pipe_to_proxy;
 }
 
-class udp_via_socks5 : public netkit::udp_pipe
+namespace
 {
-	const proxy_socks5* basedon;
-	netkit::udp_pipe* transport;
-	netkit::endpoint udpassoc;
-	netkit::pipe_ptr pipe2s;
-public:
-
-	udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, const netkit::endpoint &udpassoc, netkit::pipe_ptr pipe2s):basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
+	class udp_via_socks5 : public netkit::udp_pipe
 	{
-	}
+		const proxy_socks5* basedon;
+		netkit::udp_pipe* transport;
+		netkit::endpoint udpassoc;
+		netkit::pipe_ptr pipe2s;
+	public:
 
-	// Inherited via udp_pipe
-	netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg) override
-	{
-		if (!pipe2s->alive())
+		udp_via_socks5(const proxy_socks5* basedon, netkit::udp_pipe* transport, const netkit::endpoint& udpassoc, netkit::pipe_ptr pipe2s) :basedon(basedon), transport(transport), udpassoc(udpassoc), pipe2s(pipe2s)
 		{
-			if (!basedon->prepare_udp_assoc(udpassoc, pipe2s, false))
-				return netkit::ior_timeout;
 		}
 
-		auto prepare_header = [](u8* packet, const netkit::endpoint &ep)
+		netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg) override
+		{
+			if (!pipe2s->alive())
 			{
-				netkit::pgen pgx(packet, 512);
-				pgx.push16(0); // RSV
-				pgx.push8(0); // FRAG
+				if (!basedon->prepare_udp_assoc(udpassoc, pipe2s, false))
+					return netkit::ior_timeout;
+			}
 
-				proxy_socks5::push_atyp(pgx, ep);
-			};
+			auto prepare_header = [](u8* packet, const netkit::endpoint& ep)
+				{
+					netkit::pgen pgx(packet, 512);
+					pgx.push16(0); // RSV
+					pgx.push8(0); // FRAG
+
+					proxy_socks5::push_atyp(pgx, ep);
+				};
 
 #ifdef _DEBUG
-		LOG_I("udp via proxy request (%s)", toaddr.desc().c_str());
+			LOG_I("udp via proxy request (%s)", toaddr.desc().c_str());
 #endif
-		signed_t presize = proxy_socks5::atyp_size(toaddr) + 3 /* 3 octets is: RSV and FRAG (see prepare_header) */;
-		if (presize <= pg.pre)
-		{
-			// pg has extra space before packet! so, we can use it for udp header for socks server
-			netkit::endpoint epc = toaddr;
-			netkit::pgen pgh(const_cast<u8 *>(pg.to_span().data()) - presize, pg.sz + presize);
-			prepare_header(pgh.get_data(), epc);
-			return transport->send(udpassoc, pgh);
-		}
-
-		u8 *packet = (u8*)_alloca(presize + pg.sz);
-		prepare_header(packet, toaddr);
-		memcpy(packet + presize, pg.to_span().data(), pg.sz);
-		return transport->send(udpassoc, netkit::pgen(packet, presize + pg.sz));
-	}
-	netkit::io_result recv(netkit::pgen& pg, signed_t max_bufer_size) override
-	{
-		pg.set_pre(0);
-		netkit::io_result r = transport->recv(pg, max_bufer_size);
-		if (netkit::ior_ok == r)
-		{
-			switch (pg.get_data()[3])
+			signed_t presize = proxy_socks5::atyp_size(toaddr) + 3 /* 3 octets is: RSV and FRAG (see prepare_header) */;
+			if (presize <= pg.extra)
 			{
-			case 1:
-				pg.set_pre(10);
-				break;
-			case 4:
-				pg.set_pre(22);
-				break;
-			default:
-				return netkit::ior_proxy_fail;
+				// pg has extra space before packet! so, we can use it for udp header for socks server
+				netkit::endpoint epc = toaddr;
+				netkit::pgen pgh(const_cast<u8*>(pg.get_data()) - presize, pg.sz + presize);
+				prepare_header(pgh.get_data(), epc);
+				return transport->send(udpassoc, pgh);
 			}
+
+			u8* packet = (u8*)_alloca(presize + pg.sz);
+			prepare_header(packet, toaddr);
+			memcpy(packet + presize, pg.to_span().data(), pg.sz);
+			return transport->send(udpassoc, netkit::pgen(packet, presize + pg.sz));
 		}
-		return r;
+		netkit::io_result recv(netkit::ipap& from, netkit::pgen& pg, signed_t max_bufer_size) override
+		{
+			pg.set_extra(0);
+			netkit::io_result r = transport->recv(from, pg, max_bufer_size);
+			if (netkit::ior_ok == r)
+			{
+				pg.ptr = 2; // skip RSV(2)
+
+				u8 frag = pg.read8();
+				if (frag != 0)
+					return netkit::ior_proxy_fail; // fragmetation not supported yet
+
+				netkit::endpoint ep;
+				if (!proxy_socks5::read_atyp(pg, ep))
+					return netkit::ior_proxy_fail;
+				from = ep.resolve_ip(glb.cfg.ipstack | conf::gip_any);
+				pg.set_extra(pg.ptr);
+			}
+			return r;
+		}
+	};
+}
+
+bool proxy_socks5::read_atyp(netkit::pgen& pg, netkit::endpoint& addr)
+{
+	switch (pg.read8())
+	{
+	case 1:
+		if (const u8* p = pg.read(6))
+		{
+			addr.read(p, 6);
+		}
+		else
+			return false;
+		break;
+	case 3:
+		if (u8 sl = pg.read8(); const u8* p = pg.read(sl))
+        {
+            addr.set_domain(str::astr_view((const char*)p, sl));
+			addr.set_port(pg.read16());
+		} else
+			return false;
+        break;
+
+	case 4:
+		if (const u8* p = pg.read(18))
+		{
+			addr.read(p, 6);
+		}
+		else
+			return false;
+		break;
 	}
-};
+
+	return true;
+
+}
 
 void proxy_socks5::push_atyp(netkit::pgen& pg, const netkit::endpoint& addr2)
 {

@@ -8,7 +8,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for handler of listener [%s]; type {imconee help handler} for more information", str::printable(owner->get_name()));
+		LOG_E("{type} not defined for handler of listener [%s]; type {proxtopus help handler} for more information", str::printable(owner->get_name()));
 		return nullptr;
 	}
 
@@ -21,7 +21,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 	{
 		if (st != netkit::ST_TCP)
         {
-		err:
+		//err:
 			ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
             LOG_E("{%s} handler can only be used with TCP type of listener [%s]", t.c_str(), str::printable(owner->get_name()));
             return nullptr;
@@ -31,10 +31,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 	}
 	else if (ASTR("shadowsocks") == t)
 	{
-		if (st != netkit::ST_TCP)
-			goto err;
-
-		h = new handler_ss(ldr, owner, bb);
+		h = new handler_ss(ldr, owner, bb, st);
 	}
 
 	if (h != nullptr)
@@ -47,26 +44,48 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 		return h;
 	}
 
-	LOG_E("unknown {type} [%s] for handler of lisnener [%s]; type {imconee help handler} for more information", str::printable(t), str::printable(owner->get_name()));
+	LOG_E("unknown {type} [%s] for handler of lisnener [%s]; type {proxtopus help handler} for more information", str::printable(t), str::printable(owner->get_name()));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 	return nullptr;
 }
 
 handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 {
-	str::astr pch = bb.get_string(ASTR("proxychain"));
+	const proxy* p = nullptr;
+	str::astr pch = bb.get_string(ASTR("udp-proxy"));
+    if (!pch.empty())
+    {
+        p = ldr.find_proxy(pch);
+        if (p == nullptr)
+        {
+        per:
+            LOG_E("unknown {proxy} [%s] for handler of lisnener [%s]", pch.c_str(), str::printable(owner->get_name()));
+            ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
+            return;
+        }
+
+        if (!p->support(netkit::ST_UDP))
+        {
+            ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
+            LOG_E("upstream {proxy} [%s] does not support UDP protocol (listener: [%s])", pch.c_str(), str::printable(owner->get_name()));
+            return;
+        }
+
+        udp_proxy = p;
+    }
+
+	pch = bb.get_string(ASTR("proxychain"));
 	if (!pch.empty())
 	{
 		TFORa(tkn, pch, ',')
 		{
-			const proxy* p = ldr.find_proxy(*tkn);
+			p = ldr.find_proxy(*tkn);
 			if (p == nullptr)
 			{
-				LOG_E("unknown {proxy} [%s] for handler of lisnener [%s]", str::astr(*tkn).c_str(), str::printable(owner->get_name()));
-				ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
-				return;
+				pch = *tkn;
+				goto per;
 			}
-			proxychain.push_back(p);
+            proxychain.push_back(p);
 		}
 	}
 }
@@ -530,14 +549,15 @@ void handler::tcp_processing_thread::close()
 
 void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 {
-	std::array<u8, 65536> packet;
+	std::array<u8, 65535> packet;
 	netkit::pgen pg(packet.data(), packet.max_size());
-	cutoff_time = chrono::ms() + timeout;
+	if (auto to = h->udp_timeout(); to > 0)
+		cutoff_time = chrono::ms() + to;
 
 	netkit::udp_pipe* pipe = this;
     std::unique_ptr<netkit::udp_pipe> proxypipe;
 
-	if (prx)
+	if (const proxy *prx = h->udp_proxy)
 	{
 		proxypipe = prx->prepare(this);
 		pipe = proxypipe.get();
@@ -573,20 +593,25 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 		}
     }
 
+	netkit::ipap from;
 	for (;;)
 	{
-		pg.set_pre(0);
-		auto ior = pipe->recv(pg, packet.max_size());
+		pg.set_extra(32);
+		auto ior = pipe->recv(from, pg, packet.max_size()-32);
 		if (ior != netkit::ior_ok)
 		{
 			if (ior == netkit::ior_timeout && !is_timeout(chrono::ms()))
 				continue;
 			break;
 		}
+		if (!h->encode_packet(handler_state, from, pg))
+			break;
 		if (!hashkey.sendto(initiator, pg.to_span()))
 			break;
 
-		cutoff_time = chrono::ms() + timeout;
+        if (auto to = h->udp_timeout(); to > 0)
+            cutoff_time = chrono::ms() + to;
+
 	}
 
 	sendor = nullptr;
@@ -596,9 +621,9 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 {
 	return netkit::udp_send(ts, toaddr, pg);
 }
-/*virtual*/ netkit::io_result handler::udp_processing_thread::recv(netkit::pgen& pg, signed_t max_bufer_size)
+/*virtual*/ netkit::io_result handler::udp_processing_thread::recv(netkit::ipap &from, netkit::pgen& pg, signed_t max_bufer_size)
 {
-	return netkit::udp_recv(ts, pg, max_bufer_size);
+	return netkit::udp_recv(ts, from, pg, max_bufer_size);
 }
 
 
@@ -631,6 +656,55 @@ void handler::stop()
 	}
 }
 
+void handler::on_udp(netkit::socket& lstnr, netkit::udp_packet& p)
+{
+    ptr::shared_ptr<udp_processing_thread> wt;
+
+    release_udps();
+    auto rslt = udp_pth.insert(std::pair(p.from, nullptr));
+
+    if (!rslt.second)
+    {
+        wt = rslt.first->second; // already exist, return it
+
+        if (wt != nullptr)
+            wt->update_cutoff_time();
+    }
+
+    bool new_thread = false;
+    //netkit::ipap tgtip;
+
+	netkit::endpoint ep;
+	netkit::pgen pg;
+	netkit::thread_storage hss;
+	netkit::thread_storage* hs = wt ? wt->geths() : &hss;
+	if (!handle_packet(*hs, p, ep, pg))
+		return;
+
+    if (wt == nullptr)
+    {
+        wt = new udp_processing_thread(this, std::move(hss), p.from);
+        rslt.first->second = wt;
+
+        std::thread th(&handler::udp_worker, this, &lstnr, wt.get());
+        th.detach();
+        new_thread = true;
+    }
+
+    wt->convey(pg, ep);
+
+	if (new_thread)
+		log_new_udp_thread(p.from, ep);
+}
+
+void handler::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
+{
+    ptr::shared_ptr<udp_processing_thread> lock(udp_wt); // lock
+    // handle answers
+    udp_wt->udp_bridge(lstnr->s);
+    release_udp(udp_wt);
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -652,22 +726,6 @@ handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, net
 	if (netkit::ST_UDP == st)
     {
         udp_timeout_ms = bb.get_int(ASTR("udp-timeout"), udp_timeout_ms);
-		if (proxychain.size() > 1)
-		{
-            ldr.exit_code = EXIT_FAIL_PROXY_CHAIN;
-            LOG_E("proxy chains of more than one node are not supported for the UDP protocol (listener: [%s])", str::printable(owner->get_name()));
-            return;
-		}
-		if (proxychain.size() == 1)
-		{
-			const proxy* p = proxychain[0];
-			if (!p->support(netkit::ST_UDP))
-			{
-                ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
-                LOG_E("upstream proxy does not support UDP protocol (listener: [%s])", str::printable(owner->get_name()));
-                return;
-			}
-		}
 	}
 }
 
@@ -677,68 +735,45 @@ void handler_direct::on_pipe(netkit::pipe* pipe)
 	th.detach();
 }
 
-void handler_direct::on_udp(netkit::socket& lstnr, netkit::udp_packet& p)
+/*virtual*/ void handler_direct::log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to)
 {
-	ptr::shared_ptr<udp_processing_thread> wt;
-	
-	release_udps();
-	auto rslt = udp_pth.insert(std::pair(p.from, nullptr));
+    LOG_N("new UDP mapping (%s <-> %s) via listener [%s]", from.to_string(true).c_str(), to.desc().c_str(), str::printable(owner->get_name()));
+}
 
-	if (!rslt.second)
-	{
-		wt = rslt.first->second; // already exist, return it
-		
-		if (wt != nullptr)
-			wt->update_cutoff_time();
-	}
+/*virtual*/ bool handler_direct::handle_packet(netkit::thread_storage& /*ctx*/, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg)
+{
+    if (ep.state() == netkit::EPS_EMPTY)
+    {
+        ep.preparse(to_addr);
 
-    bool new_thread = false;
-    netkit::ipap tgtip;
-	if (wt == nullptr)
-	{
-		if (ep.state() == netkit::EPS_EMPTY)
-		{
-			ep.preparse(to_addr);
+        if (ep.state() == netkit::EPS_DOMAIN)
+        {
+            if (!proxychain.empty())
+            {
+                // keep unresolved, resolve via proxy
+            }
+            else
+            {
+                // try resolve
+                ep.resolve_ip(glb.cfg.ipstack | conf::gip_log_it);
+                if (ep.state() != netkit::EPS_RESLOVED)
+                {
+                cant:
+                    ep = netkit::endpoint();
+                    LOG_E("failed UDP mapping: can't use endpoint %s (listener [%s])", to_addr.c_str(), str::printable(owner->get_name()));
+                    return false;
+                }
+            }
+        }
 
-			if (ep.state() == netkit::EPS_DOMAIN)
-			{
-				if (!proxychain.empty())
-				{
-					// keep unresolved, resolve via proxy
-				}
-				else
-				{
-					// try resolve
-					ep.resolve_ip(glb.cfg.ipstack | conf::gip_log_it);
-					if (ep.state() != netkit::EPS_RESLOVED)
-					{
-					cant:
-						ep = netkit::endpoint();
-                        LOG_E("failed UDP mapping: can't use endpoint %s (listener [%s])", to_addr.c_str(), str::printable(owner->get_name()));
-                        return;
-					}
-				}
-			}
+        if (ep.port() == 0)
+            goto cant;
+    }
 
-			if (ep.port() == 0)
-				goto cant;
-		}
+    epr = ep;
+	pg.set(p, 0);
 
-		wt = new udp_processing_thread(proxychain.empty() ? nullptr : proxychain[0], udp_timeout_ms, p.from /*, tgtip.v4*/);
-		rslt.first->second = wt;
-
-		std::thread th(&handler_direct::udp_worker, this, &lstnr, wt.get());
-		th.detach();
-        new_thread = true;
-	}
-
-	wt->convey(p, ep);
-
-	if (new_thread)
-	{
-		LOG_N("new UDP mapping (%s <-> %s) via listener [%s]", p.from.to_string(true).c_str(), ep.desc().c_str(), str::printable(owner->get_name()));
-	}
-
+	return true;
 }
 
 void handler::udp_processing_thread::close()
@@ -746,13 +781,12 @@ void handler::udp_processing_thread::close()
 
 }
 
-void handler::udp_processing_thread::convey(netkit::udp_packet& p, const netkit::endpoint& tgt)
+void handler::udp_processing_thread::convey(netkit::pgen& p, const netkit::endpoint& tgt)
 {
     if (sendor)
     {
         // send now
-        netkit::pgen spg(p.packet, p.sz, 0);
-        sendor->send(tgt, spg);
+        sendor->send(tgt, p);
         return;
     }
 
@@ -764,15 +798,6 @@ void handler::udp_processing_thread::convey(netkit::udp_packet& p, const netkit:
     else {
         sb().emplace();
     }
-}
-
-void handler_direct::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
-{
-	ptr::shared_ptr<udp_processing_thread> lock(udp_wt); // lock
-
-	// handle answers
-	udp_wt->udp_bridge(lstnr->s);
-	release_udp(udp_wt);
 }
 
 void handler_direct::tcp_worker(netkit::pipe* pipe)
@@ -795,32 +820,42 @@ void handler_direct::tcp_worker(netkit::pipe* pipe)
 
 handler_socks::handler_socks(loader& ldr, listener* owner, const asts& bb, const str::astr_view& st) :handler(ldr, owner, bb)
 {
-	userid = bb.get_string(ASTR("userid"));
-
-	login = bb.get_string(ASTR("auth"));
-	size_t dv = login.find(':');
-	if (dv != login.npos)
-	{
-		pass = login.substr(dv + 1);
-		login.resize(dv);
-	}
-
-	if (login.length() > 254 || pass.length() > 254)
-	{
-		login.clear();
-		pass.clear();
-	}
-
-	if (login.empty() || bb.get_bool(ASTR("anon")))
-	{
-		socks5_allow_anon = true;
-	}
-
 	if (st == ASTR("4"))
 		allow_5 = false;
 	if (st == ASTR("5"))
 		allow_4 = false;
 
+	if (allow_4)
+	{
+        userid = bb.get_string(ASTR("userid"));
+	}
+
+    if (allow_5)
+    {
+        login = bb.get_string(ASTR("auth"));
+        size_t dv = login.find(':');
+        if (dv != login.npos)
+        {
+            pass = login.substr(dv + 1);
+            login.resize(dv);
+        }
+
+        if (login.length() > 254 || pass.length() > 254)
+        {
+            login.clear();
+            pass.clear();
+        }
+
+		if (login.empty() || bb.get_bool(ASTR("anon")))
+			socks5_allow_anon = true;
+
+		allow_udp_assoc = bb.get_bool(ASTR("udp-assoc"), true);
+
+        str::astr bs = bb.get_string(ASTR("udp-bind"));
+		udp_bind = netkit::ipap::parse(bs);
+    }
+
+	
 }
 
 void handler_socks::on_pipe(netkit::pipe* pipe)
@@ -913,10 +948,99 @@ void handler_socks::handshake4(netkit::pipe* pipe)
 
 namespace
 {
+	class udp_assoc_handler : public handler
+	{
+		netkit::ipap bind;
+		netkit::pipe_ptr pipe;
+
+		str::astr desc() const override { return str::astr(); }
+
+		/*virtual*/ bool handle_packet(netkit::thread_storage& /*ctx*/, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg) override
+		{
+			// udp assoc packet from initiator
+            //  +-----+------+-------------
+            //  | RSV | FRAG | ATYP... 
+            //  +-----+------+-------------
+            //  |  2  |  1   | Variable...    
+            //  +-----+------+-------------
+
+			netkit::pgen pgr(p.packet, p.sz);
+			if (0 != pgr.read16()) // RSV, must be 0
+				return false;
+
+			if (0 != pgr.read8()) // FRAG, must be 0: fragmentation not supported yet
+                return false;
+
+			if (!proxy_socks5::read_atyp(pgr, epr))
+				return false;
+
+			pg.set(p, pgr.ptr);
+			return true;
+		}
+        /*virtual*/ bool encode_packet(netkit::thread_storage& /*ctx*/, const netkit::ipap &from, netkit::pgen& pg) override
+        {
+            auto prepare_header = [](u8* packet, const netkit::endpoint& ep)
+                {
+                    netkit::pgen pgx(packet, 512);
+                    pgx.push16(0); // RSV
+                    pgx.push8(0); // FRAG
+
+                    proxy_socks5::push_atyp(pgx, ep);
+                };
+
+
+			netkit::endpoint fep(from);
+			signed_t presize = proxy_socks5::atyp_size(fep) + 3 /* 3 octets is: RSV and FRAG (see prepare_header) */;
+			if (presize <= pg.extra)
+			{
+                netkit::pgen pgh(pg.get_data() - presize, pg.sz + presize);
+				pgh.extra = tools::as_word(pg.extra - presize);
+                prepare_header(pgh.get_data(), fep);
+				pg = pgh;
+				return true;
+			}
+
+			if (!pg.sz || pg.sz > 65535 - presize)
+				return false;
+
+			signed_t e = pg.extra;
+			signed_t osz = pg.sz;
+			pg.set_extra(0);
+			memmove(pg.get_data() + presize, pg.get_data() + e, osz);
+			prepare_header(pg.get_data(), netkit::ipap());
+			return true;
+        }
+        /*virtual*/ signed_t udp_timeout() const override
+        {
+            return 0; // infinite because udp assoc keeps the connection until the tcp connection is disconnected
+        }
+        /*virtual*/ void on_listen_port(signed_t port) override
+		{
+            u8 rp[512];
+
+            rp[0] = 5; // VER
+            rp[1] = 0; // SUCCESS
+            rp[2] = 0;
+
+			netkit::pgen pg(rp + 3, 512 - 3);
+			netkit::endpoint ep(bind);
+			ep.set_port(port);
+			proxy_socks5::push_atyp(pg, ep);
+            pipe->send(rp, pg.ptr+3);
+		}
+	public:
+        udp_assoc_handler(const netkit::ipap& bind, netkit::pipe* pipe) :bind(bind), pipe(pipe) {}
+	};
+
+	/*
     class udp_assoc_listener : public udp_listener
     {
-
+	public:
+		udp_assoc_listener(const netkit::ipap& bind, handler *h) :udp_listener(bind, h)
+		{
+		}
     };
+	*/
 
 }
 
@@ -1005,31 +1129,46 @@ void handler_socks::handshake5(netkit::pipe* pipe)
 		return;
 	}
 
-	if (packet[1] == 3 /* udp assoc */)
+	if (allow_udp_assoc && packet[1] == 3 /* UDP ASSOC */)
 	{
 		// skip addr and port
 		switch (packet[3])
 		{
         case 1: // ip4
             rb = pipe->recv(packet + 5, -3-2);
-            if (rb != 3)
+            if (rb != 5)
                 return;
             break;
         case 3: // domain name
 
-            numauth = packet[4]; // len of domain
-            rb = pipe->recv(packet, -numauth-2);
+            numauth = packet[4] + 2; // len of domain
+            rb = pipe->recv(packet, -numauth);
             if (rb != numauth)
                 return;
             break;
 
         case 4: // ipv6
             rb = pipe->recv(packet + 5, -15-2); // read 15 of 16 bytes of ipv6 address (1st byte already read) and 2 bytes port
-            if (rb != 15)
+            if (rb != 17)
                 return;
             break;
 		}
-		//udp_assoc_listener udpl;
+
+		udp_assoc_handler udph(udp_bind, pipe);
+		udp_listener udpl(udp_bind, &udph);
+		udpl.open();
+
+		for (;;)
+        {
+			u8 garbage[512];
+			auto rslt = netkit::wait(pipe->get_waitable(), -1);
+			if (rslt == netkit::WR_CLOSED)
+				break;
+			if (rslt == netkit::WR_READY4READ)
+				pipe->recv(garbage, sizeof(garbage));
+		}
+
+		udpl.stop();
 		return;
 	}
 

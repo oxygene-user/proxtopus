@@ -7,7 +7,7 @@ global_data glb;
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "Ws2_32.lib")
 
-#define SERVICENAME WSTR("imconee")
+#define SERVICENAME WSTR("proxtopus")
 
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 void set_unhandled_exception_filter();
@@ -17,7 +17,7 @@ static BOOL WINAPI consoleHandler(DWORD signal)
 {
 	if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
 	{
-		LOG_I("imconeee has been received stop signal");
+		LOG_I("proxtopuse has been received stop signal");
 		glb.stop();
 	}
 	return TRUE;
@@ -32,7 +32,7 @@ static void handle_signal(int sig) {
     {
         case SIGINT:
         case SIGTERM:
-		LOG_I("imconeee has been received stop signal");
+		LOG_I("proxtopuse has been received stop signal");
 		engine::stop();
 
         struct termios t;
@@ -56,7 +56,7 @@ static void shapka()
 #endif
 
 
-	Print("Imconee v0.4 (build " __DATE__ " " __TIME__ ")\n");
+	Print("proxtopus v0.4 (build " __DATE__ " " __TIME__ ")\n");
 	Print();
 }
 
@@ -278,7 +278,7 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 			return error_openmgr();
 		}
 
-		str::wstr dn(WSTR("Imconee service"));
+		str::wstr dn(WSTR("proxtopus service"));
 		FN snas(MAKEFN("\"")); snas.append(get_exec_full_name()); snas.append(MAKEFN("\" service"));
 
 		sch = CreateServiceW(sch, sn.c_str(), dn.c_str(), GENERIC_EXECUTE, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_IGNORE, snas.c_str(), nullptr, nullptr, nullptr, nullptr, nullptr);

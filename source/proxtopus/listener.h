@@ -20,6 +20,7 @@ public:
 #endif // _DEBUG
 
 	listener(loader& ldr, const str::astr& name, const asts& bb);
+	listener(handler* h) { hand.reset(h); h->owner = this; }
 	virtual ~listener() {}
 
 	virtual void open() = 0;
@@ -45,24 +46,24 @@ class socket_listener : public listener
 
 	struct statestruct
 	{
-		netkit::ipap bind;
 		state_stage stage = IDLE;
 		bool need_stop = false;
+		u8 dummy[6];
 	};
 
-	static_assert(sizeof(statestruct) == 24);
+	static_assert(sizeof(statestruct) == 8);
 
 protected:
 	spinlock::syncvar<statestruct> state;
+    netkit::ipap bind;
 	void acceptor();
-	virtual void accept_impl(const netkit::ipap& bind2) = 0;
+	virtual void accept_impl() = 0;
 	NIXONLY(virtual void kick_socket()=0);
 public:
 
 	socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type st);
+	socket_listener(const netkit::ipap &bind, handler *h);
 	/*virtual*/ ~socket_listener() {}
-
-	void prepare(const netkit::ipap& bind2);
 
 	/*virtual*/ void open() override;
 	/*virtual*/ void stop() override;
@@ -75,7 +76,7 @@ class tcp_listener : public socket_listener
 	netkit::waitable_socket sock;
 
 protected:
-	/*virtual*/ void accept_impl(const netkit::ipap& bind2) override;
+	/*virtual*/ void accept_impl() override;
 	NIXONLY(virtual void kick_socket());
 
 public:
@@ -95,11 +96,11 @@ class udp_listener : public socket_listener
 	netkit::socket sock;
 
 protected:
-	virtual void accept_impl(const netkit::ipap& bind2);
-
+	/*virtual*/ void accept_impl() override;
 public:
 
 	udp_listener(loader& ldr, const str::astr& name, const asts& bb);
+	udp_listener(const netkit::ipap& bind, handler* h);
 	/*virtual*/ ~udp_listener() {}
 
 	/*virtual*/ void close(bool fbc) override

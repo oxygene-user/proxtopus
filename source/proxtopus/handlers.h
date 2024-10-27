@@ -27,6 +27,7 @@ public:
 
 class handler
 {
+	friend class listener;
 protected:
 
 	struct bridged
@@ -211,35 +212,41 @@ protected:
 
 	class udp_processing_thread : public netkit::udp_pipe, public ptr::sync_shared_object
 	{
-		netkit::thread_storage ts; // for udp send
+		handler* h = nullptr;
+		netkit::thread_storage ts; // for udp connection to 2nd peer
+		netkit::thread_storage handler_state; // internal per-thread handler's state
 		netkit::ipap hashkey;
 		signed_t cutoff_time = 0;
-		signed_t timeout = 5000;
-		const proxy* prx = nullptr;
 		spinlock::syncvar<tools::fifo<sdptr>> sendb;
 		netkit::udp_pipe *sendor = nullptr;
 
 	public:
 
-		udp_processing_thread(const proxy* prx, signed_t timeout, const netkit::ipap & k /*, bool v4*/):prx(prx), timeout(timeout), hashkey(k)
+		udp_processing_thread(handler *h, netkit::thread_storage &&hs, const netkit::ipap & k):h(h), hashkey(k), handler_state(std::move(hs))
 		{
-			//udp_prepare(ts, v4);
+			update_cutoff_time();
 		}
 		const netkit::ipap& key() const
 		{
 			return hashkey;
 		}
 
+		netkit::thread_storage* geths()
+		{
+			return &handler_state;
+		}
+
 		void update_cutoff_time()
 		{
-			cutoff_time = chrono::ms() + timeout;
+			auto to = h->udp_timeout();
+			cutoff_time = to == 0 ? 0 : chrono::ms() + to;
 		}
 		void close();
 
-		void convey(netkit::udp_packet &p, const netkit::endpoint& tgt);
+		void convey(netkit::pgen &p, const netkit::endpoint& tgt);
 
 		/*virtual*/ netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg) override;
-		/*virtual*/ netkit::io_result recv(netkit::pgen& pg, signed_t max_bufer_size) override;
+		/*virtual*/ netkit::io_result recv(netkit::ipap& from, netkit::pgen& pg, signed_t max_bufer_size) override;
 
 		bool is_timeout( signed_t curtime ) const
 		{
@@ -256,6 +263,7 @@ protected:
 
 	listener* owner;
 	std::vector<const proxy*> proxychain;
+	const proxy* udp_proxy = nullptr;
 
 	volatile bool need_stop = false;
 
@@ -265,9 +273,47 @@ protected:
 	void release_udps(); // must be called from listener thread
 	void release_udp(udp_processing_thread *udp_wt);
 	void release_tcp(tcp_processing_thread* udp_wt);
+	void udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt);
+
+	/*
+	* 
+	*   handle udp request: initiator -> handler -> remote
+	* 
+	*   p (in/modif) - packet from initiator, can be modified
+	*   ep (out) - address of remote
+	*   pg (out) - packet to send to remote (refs to p.packet)
+	* 
+	*/
+	virtual bool handle_packet(netkit::thread_storage& /*ctx*/, netkit::udp_packet& /*p*/, netkit::endpoint& /*ep*/, netkit::pgen& /*pg*/)
+	{
+		return false;
+	}
+	
+	/*
+	*
+	*   handle udp answer: initiator <- handler <- remote
+	*
+	*   ctx (in) - context of handler per thread (created in handle_packet)
+	*   from (in) - packet source
+	*   pg (in/out) - packet, received from remote; modified (or not modified) one will be send to initiator
+	*
+	*   return false to stop bridging of current udp stream
+	*/
+	virtual bool encode_packet(netkit::thread_storage& /*ctx*/, const netkit::ipap& /*from*/, netkit::pgen& /*pg*/)
+    {
+        return true;
+    }
+
+	virtual signed_t udp_timeout() const // ms
+	{
+		return 10000;
+	}
+	virtual void log_new_udp_thread(const netkit::ipap& /*from*/, const netkit::endpoint& /*to*/) {}
+
 
 public:
 	handler(loader& ldr, listener* owner, const asts& bb);
+	handler() {}
 	virtual ~handler() { stop(); }
 
 	void stop();
@@ -287,11 +333,8 @@ public:
 		delete pipe; 
 	}
 
-	virtual void on_udp(netkit::socket &, netkit::udp_packet& )
-	{
-		// do nothing by default
-	}
-
+    virtual void on_udp(netkit::socket&, netkit::udp_packet&);
+    virtual void on_listen_port(signed_t /*port*/) {} // callback on listen port
 
 	static handler* build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type st);
 };
@@ -303,8 +346,16 @@ class handler_direct : public handler // just port mapper
 	netkit::endpoint ep; // only accessed from listener thread
 
 	void tcp_worker(netkit::pipe* pipe); // sends all from pipe to out connection
-	void udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt);
-	signed_t udp_timeout_ms = 5000;
+	signed_t udp_timeout_ms = 10000;
+
+protected:
+	/*virtual*/ bool handle_packet(netkit::thread_storage& ctx, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg) override;
+    /*virtual*/ signed_t udp_timeout() const override
+    {
+        return udp_timeout_ms;
+    }
+	/*virtual*/ void log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to) override;
+
 
 public:
 	handler_direct( loader &ldr, listener* owner, const asts& bb, netkit::socket_type st );
@@ -317,7 +368,6 @@ public:
 	}
 
 	/*virtual*/ void on_pipe(netkit::pipe* pipe) override;
-	/*virtual*/ void on_udp(netkit::socket& lstnr, netkit::udp_packet& p) override;
 };
 
 class handler_socks : public handler // socks4 and socks5
@@ -331,11 +381,13 @@ class handler_socks : public handler // socks4 and socks5
 
 	str::astr userid; // for socks4
 	str::astr login, pass; // for socks5
+	netkit::ipap udp_bind;
 
 	bool socks5_allow_anon = false;
 	
 	bool allow_4 = true;
 	bool allow_5 = true;
+	bool allow_udp_assoc = true;
 
 	void handshake4(netkit::pipe* pipe);
 	void handshake5(netkit::pipe* pipe);

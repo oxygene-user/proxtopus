@@ -268,7 +268,7 @@ namespace netkit
 			return !v4 ? reinterpret_cast<const u16*>(&ipv6) : nullptr;
 		}
 
-		str::astr to_string(bool with_port) const
+		str::astr to_string(signed_t logport) const
 		{
 			if (const u8 *octs = octets())
 			{
@@ -276,16 +276,16 @@ namespace netkit
 				s.push_back('.'); s.append(std::to_string(octs[1]));
 				s.push_back('.'); s.append(std::to_string(octs[2]));
 				s.push_back('.'); s.append(std::to_string(octs[3]));
-				if (with_port)
+				if (logport > 0)
 				{
 					s.push_back(':');
-					s.append(std::to_string(port));
+					s.append(std::to_string(logport));
 				}
 				return s;
 			}
 			if (const u16* ww = words())
 			{
-				str::astr s; if (with_port) s.push_back('[');
+				str::astr s; if (logport > 0) s.push_back('[');
 
 				bool col = false, clp = false;
 				bool needz = false;
@@ -318,15 +318,19 @@ namespace netkit
 
 				}
 
-				if (with_port)
+				if (logport > 0)
 				{
 					s.append(ASTR("]:"));
-					s.append(std::to_string(port));
+					s.append(std::to_string(logport));
 				}
 				return s;
 			}
 
 			UNREACHABLE();
+		}
+		str::astr to_string(bool with_port) const
+		{
+			return to_string(with_port ? (signed_t)port : (signed_t)0);
 		}
 
 		bool copmpare(const ipap& a) const // compare address and port
@@ -552,7 +556,7 @@ namespace netkit
 
 		void preparse(const str::astr& addr);
 
-		void read(u8* packet, signed_t plen)
+		void read(const u8* packet, signed_t plen)
 		{
 			ipap::build(&ip, packet, plen);
 			state_ = EPS_RESLOVED;
@@ -652,7 +656,7 @@ namespace netkit
 		u8	packet[65536];
 		ipap from;
 		u16 sz = 0;
-		udp_packet(bool v4)
+		explicit udp_packet(bool v4)
 		{
 			from.v4 = v4;
 		}
@@ -834,36 +838,56 @@ namespace netkit
 	bool dnsresolve(const str::astr& host, ipap& addr, bool log_it);
 
 
-
+	/*
+	*   pgen is a wrapper for a byte array
+	*   does not own the array
+	* 
+	*   ptr - pointer to current write position; used for pushing data to array
+	*   sz - array size; maximum vaule for ptr;
+	*   extra - extra space before an array; can be used to insert some data before existing data
+	*/
 	class pgen
 	{
 		u8* data;
 
-		void use_pre(signed_t res) // res can be positive and negative
-		{
-			ASSERT(res > 0 ? pre >= res : (pre - res) <= sz);
-			pre = tools::as_word(pre - res);
-			data = data - res;
-			sz = tools::as_word(sz + res);
-		}
+        inline void shrink_extra(signed_t res) // positive res - shrink extra; negative res - expand extra
+        {
+            ASSERT(res > 0 ? extra >= res : (extra - res) <= sz);
+            extra = tools::as_word(extra - res);
+            data = data - res;
+            sz = tools::as_word(sz + res);
+			ptr = (res+ptr) < 0 ? 0 : tools::as_word(ptr + res);
+        }
 
 	public:
 		u16 ptr = 0;
-		u16 sz, pre = 0;
-		pgen(u8* data, signed_t sz, signed_t pre = 0) :data(data), sz(tools::as_word(sz)), pre(tools::as_word(pre)) {}
-		explicit pgen(std::span<const u8> data) :data(const_cast<u8 *>(data.data())), sz(tools::as_word(data.size())) {} // yeah, const hack
+		u16 sz, extra = 0; // "extra" is extra space before data
+		pgen(u8* data, signed_t sz, signed_t extra = 0) :data(data), sz(tools::as_word(sz)), extra(tools::as_word(extra)) {}
+		pgen():data(nullptr), sz(0) {}
 		~pgen() {
 		}
 
-		void set_pre(u16 reqpre)
+		inline void change_extra(signed_t res) // positive res - expand; negative res - shrink
 		{
-			if (reqpre == pre)
-				return;
-			signed_t delta = (signed_t)pre - (signed_t)reqpre;
-			use_pre(delta);
+			shrink_extra(-res);
 		}
 
-		void operator=(const udp_packet& p)
+		void set_extra(u16 req_extra)
+		{
+			if (req_extra == extra)
+				return;
+			signed_t delta = (signed_t)req_extra - (signed_t)extra;
+			change_extra(delta);
+		}
+
+		void set(udp_packet& p, signed_t offst)
+		{
+			data = p.packet + offst;
+			sz = ptr = tools::as_word(p.sz - offst);
+			extra = tools::as_word(offst);
+		}
+
+		void copy_from(const udp_packet& p)
 		{
 			memcpy(data, p.packet, p.sz);
 			sz = ptr = p.sz;
@@ -887,6 +911,10 @@ namespace netkit
 		{
 			return data;
 		}
+        const u8* get_data() const
+        {
+            return data;
+        }
 
 		str::astr_view str_view(signed_t ssz)
 		{
@@ -913,6 +941,12 @@ namespace netkit
 			return ptr + numb <= sz;
 		}
 
+        u8 read8()
+        {
+            ASSERT(enough(1));
+            return data[ptr++];
+        }
+
 		u16 read16()
 		{
 			ASSERT(enough(2));
@@ -927,10 +961,18 @@ namespace netkit
 			ptr += 4;
 			return rv;
 		}
+        const u8* read(signed_t rsz)
+        {
+			if (!enough(rsz))
+				return nullptr;
+			signed_t p = ptr;
+			ptr = tools::as_word(ptr + rsz);
+            return data + p;
+        }
 
 		template<typename T> const T* readstruct()
 		{
-			if (ptr + (signed_t)sizeof(T) > sz)
+			if (!enough(sizeof(T)))
 				return nullptr;
 			T* t = (T *)(data + ptr);
 			ptr += sizeof(T);
@@ -938,7 +980,7 @@ namespace netkit
 		}
 		template<typename T> T get()
 		{
-			if (ptr + (signed_t)sizeof(T) > sz)
+			if (!enough(sizeof(T)))
 				return (T)0;
 			T* t = (T*)(data + ptr);
 			ptr += sizeof(T);
@@ -947,6 +989,7 @@ namespace netkit
 
 		template<typename S> S & pushstruct()
 		{
+			ASSERT(enough(sizeof(S)));
 			memset(data + ptr, 0, sizeof(S));
 			S& s = *(S*)(data + ptr);
 			ptr += sizeof(S);
@@ -955,21 +998,25 @@ namespace netkit
 
 		void pusha(const u8* a, signed_t asz)
 		{
+			ASSERT(enough(asz));
 			memcpy(data + ptr, a, asz);
 			ptr += tools::as_word(asz);
 		}
 		void pushz(signed_t zsz)
 		{
+			ASSERT(enough(zsz));
 			memset(data + ptr, 0, zsz);
 			ptr += tools::as_word(zsz);
 		}
 
 		void push8(signed_t b)
 		{
+			ASSERT(enough(1));
 			data[ptr++] = (u8)b;
 		}
 		void push16(signed_t b) // push in big endiang order
 		{
+			ASSERT(enough(2));
 			data[ptr++] = (u8)((b >> 8) & 0xff); // high first
 			data[ptr++] = (u8)((b) & 0xff); // low second
 		}
@@ -1013,6 +1060,7 @@ namespace netkit
 		ior_general_fail,
 		ior_proxy_fail,
 		ior_send_failed,
+		ior_notresolved,
 		ior_timeout,
 	};
 
@@ -1022,12 +1070,12 @@ namespace netkit
 		virtual ~udp_pipe() {}
 
 		virtual io_result send(const endpoint &toaddr, const pgen& pg /* in */) = 0;
-		virtual io_result recv(pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/) = 0;
+		virtual io_result recv(netkit::ipap &from, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/) = 0;
 	};
 
 	void udp_prepare(thread_storage& ts, bool v4);
 	io_result udp_send(thread_storage& ts, const endpoint& toaddr, const pgen& pg /* in */);
-	io_result udp_recv(thread_storage& ts, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/);
+	io_result udp_recv(thread_storage& ts, netkit::ipap& from, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/);
 
 
 } // namespace netkit

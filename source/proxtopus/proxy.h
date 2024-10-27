@@ -61,6 +61,7 @@ public:
 	bool prepare_udp_assoc(netkit::endpoint & udp_assoc_ep, netkit::pipe_ptr &pip, bool log_fails) const;
 	static void push_atyp(netkit::pgen& pg, const netkit::endpoint& addr);
 	static signed_t atyp_size(const netkit::endpoint& addr); // including ATYP octet
+	static bool read_atyp(netkit::pgen& pg, netkit::endpoint& addr);
 
 };
 

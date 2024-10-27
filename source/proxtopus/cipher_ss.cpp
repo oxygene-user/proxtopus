@@ -55,7 +55,7 @@ void md5Hash(str::astr &out, const str::astr& in)
 	Botan::MD5 md5;
 	md5.update(in);
 	out.resize( md5.output_length() );
-	md5.final( str2span(out) );
+	md5.final( str::span(out) );
 }
 
 str::astr evpBytesToKey(unsigned keyLen, const str::astr& password)
@@ -74,11 +74,6 @@ str::astr evpBytesToKey(unsigned keyLen, const str::astr& password)
 	return mss;
 }
 
-void deriveAeadSubkey(buffer &skey, unsigned length, const str::astr& masterKey, const std::span<const u8>& salt)
-{
-	std::unique_ptr<Botan::KDF> kdf = std::make_unique<Botan::HKDF>(std::make_unique<Botan::HMAC>(std::make_unique<Botan::SHA_1>()));
-	skey = kdf->derive_key(length, str2span(masterKey), salt, str2span(ASTR("ss-subkey")));
-}
 
 std::unique_ptr<ss::core::cryptor> ss::core::make_aead_crypto_chachapoly()
 {
@@ -101,7 +96,11 @@ std::unique_ptr<ss::core::cryptor> ss::core::makeuncrypted()
 	return std::move(std::make_unique<none_cryptor>());
 }
 
-
+void ss::keyed_filter::update_key(std::span<const u8> key)
+{
+    mode->set_key(key);
+	iv.zeroise();
+}
 
 void ss::keyed_filter::setup(std::unique_ptr<Botan::Cipher_Mode>&& m, std::span<const u8> k, unsigned NonceSize, ss::cipher *ciph)
 {
@@ -213,7 +212,7 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 
 	if (method == ASTR("xchacha20-ietf-poly1305"))
 	{
-		cp = { 32,24 };
+		cp = { 32, 24 };
 		cb = std::bind(&core::make_aead_crypto_chachapoly, this);
 	}
 	else if (method == ASTR("chacha20-ietf-poly1305"))
@@ -251,15 +250,15 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 	return addr;
 }
 
-ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> c, str::astr masterKey, crypto_par cp) :pipe(pipe), masterKey(masterKey), cp(cp)
+ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> &&c, const str::astr &masterKey, crypto_par cp) :pipe(pipe), masterKey(masterKey), cp(cp)
 {
 	randomgen rng;
 	encrypted_data.resize(cp.KeySize);
 	rng.random_vec(encrypted_data); // make initial salt as starting sequence
 
-	buffer skey;
-	deriveAeadSubkey(skey, cp.KeySize, masterKey, encrypted_data);
-	c->init_encryptor(skey);
+	u8 skey[maximum_key_size];
+	ss::deriveAeadSubkey(std::span<u8>(skey, cp.KeySize), masterKey, encrypted_data);
+	c->init_encryptor(std::span<u8>(skey, cp.KeySize));
 	crypto = std::move(c);
 }
 
@@ -284,7 +283,7 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	if (data == nullptr)
 		return pipe->send(nullptr, 0); // check allow send
 
-	crypto->encipher(std::span<const u8>(data, datasize), encrypted_data);
+	crypto->encipher(std::span<const u8>(data, datasize), encrypted_data, nullptr);
 	sendrslt rslt = pipe->send(encrypted_data.data(), encrypted_data.size());
 	encrypted_data.clear(); // IMPORTANT: clear after send, not before (due encrypted_data contains salt before 1st send)
 
@@ -307,9 +306,8 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 		if (rb != cp.KeySize)
 			return -1;
 
-		buffer skey;
-		deriveAeadSubkey(skey, cp.KeySize, masterKey, std::span<u8>(temp, cp.KeySize));
-		crypto->init_decryptor(skey);
+		ss::deriveAeadSubkey(std::span<u8>(temp + cp.KeySize, cp.KeySize), masterKey, std::span<u8>(temp, cp.KeySize));
+		crypto->init_decryptor(std::span<u8>(temp + cp.KeySize, cp.KeySize));
 	}
 
 	bool do_recv = decrypted_data.is_empty();
@@ -323,7 +321,7 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 
 		if (sz > 0)
 		{
-			signed_t d = crypto->decipher(decrypted_data, std::span<const u8>(temp, sz)); // try decrypt
+			signed_t d = crypto->decipher(decrypted_data, std::span<const u8>(temp, sz), nullptr); // try decrypt
 			if (d < 0)
 				return -1;
 		}
@@ -385,6 +383,69 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 }
 
 
+ss::core::udp_crypto_pipe::udp_crypto_pipe(const netkit::endpoint& ssproxyep, netkit::udp_pipe* transport, std::unique_ptr<cryptor> &&c, str::astr masterKey, crypto_par cp) :ssproxyep(ssproxyep), transport(transport), masterKey(masterKey), cp(cp)
+{
+    crypto = std::move(c);
+}
+
+/*virtual*/ netkit::io_result ss::core::udp_crypto_pipe::send(const netkit::endpoint& toaddr, const netkit::pgen& pg /* in */)
+{
+	signed_t presize = proxy_socks5::atyp_size(toaddr);
+	buf2s.resize(cp.KeySize);
+
+	u8 skey[maximum_key_size];
+    rng.random_vec(buf2s); // make initial salt as starting sequence
+
+	std::span<u8> subkey(skey, cp.KeySize);
+    ss::deriveAeadSubkey(subkey, masterKey, buf2s);
+
+    if (presize <= pg.extra)
+    {
+        netkit::pgen pgx(const_cast<u8 *>(pg.get_data() - presize), presize + pg.sz);
+        proxy_socks5::push_atyp(pgx, toaddr);
+        crypto->encipher(pgx.to_span(), buf2s, &subkey);
+	}
+	else
+	{
+		u8* b2e = (u8*)_alloca(pg.sz + presize);
+        netkit::pgen pgx(b2e, presize + pg.sz);
+        proxy_socks5::push_atyp(pgx, toaddr);
+		memcpy(b2e + presize, pg.get_data(), pg.sz);
+        crypto->encipher(pgx.to_span(), buf2s, &subkey);
+	}
+	netkit::pgen pgs(buf2s.data(), buf2s.size());
+	return transport->send(ssproxyep, pgs);
+
+}
+
+/*virtual*/ netkit::io_result ss::core::udp_crypto_pipe::recv(netkit::ipap& from, netkit::pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/)
+{
+	u8 rcvbuf[16384];
+	netkit::pgen pgr(rcvbuf, sizeof(rcvbuf));
+	auto rslt = transport->recv(from, pgr, sizeof(rcvbuf));
+	if (rslt != netkit::ior_ok)
+		return rslt;
+
+    u8 skey[maximum_key_size];
+    std::span<u8> subkey(skey, cp.KeySize);
+    ss::deriveAeadSubkey(subkey, masterKey, std::span<const u8>(rcvbuf, cp.KeySize));
+    ss::outbuffer buf2r;
+	crypto->decipher(buf2r, std::span<const u8>(rcvbuf + cp.KeySize, pgr.sz - cp.KeySize), &subkey);
+	auto decp = buf2r.get_1st_chunk();
+	if (decp.size() == 0)
+		return netkit::ior_proxy_fail;
+	netkit::pgen repg((u8 *)decp.data(), decp.size());
+	netkit::endpoint aaa;
+	if (!proxy_socks5::read_atyp(repg, aaa))
+		return netkit::ior_proxy_fail;
+	from = aaa.resolve_ip(glb.cfg.ipstack | conf::gip_log_it);
+	if ((signed_t)(decp.size() - repg.ptr) > max_bufer_size)
+		return netkit::ior_proxy_fail;
+	memcpy(pg.get_data(), decp.data() + repg.ptr, decp.size() - repg.ptr);
+	pg.sz = tools::as_word(decp.size() - repg.ptr);
+	return netkit::ior_ok;
+}
+
 /*virtual*/ void ss::core::aead_cryptor::init_encryptor(std::span<const u8> key)
 {
 	encryptor.setup(key, pars.NonceSize, cb);
@@ -395,15 +456,28 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	decryptor.setup(key, pars.NonceSize, cb);
 }
 
-/*virtual*/ signed_t ss::core::aead_cryptor::encipher(std::span<const u8> plain, buffer& cipher)
+/*virtual*/ void ss::core::aead_cryptor::encipher(std::span<const u8> plain, buffer& cipher, const std::span<u8>* key)
 {
+    auto encode = [this, &cipher](const u8* d, size_t sz)
+        {
+            encryptor.process(std::span<const u8>(d, sz), cipher);
+        };
+
+	if (key)
+	{
+		[[likely]] if (encryptor.is_init())
+		{
+			encryptor.update_key(*key);
+		}
+		else {
+			encryptor.setup(*key, pars.NonceSize, cb);
+		}
+		encode(plain.data(), plain.size());
+		return;
+	}
+
 	u16 inLen = (u16)(0xffff & (plain.size() > AEAD_CHUNK_SIZE_MASK ? AEAD_CHUNK_SIZE_MASK : plain.size()));
 	u16 size_be = netkit::to_ne(inLen);
-
-	auto encode = [this, &cipher](const u8* d, size_t sz)
-		{
-			encryptor.process(std::span<const u8>(d, sz), cipher);
-		};
 
 	// size block encode
 	encode(reinterpret_cast<const u8*>(&size_be), sizeof(size_be));
@@ -412,9 +486,8 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 
 	if (inLen < plain.size()) {
 		// Append the remaining part recursively if there is any
-		encipher(std::span(plain.data() + inLen, plain.size() - inLen), cipher);
+		encipher(std::span(plain.data() + inLen, plain.size() - inLen), cipher, key);
 	}
-	return inLen;
 }
 
 namespace
@@ -490,8 +563,21 @@ namespace
 	return payloadsize;
 }
 
-/*virtual*/ signed_t ss::core::aead_cryptor::decipher(outbuffer& plain, std::span<const u8> cipher)
+/*virtual*/ bool ss::core::aead_cryptor::decipher(outbuffer& plain, std::span<const u8> cipher, const std::span<u8>* key)
 {
+	if (key)
+	{
+        [[likely]] if (decryptor.is_init())
+        {
+			decryptor.update_key(*key);
+        }
+        else {
+			decryptor.setup(*key, pars.NonceSize, cb);
+        }
+		chb_acpt acpt(&plain);
+		return decryptor.process(cipher, acpt);;
+	}
+
 	unprocessed += cipher;
 
 	size_t from = 0;
@@ -500,7 +586,7 @@ namespace
 	{
 		signed_t d = decrypt(from, plain);
 		if (d < 0)
-			return -1;
+			return false;
 		if (d == 0)
 			break;
 		last_block_payload_size = 0;
@@ -518,11 +604,11 @@ namespace
 			if (from == 0 && unprocessed.size() > AEAD_CHUNK_SIZE_MASK)
 			{
 				// looks like data corrupt: decryptor can't process data
-				return -1;
+				return false;
 			}
 			unprocessed.erase(from);
 		}
 	}
 
-	return decr;
+	return true;
 }

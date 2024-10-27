@@ -20,6 +20,8 @@ inline FN tofn(const str::wstr& s) { return str::to_utf8(s); }
 inline signed_t fnlen(const FN& fn) { return strlen(fn.c_str()); }
 #endif
 
+str::astr path_print_str(const FN& path);
+
 FN get_start_path();
 FN get_path(const FN& full_file_path);
 FN get_name(const FN& full_file_path);

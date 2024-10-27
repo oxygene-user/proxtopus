@@ -73,7 +73,7 @@ bool loader::load_conf(const FN& cfp)
 	buffer cb;
 	if (!load_buf(cfp, cb))
 	{
-		LOG_E("no %s found", str::to_utf8(cfp.c_str()).c_str());
+		LOG_E("no %s found", path_print_str(cfp).c_str());
 		exit_code = EXIT_FAIL_NOCONFIG;
 		return false;
 	}

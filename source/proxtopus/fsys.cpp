@@ -274,6 +274,17 @@ void path_append(FN& path, const FNview& fn)
 	path.append(fn);
 }
 
+str::astr path_print_str(const FN& path)
+{
+	str::astr p = str::to_utf8(path);
+	for (signed_t i = p.length() - 1; i >= 0; --i)
+	{
+		if (p[i] == '\\')
+			p.insert(p.begin() + i, '\\');
+	}
+	return p;
+}
+
 bool load_buf(const FN& fn, buffer& b)
 {
 #ifdef _WIN32

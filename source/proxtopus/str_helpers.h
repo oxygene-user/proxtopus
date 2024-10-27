@@ -48,6 +48,16 @@ namespace str
 		return wstr_view(s.c_str(), s.length());
 	}
 
+    inline str::astr_view view(const buffer& s)
+    {
+        return std::string_view(reinterpret_cast<const char*>(s.data()), s.size());
+    }
+    inline str::astr_view view(const std::span<const u8>& s)
+    {
+        return str::astr_view(reinterpret_cast<const char*>(s.data()), s.size());
+    }
+
+
 	template <typename TCH> TCH get_last_char(const xstr<TCH>& s)
 	{
 		size_t l = s.length();
@@ -213,6 +223,19 @@ namespace str
 		return s.substr(i0, i1 + 1);
 	}
 
+    inline std::span<u8> span(str::astr& s)
+    {
+        return std::span<u8>(reinterpret_cast<u8*>(s.data()), s.length());
+    }
+
+    inline std::span<const u8> span(const str::astr& s)
+    {
+        return std::span<const u8>(reinterpret_cast<const u8*>(s.data()), s.length());
+    }
+    inline std::span<const u8> span(const str::astr_view& s)
+    {
+        return std::span<const u8>(reinterpret_cast<const u8*>(s.data()), s.length());
+    }
 
 	inline str::astr build_string(const char* s, ...)
 	{

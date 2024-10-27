@@ -323,7 +323,7 @@ class dns_resolver
 
 		std::vector<proxy_pipe_data> ppipes;
 		/*virtual*/ netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg) override;
-		/*virtual*/ netkit::io_result recv(netkit::pgen& pg, signed_t max_bufer_size) override;
+		/*virtual*/ netkit::io_result recv(netkit::ipap& from, netkit::pgen& pg, signed_t max_bufer_size) override;
 	};
 
 	struct query_internals : public udp_transport

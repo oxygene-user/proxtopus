@@ -104,3 +104,8 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 	return p_enc;
 }
 
+/*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_shadowsocks::prepare(netkit::udp_pipe* transport) const
+{
+	return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, std::move(core.cb()), core.masterKey, core.cp);
+}
+

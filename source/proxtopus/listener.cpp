@@ -6,7 +6,7 @@ void listener::build(larray& arr, loader &ldr, const str::astr& name, const asts
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for lisnener [%s]; type {imconee help listener} for more information", str::printable(name));
+		LOG_E("{type} not defined for lisnener [%s]; type {proxtopus help listener} for more information", str::printable(name));
 		return;
 	}
 
@@ -37,7 +37,7 @@ void listener::build(larray& arr, loader &ldr, const str::astr& name, const asts
 		else
         {
 			t = *tkn;
-            LOG_E("unknown {type} [%s] for lisnener [%s]; type {imconee help listener} for more information", t.c_str(), str::printable(name));
+            LOG_E("unknown {type} [%s] for lisnener [%s]; type {proxtopus help listener} for more information", t.c_str(), str::printable(name));
             ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 			return;
 		}
@@ -66,9 +66,9 @@ socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts&
 	hand.reset(h);
 
 	str::astr bs = bb.get_string(ASTR("bind"));
-	netkit::ipap bindaddr = netkit::ipap::parse(bs);
+	bind = netkit::ipap::parse(bs);
 
-	if (bindaddr.port == 0)
+	if (bind.port == 0)
 	{
 		signed_t port = bb.get_int(ASTR("port"));
 		if (0 == port)
@@ -78,36 +78,22 @@ socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts&
 			hand.reset();
 			return;
 		}
-		bindaddr.port = (u16)port;
+		bind.port = (u16)port;
 
 	}
-	prepare(bindaddr);
-
 }
 
-void socket_listener::prepare(const netkit::ipap& bind2)
+socket_listener::socket_listener(const netkit::ipap& bind, handler* h):bind(bind), listener(h)
 {
-	stop();
-
-	auto ss = state.lock_write();
-	ss().bind = bind2;
 }
-
 
 void socket_listener::acceptor()
 {
-	auto ss = state.lock_write();
-	ss().stage = ACCEPTOR_WORKS;
-	ss.unlock();
+	state.lock_write()().stage = ACCEPTOR_WORKS;
 
-	auto r = state.lock_read();
-	netkit::ipap bind2 = r().bind;
-	r.unlock();
+	accept_impl();
 
-	accept_impl(bind2);
-
-	ss = state.lock_write();
-	ss().stage = IDLE;
+	state.lock_write()().stage = IDLE;
 
 	spinlock::decrement(glb.numlisteners);
 }
@@ -118,7 +104,6 @@ void socket_listener::acceptor()
 	auto ss = state.lock_write();
 	if (ss().stage != IDLE)
 		return;
-
 	ss().stage = ACCEPTOR_START;
 	ss.unlock();
 
@@ -175,15 +160,15 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 }
 #endif
 
-/*virtual*/ void tcp_listener::accept_impl(const netkit::ipap& bind2)
+/*virtual*/ void tcp_listener::accept_impl()
 {
-	if (sock.listen(name, bind2))
+	if (sock.listen(name, bind))
 	{
 #ifdef _DEBUG
         accept_tid = spinlock::tid_self();
 #endif // _DEBUG
 
-		LOG_N("listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string(false).c_str(), bind2.port);
+		LOG_N("listener {%s} has been started (bind: %s)", str::printable(name), bind.to_string(true).c_str());
 
 		for (; !state.lock_read()().need_stop;)
 		{
@@ -200,12 +185,19 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 
 udp_listener::udp_listener(loader& ldr, const str::astr& name, const asts& bb) :socket_listener(ldr, name, bb, netkit::ST_UDP)
 {
+	if (ldr.exit_code != EXIT_OK)
+		return;
+
 	if (!hand->compatible(netkit::ST_UDP))
 	{
 		ldr.exit_code = EXIT_FAIL_INCOMPATIBLE_HANDLER;
 		LOG_E("handler %s is not compatible with listener [%s] (UDP not supported)", str::printable(hand->desc()), str::printable(name));
 		return;
 	}
+}
+
+udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener(bind, h)
+{
 }
 
 #ifdef _NIX
@@ -224,20 +216,29 @@ udp_listener::udp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 #endif
 
 
-/*virtual*/ void udp_listener::accept_impl(const netkit::ipap& bind2)
+/*virtual*/ void udp_listener::accept_impl()
 {
-	signed_t port = sock.listen_udp(name, bind2);
+	signed_t port = sock.listen_udp(name, bind);
 	if (port > 0)
 	{
 #ifdef _DEBUG
 		accept_tid = spinlock::tid_self();
 #endif // _DEBUG
 
-		LOG_N("udp listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string(false).c_str(), port);
+		hand->on_listen_port(port);
+
+		if (name.empty())
+        {
+            LOG_N("udp listener has been started (bind: %s)", bind.to_string(port).c_str());
+		}
+		else
+		{
+            LOG_N("udp listener {%s} has been started (bind: %s)", str::printable(name), bind.to_string(port).c_str());
+		}
 
 		for (; !state.lock_read()().need_stop;)
 		{
-			netkit::udp_packet p(bind2.v4);
+			netkit::udp_packet p(bind.v4);
 			if (sock.recv(p))
 				hand->on_udp( sock, p );
 		}
