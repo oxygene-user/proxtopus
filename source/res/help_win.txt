@@ -1,4 +1,4 @@
-To run imconee as service, type {$(EXE) <command>} where <command> can be:
+To run proxtopus as service, type {$(EXE) <command>} where <command> can be:
  {install} to install and run service.
  {remove} to stop and remove service.
  {start} to start service.

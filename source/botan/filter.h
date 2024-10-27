@@ -90,7 +90,7 @@ class BOTAN_PUBLIC_API(2, 0) Filter {
       Filter();
 
    private:
-protected: /// IMCONEE
+protected: /// PROXTOPUS
       /**
       * Start a new message in *this and all following filters. Only for
       * internal use, not intended for use in client applications.

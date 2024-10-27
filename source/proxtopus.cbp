@@ -2,12 +2,12 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="imconee" />
+		<Option title="proxtopus" />
 		<Option pch_mode="2" />
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="Debug">
-				<Option output="bin/imconeed" prefix_auto="1" extension_auto="1" />
+				<Option output="bin/proxtopus" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
@@ -16,7 +16,7 @@
 				</Compiler>
 			</Target>
 			<Target title="Release">
-				<Option output="bin/imconee" prefix_auto="1" extension_auto="1" />
+				<Option output="bin/proxtopus" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Release/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
@@ -38,7 +38,7 @@
 			<Add option="-m64" />
 			<Add option="-fexceptions" />
 			<Add option="-std=c++20" />
-			<Add directory="/home/user/dev/imconee/" />
+			<Add directory="/home/user/dev/proxtopus/" />
 		</Compiler>
 		<Linker>
 			<Add option="-m64" />
@@ -159,48 +159,48 @@
 		<Unit filename="botan/system_rng.cpp" />
 		<Unit filename="botan/system_rng.h" />
 		<Unit filename="botan/types.h" />
-		<Unit filename="imconee/botan.cpp" />
-		<Unit filename="imconee/cipher_ss.cpp" />
-		<Unit filename="imconee/cipher_ss.h" />
-		<Unit filename="imconee/cmdline.cpp" />
-		<Unit filename="imconee/cmdline.h" />
-		<Unit filename="imconee/connect.cpp" />
-		<Unit filename="imconee/connect.h" />
-		<Unit filename="imconee/engine.cpp" />
-		<Unit filename="imconee/engine.h" />
-		<Unit filename="imconee/fsys.cpp" />
-		<Unit filename="imconee/fsys.h" />
-		<Unit filename="imconee/handler_ss.cpp" />
-		<Unit filename="imconee/handler_ss.h" />
-		<Unit filename="imconee/handlers.cpp" />
-		<Unit filename="imconee/handlers.h" />
-		<Unit filename="imconee/list.h" />
-		<Unit filename="imconee/listener.cpp" />
-		<Unit filename="imconee/listener.h" />
-		<Unit filename="imconee/loader.cpp" />
-		<Unit filename="imconee/loader.h" />
-		<Unit filename="imconee/logger.cpp" />
-		<Unit filename="imconee/logger.h" />
-		<Unit filename="imconee/main.cpp" />
-		<Unit filename="imconee/mem.cpp" />
-		<Unit filename="imconee/netkit.cpp" />
-		<Unit filename="imconee/netkit.h" />
-		<Unit filename="imconee/pch.cpp" />
-		<Unit filename="imconee/pch.h" />
-		<Unit filename="imconee/proxy.cpp" />
-		<Unit filename="imconee/proxy.h" />
-		<Unit filename="imconee/proxy_ss.cpp" />
-		<Unit filename="imconee/proxy_ss.h" />
-		<Unit filename="imconee/queue.h" />
-		<Unit filename="imconee/resource.h" />
-		<Unit filename="imconee/rndgen.cpp" />
-		<Unit filename="imconee/rndgen.h" />
-		<Unit filename="imconee/spinlock.h" />
-		<Unit filename="imconee/str_helpers.h" />
-		<Unit filename="imconee/sts.cpp" />
-		<Unit filename="imconee/sts.h" />
-		<Unit filename="imconee/tools.cpp" />
-		<Unit filename="imconee/tools.h" />
+		<Unit filename="proxtopus/botan.cpp" />
+		<Unit filename="proxtopus/cipher_ss.cpp" />
+		<Unit filename="proxtopus/cipher_ss.h" />
+		<Unit filename="proxtopus/cmdline.cpp" />
+		<Unit filename="proxtopus/cmdline.h" />
+		<Unit filename="proxtopus/connect.cpp" />
+		<Unit filename="proxtopus/connect.h" />
+		<Unit filename="proxtopus/engine.cpp" />
+		<Unit filename="proxtopus/engine.h" />
+		<Unit filename="proxtopus/fsys.cpp" />
+		<Unit filename="proxtopus/fsys.h" />
+		<Unit filename="proxtopus/handler_ss.cpp" />
+		<Unit filename="proxtopus/handler_ss.h" />
+		<Unit filename="proxtopus/handlers.cpp" />
+		<Unit filename="proxtopus/handlers.h" />
+		<Unit filename="proxtopus/list.h" />
+		<Unit filename="proxtopus/listener.cpp" />
+		<Unit filename="proxtopus/listener.h" />
+		<Unit filename="proxtopus/loader.cpp" />
+		<Unit filename="proxtopus/loader.h" />
+		<Unit filename="proxtopus/logger.cpp" />
+		<Unit filename="proxtopus/logger.h" />
+		<Unit filename="proxtopus/main.cpp" />
+		<Unit filename="proxtopus/mem.cpp" />
+		<Unit filename="proxtopus/netkit.cpp" />
+		<Unit filename="proxtopus/netkit.h" />
+		<Unit filename="proxtopus/pch.cpp" />
+		<Unit filename="proxtopus/pch.h" />
+		<Unit filename="proxtopus/proxy.cpp" />
+		<Unit filename="proxtopus/proxy.h" />
+		<Unit filename="proxtopus/proxy_ss.cpp" />
+		<Unit filename="proxtopus/proxy_ss.h" />
+		<Unit filename="proxtopus/queue.h" />
+		<Unit filename="proxtopus/resource.h" />
+		<Unit filename="proxtopus/rndgen.cpp" />
+		<Unit filename="proxtopus/rndgen.h" />
+		<Unit filename="proxtopus/spinlock.h" />
+		<Unit filename="proxtopus/str_helpers.h" />
+		<Unit filename="proxtopus/sts.cpp" />
+		<Unit filename="proxtopus/sts.h" />
+		<Unit filename="proxtopus/tools.cpp" />
+		<Unit filename="proxtopus/tools.h" />
 		<Unit filename="res/help.txt">
 			<Option compile="1" />
 			<Option link="1" />

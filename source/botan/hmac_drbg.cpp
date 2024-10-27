@@ -98,7 +98,7 @@ HMAC_DRBG::HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf) :
    clear();
 }
 
-#if 0 /// IMCONEE
+#if 0 /// PROXTOPUS
 HMAC_DRBG::HMAC_DRBG(std::string_view hmac_hash) :
       Stateful_RNG(),
       m_mac(MessageAuthenticationCode::create_or_throw(fmt("HMAC({})", hmac_hash))),

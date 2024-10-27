@@ -3,7 +3,7 @@
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 #include "excpn.h"
 
-#include "../imconee/spinlock.h"
+#include "../proxtopus/spinlock.h"
 
 #define self glb.ebf
 

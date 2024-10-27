@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{f0ccf8fb-7ace-4699-b8bf-e1914b5e6bfd}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>imconee</RootNamespace>
-    <ProjectName>imconee</ProjectName>
+    <RootNamespace>proxtopus</RootNamespace>
+    <ProjectName>proxtopus</ProjectName>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(SolutionDir)\solution.props" />
@@ -48,12 +48,12 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(GARBAGE)\libs\</AdditionalLibraryDirectories>
-      <ProgramDatabaseFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(GARBAGE)\bin\imconee.pdb</ProgramDatabaseFile>
+      <ProgramDatabaseFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(GARBAGE)\bin\proxtopus.pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="imconee\arena.h" />
-    <ClInclude Include="imconee\base.h" />
+    <ClInclude Include="proxtopus\arena.h" />
+    <ClInclude Include="proxtopus\base.h" />
     <ClInclude Include="botan\aead.h" />
     <ClInclude Include="botan\allocator.h" />
     <ClInclude Include="botan\assert.h" />
@@ -130,27 +130,27 @@
     <ClInclude Include="botan\types.h" />
     <ClInclude Include="debug\excpn.h" />
     <ClInclude Include="debug\stkwlk.h" />
-    <ClInclude Include="imconee\dnsq.h" />
-    <ClInclude Include="imconee\cipher_ss.h" />
-    <ClInclude Include="imconee\cmdline.h" />
-    <ClInclude Include="imconee\connect.h" />
-    <ClInclude Include="imconee\engine.h" />
-    <ClInclude Include="imconee\fsys.h" />
-    <ClInclude Include="imconee\handlers.h" />
-    <ClInclude Include="imconee\handler_ss.h" />
-    <ClInclude Include="imconee\listener.h" />
-    <ClInclude Include="imconee\loader.h" />
-    <ClInclude Include="imconee\logger.h" />
-    <ClInclude Include="imconee\netkit.h" />
-    <ClInclude Include="imconee\pch.h" />
-    <ClInclude Include="imconee\proxy.h" />
-    <ClInclude Include="imconee\proxy_ss.h" />
-    <ClInclude Include="imconee\resource.h" />
-    <ClInclude Include="imconee\rndgen.h" />
-    <ClInclude Include="imconee\str_helpers.h" />
-    <ClInclude Include="imconee\sts.h" />
-    <ClInclude Include="imconee\tools.h" />
-    <ClInclude Include="imconee\main.h" />
+    <ClInclude Include="proxtopus\dnsq.h" />
+    <ClInclude Include="proxtopus\cipher_ss.h" />
+    <ClInclude Include="proxtopus\cmdline.h" />
+    <ClInclude Include="proxtopus\connect.h" />
+    <ClInclude Include="proxtopus\engine.h" />
+    <ClInclude Include="proxtopus\fsys.h" />
+    <ClInclude Include="proxtopus\handlers.h" />
+    <ClInclude Include="proxtopus\handler_ss.h" />
+    <ClInclude Include="proxtopus\listener.h" />
+    <ClInclude Include="proxtopus\loader.h" />
+    <ClInclude Include="proxtopus\logger.h" />
+    <ClInclude Include="proxtopus\netkit.h" />
+    <ClInclude Include="proxtopus\pch.h" />
+    <ClInclude Include="proxtopus\proxy.h" />
+    <ClInclude Include="proxtopus\proxy_ss.h" />
+    <ClInclude Include="proxtopus\resource.h" />
+    <ClInclude Include="proxtopus\rndgen.h" />
+    <ClInclude Include="proxtopus\str_helpers.h" />
+    <ClInclude Include="proxtopus\sts.h" />
+    <ClInclude Include="proxtopus\tools.h" />
+    <ClInclude Include="proxtopus\main.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="botan\aes.cpp">
@@ -321,48 +321,49 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
-    <ClCompile Include="imconee\dnsq.cpp" />
-    <ClCompile Include="imconee\cipher_ss.cpp" />
-    <ClCompile Include="imconee\cmdline.cpp" />
-    <ClCompile Include="imconee\connect.cpp" />
-    <ClCompile Include="imconee\botan.cpp" />
-    <ClCompile Include="imconee\engine.cpp" />
-    <ClCompile Include="imconee\fsys.cpp" />
-    <ClCompile Include="imconee\handlers.cpp" />
-    <ClCompile Include="imconee\handler_ss.cpp" />
-    <ClCompile Include="imconee\listener.cpp" />
-    <ClCompile Include="imconee\loader.cpp" />
-    <ClCompile Include="imconee\logger.cpp" />
-    <ClCompile Include="imconee\main.cpp" />
-    <ClCompile Include="imconee\mem.cpp" />
-    <ClCompile Include="imconee\netkit.cpp" />
-    <ClCompile Include="imconee\pch.cpp">
+    <ClCompile Include="proxtopus\dnsq.cpp" />
+    <ClCompile Include="proxtopus\cipher_ss.cpp" />
+    <ClCompile Include="proxtopus\cmdline.cpp" />
+    <ClCompile Include="proxtopus\connect.cpp" />
+    <ClCompile Include="proxtopus\botan.cpp" />
+    <ClCompile Include="proxtopus\engine.cpp" />
+    <ClCompile Include="proxtopus\fsys.cpp" />
+    <ClCompile Include="proxtopus\handlers.cpp" />
+    <ClCompile Include="proxtopus\handler_ss.cpp" />
+    <ClCompile Include="proxtopus\listener.cpp" />
+    <ClCompile Include="proxtopus\loader.cpp" />
+    <ClCompile Include="proxtopus\logger.cpp" />
+    <ClCompile Include="proxtopus\main.cpp" />
+    <ClCompile Include="proxtopus\mem.cpp" />
+    <ClCompile Include="proxtopus\netkit.cpp" />
+    <ClCompile Include="proxtopus\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="imconee\proxy.cpp" />
-    <ClCompile Include="imconee\proxy_ss.cpp" />
-    <ClCompile Include="imconee\rndgen.cpp" />
-    <ClCompile Include="imconee\sts.cpp" />
-    <ClCompile Include="imconee\tests.cpp" />
-    <ClCompile Include="imconee\tools.cpp" />
+    <ClCompile Include="proxtopus\proxy.cpp" />
+    <ClCompile Include="proxtopus\proxy_ss.cpp" />
+    <ClCompile Include="proxtopus\rndgen.cpp" />
+    <ClCompile Include="proxtopus\sts.cpp" />
+    <ClCompile Include="proxtopus\tests.cpp" />
+    <ClCompile Include="proxtopus\tools.cpp" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile Include="debug\excpn.cpp" />
     <ClCompile Include="debug\stkwlk.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="imconee.natvis" />
+    <Natvis Include="proxtopus.natvis" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="imconee\imconee.rc" />
+    <ResourceCompile Include="proxtopus\proxtopus.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\imconee.ico" />
+    <Image Include="res\proxtopus.ico" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="res\help.txt" />
     <Text Include="res\help_handler.txt" />
     <Text Include="res\help_listener.txt" />
+    <Text Include="res\help_proxy.txt" />
     <Text Include="res\help_win.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

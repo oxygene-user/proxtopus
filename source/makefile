@@ -27,9 +27,9 @@ LIB_RELEASE = $(LIB)
 LDFLAGS_RELEASE = $(LDFLAGS) -flto=auto -s
 OBJDIR_RELEASE = obj/Release
 DEP_RELEASE = 
-OUT_RELEASE = bin/imconee
+OUT_RELEASE = bin/proxtopus
 
-OBJ_RELEASE = $(OBJDIR_RELEASE)/botan/sha2_32_bmi2.o $(OBJDIR_RELEASE)/botan/sha2_32_x86.o $(OBJDIR_RELEASE)/botan/sha2_64.o $(OBJDIR_RELEASE)/botan/sha2_64_bmi2.o $(OBJDIR_RELEASE)/botan/sha3.o $(OBJDIR_RELEASE)/botan/stateful_rng.o $(OBJDIR_RELEASE)/botan/sym_algo.o $(OBJDIR_RELEASE)/botan/sha2_32.o $(OBJDIR_RELEASE)/botan/system_rng.o $(OBJDIR_RELEASE)/imconee/botan.o $(OBJDIR_RELEASE)/imconee/cipher_ss.o $(OBJDIR_RELEASE)/imconee/cmdline.o $(OBJDIR_RELEASE)/botan/parsing.o $(OBJDIR_RELEASE)/botan/keccak_perm.o $(OBJDIR_RELEASE)/botan/keccak_perm_bmi2.o $(OBJDIR_RELEASE)/botan/md5.o $(OBJDIR_RELEASE)/botan/mem_ops.o $(OBJDIR_RELEASE)/botan/os_utils.o $(OBJDIR_RELEASE)/imconee/connect.o $(OBJDIR_RELEASE)/botan/poly1305.o $(OBJDIR_RELEASE)/botan/rng.o $(OBJDIR_RELEASE)/botan/salsa20.o $(OBJDIR_RELEASE)/botan/sha1.o $(OBJDIR_RELEASE)/botan/sha1_sse2.o $(OBJDIR_RELEASE)/botan/sha1_x86.o $(OBJDIR_RELEASE)/imconee/pch.o $(OBJDIR_RELEASE)/imconee/proxy.o $(OBJDIR_RELEASE)/imconee/proxy_ss.o $(OBJDIR_RELEASE)/imconee/rndgen.o $(OBJDIR_RELEASE)/imconee/sts.o $(OBJDIR_RELEASE)/imconee/tools.o $(OBJDIR_RELEASE)/imconee/engine.o $(OBJDIR_RELEASE)/imconee/fsys.o $(OBJDIR_RELEASE)/imconee/handler_ss.o $(OBJDIR_RELEASE)/imconee/handlers.o $(OBJDIR_RELEASE)/imconee/listener.o $(OBJDIR_RELEASE)/imconee/loader.o $(OBJDIR_RELEASE)/imconee/logger.o $(OBJDIR_RELEASE)/imconee/main.o $(OBJDIR_RELEASE)/imconee/mem.o $(OBJDIR_RELEASE)/imconee/netkit.o $(OBJDIR_RELEASE)/botan/ctr.o $(OBJDIR_RELEASE)/botan/dyn_load.o $(OBJDIR_RELEASE)/botan/exceptn.o $(OBJDIR_RELEASE)/botan/filter.o $(OBJDIR_RELEASE)/botan/cpuid_x86.o $(OBJDIR_RELEASE)/botan/gcm.o $(OBJDIR_RELEASE)/botan/ghash.o $(OBJDIR_RELEASE)/botan/ghash_cpu.o $(OBJDIR_RELEASE)/botan/ghash_vperm.o $(OBJDIR_RELEASE)/botan/hkdf.o $(OBJDIR_RELEASE)/botan/hmac.o $(OBJDIR_RELEASE)/botan/hmac_drbg.o $(OBJDIR_RELEASE)/botan/aes.o $(OBJDIR_RELEASE)/botan/aes_ni.o $(OBJDIR_RELEASE)/botan/aes_vperm.o $(OBJDIR_RELEASE)/botan/chacha.o $(OBJDIR_RELEASE)/botan/chacha20poly1305.o $(OBJDIR_RELEASE)/botan/chacha_avx2.o $(OBJDIR_RELEASE)/botan/chacha_avx512.o $(OBJDIR_RELEASE)/botan/chacha_simd32.o $(OBJDIR_RELEASE)/botan/cpuid.o $(OBJDIR_RELEASE)/res/help.o $(OBJDIR_RELEASE)/res/help_nix.o $(OBJDIR_RELEASE)/res/help_listener.o
+OBJ_RELEASE = $(OBJDIR_RELEASE)/botan/sha2_32_bmi2.o $(OBJDIR_RELEASE)/botan/sha2_32_x86.o $(OBJDIR_RELEASE)/botan/sha2_64.o $(OBJDIR_RELEASE)/botan/sha2_64_bmi2.o $(OBJDIR_RELEASE)/botan/sha3.o $(OBJDIR_RELEASE)/botan/stateful_rng.o $(OBJDIR_RELEASE)/botan/sym_algo.o $(OBJDIR_RELEASE)/botan/sha2_32.o $(OBJDIR_RELEASE)/botan/system_rng.o $(OBJDIR_RELEASE)/proxtopus/botan.o $(OBJDIR_RELEASE)/proxtopus/cipher_ss.o $(OBJDIR_RELEASE)/proxtopus/cmdline.o $(OBJDIR_RELEASE)/botan/parsing.o $(OBJDIR_RELEASE)/botan/keccak_perm.o $(OBJDIR_RELEASE)/botan/keccak_perm_bmi2.o $(OBJDIR_RELEASE)/botan/md5.o $(OBJDIR_RELEASE)/botan/mem_ops.o $(OBJDIR_RELEASE)/botan/os_utils.o $(OBJDIR_RELEASE)/proxtopus/connect.o $(OBJDIR_RELEASE)/botan/poly1305.o $(OBJDIR_RELEASE)/botan/rng.o $(OBJDIR_RELEASE)/botan/salsa20.o $(OBJDIR_RELEASE)/botan/sha1.o $(OBJDIR_RELEASE)/botan/sha1_sse2.o $(OBJDIR_RELEASE)/botan/sha1_x86.o $(OBJDIR_RELEASE)/proxtopus/pch.o $(OBJDIR_RELEASE)/proxtopus/proxy.o $(OBJDIR_RELEASE)/proxtopus/proxy_ss.o $(OBJDIR_RELEASE)/proxtopus/rndgen.o $(OBJDIR_RELEASE)/proxtopus/sts.o $(OBJDIR_RELEASE)/proxtopus/tools.o $(OBJDIR_RELEASE)/proxtopus/engine.o $(OBJDIR_RELEASE)/proxtopus/fsys.o $(OBJDIR_RELEASE)/proxtopus/handler_ss.o $(OBJDIR_RELEASE)/proxtopus/handlers.o $(OBJDIR_RELEASE)/proxtopus/listener.o $(OBJDIR_RELEASE)/proxtopus/loader.o $(OBJDIR_RELEASE)/proxtopus/logger.o $(OBJDIR_RELEASE)/proxtopus/main.o $(OBJDIR_RELEASE)/proxtopus/mem.o $(OBJDIR_RELEASE)/proxtopus/netkit.o $(OBJDIR_RELEASE)/botan/ctr.o $(OBJDIR_RELEASE)/botan/dyn_load.o $(OBJDIR_RELEASE)/botan/exceptn.o $(OBJDIR_RELEASE)/botan/filter.o $(OBJDIR_RELEASE)/botan/cpuid_x86.o $(OBJDIR_RELEASE)/botan/gcm.o $(OBJDIR_RELEASE)/botan/ghash.o $(OBJDIR_RELEASE)/botan/ghash_cpu.o $(OBJDIR_RELEASE)/botan/ghash_vperm.o $(OBJDIR_RELEASE)/botan/hkdf.o $(OBJDIR_RELEASE)/botan/hmac.o $(OBJDIR_RELEASE)/botan/hmac_drbg.o $(OBJDIR_RELEASE)/botan/aes.o $(OBJDIR_RELEASE)/botan/aes_ni.o $(OBJDIR_RELEASE)/botan/aes_vperm.o $(OBJDIR_RELEASE)/botan/chacha.o $(OBJDIR_RELEASE)/botan/chacha20poly1305.o $(OBJDIR_RELEASE)/botan/chacha_avx2.o $(OBJDIR_RELEASE)/botan/chacha_avx512.o $(OBJDIR_RELEASE)/botan/chacha_simd32.o $(OBJDIR_RELEASE)/botan/cpuid.o $(OBJDIR_RELEASE)/res/help.o $(OBJDIR_RELEASE)/res/help_nix.o $(OBJDIR_RELEASE)/res/help_listener.o
 
 all: release
 
@@ -38,7 +38,7 @@ clean: clean_release
 before_release: 
 	test -d bin || mkdir -p bin
 	test -d $(OBJDIR_RELEASE)/botan || mkdir -p $(OBJDIR_RELEASE)/botan
-	test -d $(OBJDIR_RELEASE)/imconee || mkdir -p $(OBJDIR_RELEASE)/imconee
+	test -d $(OBJDIR_RELEASE)/proxtopus || mkdir -p $(OBJDIR_RELEASE)/proxtopus
 	test -d $(OBJDIR_RELEASE)/res || mkdir -p $(OBJDIR_RELEASE)/res
 
 after_release: 
@@ -75,14 +75,14 @@ $(OBJDIR_RELEASE)/botan/sha2_32.o: botan/sha2_32.cpp
 $(OBJDIR_RELEASE)/botan/system_rng.o: botan/system_rng.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/system_rng.cpp -o $(OBJDIR_RELEASE)/botan/system_rng.o
 
-$(OBJDIR_RELEASE)/imconee/botan.o: imconee/botan.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/botan.cpp -o $(OBJDIR_RELEASE)/imconee/botan.o
+$(OBJDIR_RELEASE)/proxtopus/botan.o: proxtopus/botan.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/botan.cpp -o $(OBJDIR_RELEASE)/proxtopus/botan.o
 
-$(OBJDIR_RELEASE)/imconee/cipher_ss.o: imconee/cipher_ss.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/cipher_ss.cpp -o $(OBJDIR_RELEASE)/imconee/cipher_ss.o
+$(OBJDIR_RELEASE)/proxtopus/cipher_ss.o: proxtopus/cipher_ss.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/cipher_ss.cpp -o $(OBJDIR_RELEASE)/proxtopus/cipher_ss.o
 
-$(OBJDIR_RELEASE)/imconee/cmdline.o: imconee/cmdline.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/cmdline.cpp -o $(OBJDIR_RELEASE)/imconee/cmdline.o
+$(OBJDIR_RELEASE)/proxtopus/cmdline.o: proxtopus/cmdline.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/cmdline.cpp -o $(OBJDIR_RELEASE)/proxtopus/cmdline.o
 
 $(OBJDIR_RELEASE)/botan/parsing.o: botan/parsing.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/parsing.cpp -o $(OBJDIR_RELEASE)/botan/parsing.o
@@ -102,8 +102,8 @@ $(OBJDIR_RELEASE)/botan/mem_ops.o: botan/mem_ops.cpp
 $(OBJDIR_RELEASE)/botan/os_utils.o: botan/os_utils.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/os_utils.cpp -o $(OBJDIR_RELEASE)/botan/os_utils.o
 
-$(OBJDIR_RELEASE)/imconee/connect.o: imconee/connect.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/connect.cpp -o $(OBJDIR_RELEASE)/imconee/connect.o
+$(OBJDIR_RELEASE)/proxtopus/connect.o: proxtopus/connect.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/connect.cpp -o $(OBJDIR_RELEASE)/proxtopus/connect.o
 
 $(OBJDIR_RELEASE)/botan/poly1305.o: botan/poly1305.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/poly1305.cpp -o $(OBJDIR_RELEASE)/botan/poly1305.o
@@ -123,53 +123,53 @@ $(OBJDIR_RELEASE)/botan/sha1_sse2.o: botan/sha1_sse2.cpp
 $(OBJDIR_RELEASE)/botan/sha1_x86.o: botan/sha1_x86.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha1_x86.cpp -o $(OBJDIR_RELEASE)/botan/sha1_x86.o
 
-$(OBJDIR_RELEASE)/imconee/pch.o: imconee/pch.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/pch.cpp -o $(OBJDIR_RELEASE)/imconee/pch.o
+$(OBJDIR_RELEASE)/proxtopus/pch.o: proxtopus/pch.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/pch.cpp -o $(OBJDIR_RELEASE)/proxtopus/pch.o
 
-$(OBJDIR_RELEASE)/imconee/proxy.o: imconee/proxy.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/proxy.cpp -o $(OBJDIR_RELEASE)/imconee/proxy.o
+$(OBJDIR_RELEASE)/proxtopus/proxy.o: proxtopus/proxy.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/proxy.cpp -o $(OBJDIR_RELEASE)/proxtopus/proxy.o
 
-$(OBJDIR_RELEASE)/imconee/proxy_ss.o: imconee/proxy_ss.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/proxy_ss.cpp -o $(OBJDIR_RELEASE)/imconee/proxy_ss.o
+$(OBJDIR_RELEASE)/proxtopus/proxy_ss.o: proxtopus/proxy_ss.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/proxy_ss.cpp -o $(OBJDIR_RELEASE)/proxtopus/proxy_ss.o
 
-$(OBJDIR_RELEASE)/imconee/rndgen.o: imconee/rndgen.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/rndgen.cpp -o $(OBJDIR_RELEASE)/imconee/rndgen.o
+$(OBJDIR_RELEASE)/proxtopus/rndgen.o: proxtopus/rndgen.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/rndgen.cpp -o $(OBJDIR_RELEASE)/proxtopus/rndgen.o
 
-$(OBJDIR_RELEASE)/imconee/sts.o: imconee/sts.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/sts.cpp -o $(OBJDIR_RELEASE)/imconee/sts.o
+$(OBJDIR_RELEASE)/proxtopus/sts.o: proxtopus/sts.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/sts.cpp -o $(OBJDIR_RELEASE)/proxtopus/sts.o
 
-$(OBJDIR_RELEASE)/imconee/tools.o: imconee/tools.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/tools.cpp -o $(OBJDIR_RELEASE)/imconee/tools.o
+$(OBJDIR_RELEASE)/proxtopus/tools.o: proxtopus/tools.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/tools.cpp -o $(OBJDIR_RELEASE)/proxtopus/tools.o
 
-$(OBJDIR_RELEASE)/imconee/engine.o: imconee/engine.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/engine.cpp -o $(OBJDIR_RELEASE)/imconee/engine.o
+$(OBJDIR_RELEASE)/proxtopus/engine.o: proxtopus/engine.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/engine.cpp -o $(OBJDIR_RELEASE)/proxtopus/engine.o
 
-$(OBJDIR_RELEASE)/imconee/fsys.o: imconee/fsys.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/fsys.cpp -o $(OBJDIR_RELEASE)/imconee/fsys.o
+$(OBJDIR_RELEASE)/proxtopus/fsys.o: proxtopus/fsys.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/fsys.cpp -o $(OBJDIR_RELEASE)/proxtopus/fsys.o
 
-$(OBJDIR_RELEASE)/imconee/handler_ss.o: imconee/handler_ss.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/handler_ss.cpp -o $(OBJDIR_RELEASE)/imconee/handler_ss.o
+$(OBJDIR_RELEASE)/proxtopus/handler_ss.o: proxtopus/handler_ss.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/handler_ss.cpp -o $(OBJDIR_RELEASE)/proxtopus/handler_ss.o
 
-$(OBJDIR_RELEASE)/imconee/handlers.o: imconee/handlers.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/handlers.cpp -o $(OBJDIR_RELEASE)/imconee/handlers.o
+$(OBJDIR_RELEASE)/proxtopus/handlers.o: proxtopus/handlers.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/handlers.cpp -o $(OBJDIR_RELEASE)/proxtopus/handlers.o
 
-$(OBJDIR_RELEASE)/imconee/listener.o: imconee/listener.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/listener.cpp -o $(OBJDIR_RELEASE)/imconee/listener.o
+$(OBJDIR_RELEASE)/proxtopus/listener.o: proxtopus/listener.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/listener.cpp -o $(OBJDIR_RELEASE)/proxtopus/listener.o
 
-$(OBJDIR_RELEASE)/imconee/loader.o: imconee/loader.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/loader.cpp -o $(OBJDIR_RELEASE)/imconee/loader.o
+$(OBJDIR_RELEASE)/proxtopus/loader.o: proxtopus/loader.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/loader.cpp -o $(OBJDIR_RELEASE)/proxtopus/loader.o
 
-$(OBJDIR_RELEASE)/imconee/logger.o: imconee/logger.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/logger.cpp -o $(OBJDIR_RELEASE)/imconee/logger.o
+$(OBJDIR_RELEASE)/proxtopus/logger.o: proxtopus/logger.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/logger.cpp -o $(OBJDIR_RELEASE)/proxtopus/logger.o
 
-$(OBJDIR_RELEASE)/imconee/main.o: imconee/main.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/main.cpp -o $(OBJDIR_RELEASE)/imconee/main.o
+$(OBJDIR_RELEASE)/proxtopus/main.o: proxtopus/main.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/main.cpp -o $(OBJDIR_RELEASE)/proxtopus/main.o
 
-$(OBJDIR_RELEASE)/imconee/mem.o: imconee/mem.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/mem.cpp -o $(OBJDIR_RELEASE)/imconee/mem.o
+$(OBJDIR_RELEASE)/proxtopus/mem.o: proxtopus/mem.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/mem.cpp -o $(OBJDIR_RELEASE)/proxtopus/mem.o
 
-$(OBJDIR_RELEASE)/imconee/netkit.o: imconee/netkit.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c imconee/netkit.cpp -o $(OBJDIR_RELEASE)/imconee/netkit.o
+$(OBJDIR_RELEASE)/proxtopus/netkit.o: proxtopus/netkit.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/netkit.cpp -o $(OBJDIR_RELEASE)/proxtopus/netkit.o
 
 $(OBJDIR_RELEASE)/botan/ctr.o: botan/ctr.cpp
 	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/ctr.cpp -o $(OBJDIR_RELEASE)/botan/ctr.o
@@ -247,7 +247,7 @@ clean_release:
 	rm -f $(OBJ_RELEASE) $(OUT_RELEASE)
 	rm -rf bin
 	rm -rf $(OBJDIR_RELEASE)/botan
-	rm -rf $(OBJDIR_RELEASE)/imconee
+	rm -rf $(OBJDIR_RELEASE)/proxtopus
 	rm -rf $(OBJDIR_RELEASE)/res
 
 .PHONY: before_release after_release clean_release

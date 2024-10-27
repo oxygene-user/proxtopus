@@ -128,7 +128,7 @@ void HKDF_Expand::kdf(uint8_t key[],
    }
 }
 
-#if 0 /// IMCONEE
+#if 0 /// PROXTOPUS
 secure_vector<uint8_t> hkdf_expand_label(std::string_view hash_fn,
                                          const uint8_t secret[],
                                          size_t secret_len,

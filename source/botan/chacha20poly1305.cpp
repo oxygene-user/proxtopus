@@ -11,15 +11,15 @@
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/loadstor.h>
 
-#include <botan/internal/chacha.h> /// IMCONEE
-#include <botan/internal/poly1305.h> /// IMCONEE
+#include <botan/internal/chacha.h> /// PROXTOPUS
+#include <botan/internal/poly1305.h> /// PROXTOPUS
 
 namespace Botan {
 
 ChaCha20Poly1305_Mode::ChaCha20Poly1305_Mode() :
       //m_chacha(StreamCipher::create("ChaCha")), m_poly1305(MessageAuthenticationCode::create("Poly1305")) {
-        m_chacha(std::make_unique<ChaCha>(20)), m_poly1305(std::make_unique<Poly1305>()) { /// IMCONEE
-    /// IMCONEE
+        m_chacha(std::make_unique<ChaCha>(20)), m_poly1305(std::make_unique<Poly1305>()) { /// PROXTOPUS
+    /// PROXTOPUS
     /*
    if(!m_chacha || !m_poly1305) {
       throw Algorithm_Not_Found("ChaCha20Poly1305");

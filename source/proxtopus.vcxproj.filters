@@ -41,52 +41,52 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="imconee.natvis" />
+    <Natvis Include="proxtopus.natvis" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="imconee\pch.cpp">
+    <ClCompile Include="proxtopus\pch.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\main.cpp">
+    <ClCompile Include="proxtopus\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\sts.cpp">
+    <ClCompile Include="proxtopus\sts.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\tools.cpp">
+    <ClCompile Include="proxtopus\tools.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\logger.cpp">
+    <ClCompile Include="proxtopus\logger.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\cmdline.cpp">
+    <ClCompile Include="proxtopus\cmdline.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\listener.cpp">
+    <ClCompile Include="proxtopus\listener.cpp">
       <Filter>src\listeners</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\netkit.cpp">
+    <ClCompile Include="proxtopus\netkit.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\handlers.cpp">
+    <ClCompile Include="proxtopus\handlers.cpp">
       <Filter>src\handlers</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\fsys.cpp">
+    <ClCompile Include="proxtopus\fsys.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\engine.cpp">
+    <ClCompile Include="proxtopus\engine.cpp">
       <Filter>src\engine</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\loader.cpp">
+    <ClCompile Include="proxtopus\loader.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\connect.cpp">
+    <ClCompile Include="proxtopus\connect.cpp">
       <Filter>src\engine</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\proxy.cpp">
+    <ClCompile Include="proxtopus\proxy.cpp">
       <Filter>src\engine</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\proxy_ss.cpp">
+    <ClCompile Include="proxtopus\proxy_ss.cpp">
       <Filter>src\engine\shadowsocks</Filter>
     </ClCompile>
     <ClCompile Include="botan\md5.cpp">
@@ -215,19 +215,19 @@
     <ClCompile Include="botan\aes_vperm.cpp">
       <Filter>botan</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\cipher_ss.cpp">
+    <ClCompile Include="proxtopus\cipher_ss.cpp">
       <Filter>src\engine\shadowsocks</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\handler_ss.cpp">
+    <ClCompile Include="proxtopus\handler_ss.cpp">
       <Filter>src\handlers</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\botan.cpp">
+    <ClCompile Include="proxtopus\botan.cpp">
       <Filter>src\botan</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\rndgen.cpp">
+    <ClCompile Include="proxtopus\rndgen.cpp">
       <Filter>src\botan</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\mem.cpp">
+    <ClCompile Include="proxtopus\mem.cpp">
       <Filter>src\system</Filter>
     </ClCompile>
     <ClCompile Include="debug\excpn.cpp">
@@ -236,54 +236,57 @@
     <ClCompile Include="debug\stkwlk.cpp">
       <Filter>src\debug</Filter>
     </ClCompile>
-    <ClCompile Include="imconee\dnsq.cpp">
+    <ClCompile Include="proxtopus\dnsq.cpp">
       <Filter>src\dns</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\tests.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="imconee\pch.h">
+    <ClInclude Include="proxtopus\pch.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\str_helpers.h">
+    <ClInclude Include="proxtopus\str_helpers.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\sts.h">
+    <ClInclude Include="proxtopus\sts.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\tools.h">
+    <ClInclude Include="proxtopus\tools.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\logger.h">
+    <ClInclude Include="proxtopus\logger.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\cmdline.h">
+    <ClInclude Include="proxtopus\cmdline.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\listener.h">
+    <ClInclude Include="proxtopus\listener.h">
       <Filter>src\listeners</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\netkit.h">
+    <ClInclude Include="proxtopus\netkit.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\handlers.h">
+    <ClInclude Include="proxtopus\handlers.h">
       <Filter>src\handlers</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\fsys.h">
+    <ClInclude Include="proxtopus\fsys.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\engine.h">
+    <ClInclude Include="proxtopus\engine.h">
       <Filter>src\engine</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\loader.h">
+    <ClInclude Include="proxtopus\loader.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\connect.h">
+    <ClInclude Include="proxtopus\connect.h">
       <Filter>src\engine</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\proxy.h">
+    <ClInclude Include="proxtopus\proxy.h">
       <Filter>src\engine</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\proxy_ss.h">
+    <ClInclude Include="proxtopus\proxy_ss.h">
       <Filter>src\engine\shadowsocks</Filter>
     </ClInclude>
     <ClInclude Include="botan\aead.h">
@@ -508,14 +511,14 @@
     <ClInclude Include="botan\types.h">
       <Filter>botan\h</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\cipher_ss.h">
+    <ClInclude Include="proxtopus\cipher_ss.h">
       <Filter>src\engine\shadowsocks</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\handler_ss.h">
+    <ClInclude Include="proxtopus\handler_ss.h">
       <Filter>src\handlers</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\resource.h" />
-    <ClInclude Include="imconee\rndgen.h">
+    <ClInclude Include="proxtopus\resource.h" />
+    <ClInclude Include="proxtopus\rndgen.h">
       <Filter>src\botan</Filter>
     </ClInclude>
     <ClInclude Include="debug\excpn.h">
@@ -524,26 +527,26 @@
     <ClInclude Include="debug\stkwlk.h">
       <Filter>src\debug</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\main.h">
+    <ClInclude Include="proxtopus\main.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\base.h">
+    <ClInclude Include="proxtopus\base.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\arena.h">
+    <ClInclude Include="proxtopus\arena.h">
       <Filter>src\system</Filter>
     </ClInclude>
-    <ClInclude Include="imconee\dnsq.h">
+    <ClInclude Include="proxtopus\dnsq.h">
       <Filter>src\dns</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="imconee\imconee.rc">
+    <ResourceCompile Include="proxtopus\proxtopus.rc">
       <Filter>res</Filter>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\imconee.ico">
+    <Image Include="res\proxtopus.ico">
       <Filter>res</Filter>
     </Image>
   </ItemGroup>
@@ -558,6 +561,9 @@
       <Filter>res</Filter>
     </Text>
     <Text Include="res\help_handler.txt">
+      <Filter>res</Filter>
+    </Text>
+    <Text Include="res\help_proxy.txt">
       <Filter>res</Filter>
     </Text>
   </ItemGroup>
