@@ -16,7 +16,7 @@ To build for windows, you have to use MSVC 2022<br>
 To build for linux, you have to install at least gcc v10. You can just type make (makefile is in sources) or use Code::Blocks IDE (cbp file also included)
 
 # install (windows)
-Put **imconee64.exe** into an dir as you wish. Put **config.txt** (example included) near exe, edit it (documentation comming soon). Just run exe (as ordinary console app). To run as windows service, type **imconee64 install**.
+Put **proxtopus64.exe** into an dir as you wish. Put **config.txt** (example included) near exe, edit it (documentation comming soon). Just run exe (as ordinary console app). To run as windows service, type **proxtopus64 install**.
 
 # install (linux)
 Put **config.txt** near executable file and run. More detailed instructions will be available soon.
