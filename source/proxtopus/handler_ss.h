@@ -18,11 +18,11 @@ protected:
     }
     /*virtual*/ void log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to) override;
 public:
-	handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type st);
+	handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st);
 	virtual ~handler_ss() { stop(); }
 
 	/*virtual*/ str::astr desc() const { return str::astr(ASTR("shadowsocks")); }
-    /*virtual*/ bool compatible(netkit::socket_type /*st*/) const
+    /*virtual*/ bool compatible(netkit::socket_type_e /*st*/) const
     {
         return true; // compatible with both tcp and udp
     }

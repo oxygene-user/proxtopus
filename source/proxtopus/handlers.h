@@ -222,7 +222,7 @@ protected:
 
 	public:
 
-		udp_processing_thread(handler *h, netkit::thread_storage &&hs, const netkit::ipap & k):h(h), hashkey(k), handler_state(std::move(hs))
+		udp_processing_thread(handler *h, netkit::thread_storage &&hs, const netkit::ipap & k):h(h), handler_state(std::move(hs)), hashkey(k)
 		{
 			update_cutoff_time();
 		}
@@ -276,19 +276,19 @@ protected:
 	void udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt);
 
 	/*
-	* 
+	*
 	*   handle udp request: initiator -> handler -> remote
-	* 
+	*
 	*   p (in/modif) - packet from initiator, can be modified
 	*   ep (out) - address of remote
 	*   pg (out) - packet to send to remote (refs to p.packet)
-	* 
+	*
 	*/
 	virtual bool handle_packet(netkit::thread_storage& /*ctx*/, netkit::udp_packet& /*p*/, netkit::endpoint& /*ep*/, netkit::pgen& /*pg*/)
 	{
 		return false;
 	}
-	
+
 	/*
 	*
 	*   handle udp answer: initiator <- handler <- remote
@@ -320,7 +320,7 @@ public:
 	netkit::pipe_ptr connect(netkit::endpoint& addr, bool direct); // just connect to remote host using current handler's proxy settings
 
 	virtual str::astr desc() const = 0;
-	virtual bool compatible(netkit::socket_type /*st*/) const
+	virtual bool compatible(netkit::socket_type_e /*st*/) const
 	{
 		return false;
 	}
@@ -330,13 +330,13 @@ public:
 		// so, this func is owner of pipe now
 		// delete it
 		// (override this to handle pipe)
-		delete pipe; 
+		delete pipe;
 	}
 
     virtual void on_udp(netkit::socket&, netkit::udp_packet&);
     virtual void on_listen_port(signed_t /*port*/) {} // callback on listen port
 
-	static handler* build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type st);
+	static handler* build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st);
 };
 
 
@@ -358,11 +358,11 @@ protected:
 
 
 public:
-	handler_direct( loader &ldr, listener* owner, const asts& bb, netkit::socket_type st );
+	handler_direct( loader &ldr, listener* owner, const asts& bb, netkit::socket_type_e st );
 	virtual ~handler_direct() { stop(); }
 
 	/*virtual*/ str::astr desc() const { return str::astr(ASTR("direct")); }
-	/*virtual*/ bool compatible(netkit::socket_type /*st*/) const
+	/*virtual*/ bool compatible(netkit::socket_type_e /*st*/) const
 	{
 		return true; // compatible with both tcp and udp
 	}
@@ -384,7 +384,7 @@ class handler_socks : public handler // socks4 and socks5
 	netkit::ipap udp_bind;
 
 	bool socks5_allow_anon = false;
-	
+
 	bool allow_4 = true;
 	bool allow_5 = true;
 	bool allow_udp_assoc = true;
@@ -403,7 +403,7 @@ public:
 	virtual ~handler_socks() { stop(); }
 
 	/*virtual*/ str::astr desc() const { return str::astr(ASTR("socks")); }
-	/*virtual*/ bool compatible(netkit::socket_type st) const
+	/*virtual*/ bool compatible(netkit::socket_type_e st) const
 	{
 		return st == netkit::ST_TCP;
 	}

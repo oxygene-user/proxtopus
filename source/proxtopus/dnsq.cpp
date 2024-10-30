@@ -498,8 +498,8 @@ bool dns_resolver::find_ns(query_internals& qi, signed_t deep)
 		return true;
 	};
 
-	if (deep > 10)
-		__debugbreak();
+//	if (deep > 10)
+//		__debugbreak();
 
 	auto zs = zones.lock_read();
 
@@ -672,7 +672,7 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 							if (ns.ips.empty())
 								return; // all ip's already present with same name
 						} else if (ns.ips[j].copmpare_a(s->ip))
-							goto rmv; // do you like goto's? 
+							goto rmv; // do you like goto's?
 					}
 				}
 			}
@@ -1263,7 +1263,7 @@ void dns_resolver::load_serves(engine* e, const asts* s)
 			continue;
 		}
 
-		
+
 		newns nns;
 		nns.name = str::shared_str::build(nsn);
 		std::vector<str::astr_view> z4ns;
@@ -1304,7 +1304,7 @@ void dns_resolver::load_serves(engine* e, const asts* s)
 				nns.zone = z;
 				add_zone_ns(0, &zo(), nns, z, nullptr, p);
 			}
-		} else 
+		} else
 		{
 			for (const netkit::ipap& ip : ipar)
 			{

@@ -196,7 +196,7 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 			size_t y = url.find('#', x+1);
 			if (y == url.npos) y = url.length();
 			addr = url.substr(x + 1, y);
-			char *outb = (char*)_alloca(x);
+			char *outb = (char*)ALLOCA(x);
 			signed_t sz = str::decode_base64(str::astr_view(url.data() + 5, x - 5), outb, x);
 			url = str::astr_view(outb, sz);
 			size_t z = url.find(':');
@@ -383,7 +383,7 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 }
 
 
-ss::core::udp_crypto_pipe::udp_crypto_pipe(const netkit::endpoint& ssproxyep, netkit::udp_pipe* transport, std::unique_ptr<cryptor> &&c, str::astr masterKey, crypto_par cp) :ssproxyep(ssproxyep), transport(transport), masterKey(masterKey), cp(cp)
+ss::core::udp_crypto_pipe::udp_crypto_pipe(const netkit::endpoint& ssproxyep, netkit::udp_pipe* transport, std::unique_ptr<cryptor> &&c, str::astr masterKey, crypto_par cp) :transport(transport), masterKey(masterKey), cp(cp), ssproxyep(ssproxyep)
 {
     crypto = std::move(c);
 }
@@ -407,7 +407,7 @@ ss::core::udp_crypto_pipe::udp_crypto_pipe(const netkit::endpoint& ssproxyep, ne
 	}
 	else
 	{
-		u8* b2e = (u8*)_alloca(pg.sz + presize);
+		u8* b2e = ALLOCA(pg.sz + presize);
         netkit::pgen pgx(b2e, presize + pg.sz);
         proxy_socks5::push_atyp(pgx, toaddr);
 		memcpy(b2e + presize, pg.get_data(), pg.sz);

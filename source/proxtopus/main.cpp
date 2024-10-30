@@ -17,7 +17,7 @@ static BOOL WINAPI consoleHandler(DWORD signal)
 {
 	if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
 	{
-		LOG_I("proxtopuse has been received stop signal");
+		LOG_I("proxtopus has been received stop signal");
 		glb.stop();
 	}
 	return TRUE;
@@ -32,8 +32,8 @@ static void handle_signal(int sig) {
     {
         case SIGINT:
         case SIGTERM:
-		LOG_I("proxtopuse has been received stop signal");
-		engine::stop();
+		LOG_I("proxtopus has been received stop signal");
+		glb.stop();
 
         struct termios t;
         tcgetattr(STDIN_FILENO,&t);
@@ -56,7 +56,7 @@ static void shapka()
 #endif
 
 
-	Print("proxtopus v0.4 (build " __DATE__ " " __TIME__ ")\n");
+	Print("proxtopus v0.5 (build " __DATE__ " " __TIME__ ")\n");
 	Print();
 }
 

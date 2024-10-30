@@ -63,7 +63,9 @@
 #include "spinlock.h"
 #include "fsys.h"
 #include "arena.h"
+#ifndef _NIX
 #include "../debug/excpn.h"
+#endif
 #include "main.h"
 #include "resource.h"
 

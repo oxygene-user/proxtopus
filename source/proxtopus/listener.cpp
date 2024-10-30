@@ -49,7 +49,7 @@ listener::listener(loader& /*ldr*/, const str::astr& name, const asts& /*bb*/)
 	this->name = name;
 }
 
-socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type st) :listener(ldr, name, bb)
+socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type_e st) :listener(ldr, name, bb)
 {
 	const asts* hnd = bb.get(ASTR("handler"));
 	if (nullptr == hnd)
@@ -83,7 +83,7 @@ socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts&
 	}
 }
 
-socket_listener::socket_listener(const netkit::ipap& bind, handler* h):bind(bind), listener(h)
+socket_listener::socket_listener(const netkit::ipap& bind, handler* h): listener(h), bind(bind)
 {
 }
 
@@ -149,10 +149,9 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 #ifdef _NIX
 /*virtual*/ void tcp_listener::kick_socket()
 {
-    auto st = state.lock_read();
-    netkit::ipap cnct = netkit::ipap::localhost(st().bind.v4);
-    if (!st().bind.is_wildcard())
-        cnct = st().bind;
+    netkit::ipap cnct = netkit::ipap::localhost(bind.v4);
+    if (!bind.is_wildcard())
+        cnct = bind;
 
     SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_STREAM, IPPROTO_TCP);
     cnct.connect(s);
@@ -203,10 +202,9 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
 #ifdef _NIX
 /*virtual*/ void udp_listener::kick_socket()
 {
-    auto st = state.lock_read();
-    netkit::ipap cnct = netkit::ipap::localhost(st().bind.v4);
-    if (!st().bind.is_wildcard())
-        cnct = st().bind;
+    netkit::ipap cnct = netkit::ipap::localhost(bind.v4);
+    if (!bind.is_wildcard())
+        cnct = bind;
 
     SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 	u8 tmp = 0;

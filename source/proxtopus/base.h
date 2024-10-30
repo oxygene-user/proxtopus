@@ -14,19 +14,21 @@
 #define ARCHBITS 32
 #endif
 
-typedef signed short i16;
-typedef ptrdiff_t signed_t;
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned long u32;
-typedef long i32;
+using i16 = int16_t;
+using signed_t = ptrdiff_t;
+using u8 = uint8_t;
+using u16 = uint16_t;
+using u32 = uint32_t;
+using i32 = int32_t;
+
+static_assert(sizeof(u32) == 4);
 
 #if defined(_MSC_VER)
 typedef signed __int64		i64;
 typedef unsigned __int64	u64;
 #elif defined(__GNUC__)
-typedef int64_t	i64;
-typedef uint64_t u64;
+using i64 = int64_t;
+using u64 = uint64_t;
 using WORD = uint16_t;
 #endif
 
@@ -67,6 +69,8 @@ using WORD = uint16_t;
 #else
 #define SMART_DEBUG_BREAK DEBUGBREAK() // always break in debug
 #endif
+
+#define isizeof(s) ((signed_t)(sizeof(s)))
 
 inline bool is_debugger_present()
 {

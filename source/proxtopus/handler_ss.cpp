@@ -1,6 +1,6 @@
 #include "pch.h"
 
-handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type st) :handler(ldr, owner, bb)
+handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st) :handler(ldr, owner, bb)
 {
 	core.load(ldr, owner->get_name(), bb);
 
@@ -36,7 +36,7 @@ void handler_ss::worker(netkit::pipe* raw_pipe)
 		rb = p_enc->recv(packet + 2, -3);
 		if (rb != 3)
 			return;
-		
+
 		ep.set_ipap(netkit::ipap::build(packet + 1, 4));
 		break;
 	case 3: // domain name
@@ -102,12 +102,12 @@ namespace
     if (!proxy_socks5::read_atyp(repg, epr))
         return false;
 
-	std::span<const u8> p2s(decp.data() + repg.ptr, decp.size() - repg.ptr);
-	memcpy(p.packet, p2s.data(), p2s.size());
-	p.sz = tools::as_word(p2s.size());
-	pg.set(p, 0);
+    std::span<const u8> p2s(decp.data() + repg.ptr, decp.size() - repg.ptr);
+    memcpy(p.packet, p2s.data(), p2s.size());
+    p.sz = tools::as_word(p2s.size());
+    pg.set(p, 0);
 
-	return true;
+    return true;
 }
 
 /*virtual*/ bool handler_ss::encode_packet(netkit::thread_storage& ctx, const netkit::ipap& from, netkit::pgen& pg)
@@ -130,7 +130,7 @@ namespace
     }
     else
     {
-        u8* b2e = (u8*)_alloca(pg.sz + presize);
+        u8* b2e = ALLOCA(pg.sz + presize);
         netkit::pgen pgx(b2e, presize + pg.sz);
         proxy_socks5::push_atyp(pgx, ep);
         memcpy(b2e + presize, pg.get_data(), pg.sz);

@@ -100,10 +100,6 @@ namespace {
 
 }
 
-#ifdef __GNUC__
-#define _alloca alloca
-#endif
-
 netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2) const
 {
 	addr2.resolve_ip(conf::gip_only4);
@@ -113,7 +109,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 	}
 
 	signed_t dsz = sizeof(connect_packet_socks4) + 1 + userid.length();
-	connect_packet_socks4* pd = (connect_packet_socks4 *)_alloca(dsz);
+	connect_packet_socks4* pd = (connect_packet_socks4 *)ALLOCA(dsz);
 	pd->vn = 4; pd->cd = 1;
 	pd->destport = netkit::to_ne((u16)addr2.port());
 	pd->destip = addr2.get_ip();
@@ -247,13 +243,10 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 
 		break;
 	case 3:
-		rb = p2p->recv(packet, -1); // read domain len
-		if (rb != 1)
+		if (signed_t n = p2p->recv(packet, -1); n != 1) // read domain len
 			return false;
 
-		rb = packet[0] + 2;
-		rb = p2p->recv(packet+1, rb); // read domain and port
-		if (rb != rb)
+		if (signed_t n = packet[0] + 2; n != p2p->recv(packet+1, n)) // read domain and port
 			return false;
 
 		ep->set_domain( str::astr_view((const char *)packet + 1, packet[0]));
@@ -346,7 +339,7 @@ namespace
 				return transport->send(udpassoc, pgh);
 			}
 
-			u8* packet = (u8*)_alloca(presize + pg.sz);
+			u8* packet = ALLOCA(presize + pg.sz);
 			prepare_header(packet, toaddr);
 			memcpy(packet + presize, pg.to_span().data(), pg.sz);
 			return transport->send(udpassoc, netkit::pgen(packet, presize + pg.sz));

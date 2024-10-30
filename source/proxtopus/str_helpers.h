@@ -625,7 +625,7 @@ namespace str
 		for (; sl>0 && datasize;)
 		{
 			bool inbb = false;
-			for (signed_t i = 0; i < sizeof(inb) && (sl > 0); ++i)
+			for (signed_t i = 0; i < isizeof(inb) && (sl > 0); ++i)
 			{
 				uint8_t v = 0;
 				while ((sl>0) && v == 0)

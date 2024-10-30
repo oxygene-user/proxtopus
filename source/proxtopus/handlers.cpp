@@ -2,7 +2,7 @@
 
 #define BRIDGE_BUFFER_SIZE 65536
 
-handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type st)
+handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st)
 {
 	const str::astr &t = bb.get_string(ASTR("type"));
 	if (t.empty())
@@ -484,7 +484,7 @@ netkit::pipe_ptr handler::connect( netkit::endpoint& addr, bool direct)
 			prx_ep = proxychain[i]->get_addr();
 			return prx_ep;
 		};
-	
+
 	netkit::pipe_ptr pp = connect(get_proxy_addr(0), true);
 
 	for (signed_t i = 0; pp != nullptr && i < (signed_t)proxychain.size(); ++i)
@@ -713,7 +713,7 @@ void handler::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
 //////////////////////////////////////////////////////////////////////////////////
 
 
-handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, netkit::socket_type st):handler(ldr, owner,bb)
+handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st):handler(ldr, owner,bb)
 {
 	to_addr = bb.get_string(ASTR("to"));
 	if (!conn::is_valid_addr(to_addr))
@@ -855,7 +855,7 @@ handler_socks::handler_socks(loader& ldr, listener* owner, const asts& bb, const
 		udp_bind = netkit::ipap::parse(bs);
     }
 
-	
+
 }
 
 void handler_socks::on_pipe(netkit::pipe* pipe)
@@ -959,9 +959,9 @@ namespace
 		{
 			// udp assoc packet from initiator
             //  +-----+------+-------------
-            //  | RSV | FRAG | ATYP... 
+            //  | RSV | FRAG | ATYP...
             //  +-----+------+-------------
-            //  |  2  |  1   | Variable...    
+            //  |  2  |  1   | Variable...
             //  +-----+------+-------------
 
 			netkit::pgen pgr(p.packet, p.sz);

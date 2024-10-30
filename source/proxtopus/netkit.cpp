@@ -197,9 +197,12 @@ namespace netkit
 			signed_t rp = port;
 			if (rp == 0)
 			{
-				int x = sizeof(addr);
+//#ifdef _WIN32
+				socklen_t x = sizeof(addr);
 				getsockname(s, (sockaddr*)&addr, &x);
 				rp = netkit::to_ne(addr.sin_port);
+//#endif
+
 			}
 			return rp;
 		}
@@ -218,7 +221,7 @@ namespace netkit
         signed_t rp = port;
         if (rp == 0)
         {
-            int x = sizeof(addr);
+            socklen_t x = sizeof(addr);
             getsockname(s, (sockaddr*)&addr, &x);
             rp = netkit::to_ne(addr.sin6_port);
         }
@@ -394,8 +397,8 @@ namespace netkit
 
 #ifdef _NIX
 		int dom = -1;
-		int doml = sizeof(dom);
-		getsockopt(sock(), SOL_SOCKET, SO_DOMAIN, (char*)&dom, &doml));
+		socklen_t doml = sizeof(dom);
+		getsockopt(sock(), SOL_SOCKET, SO_DOMAIN, (char*)&dom, &doml);
 		bool v4 = dom == AF_INET;
 #endif
 #ifdef _WIN32
@@ -429,7 +432,7 @@ namespace netkit
 	{
 		sockaddr_in addr4 = {};
 		sockaddr_in6 addr6 = {};
-		int sz = p.from.v4 ? sizeof(addr4) : sizeof(addr6);
+		socklen_t sz = p.from.v4 ? sizeof(addr4) : sizeof(addr6);
 		int recvsz = recvfrom(s, (char *)p.packet, sizeof(p.packet), 0, p.from.v4 ? (sockaddr *)&addr4 : (sockaddr*)&addr6, &sz);
 		if (recvsz <= 0)
 			return false;
@@ -758,9 +761,9 @@ namespace netkit
 		memset(&hints, 0, sizeof hints);
 		hints.ai_family = AF_UNSPEC;
 
-		if (cfg.ipstack == GIP_ONLY4)
+		if (glb.cfg.ipstack == conf::gip_only4)
 			hints.ai_family = AF_INET;
-		else if (cfg.ipstack == GIP_ONLY6)
+		else if (glb.cfg.ipstack == conf::gip_only6)
 			hints.ai_family = AF_INET6;
 
 		hints.ai_socktype = SOCK_STREAM;

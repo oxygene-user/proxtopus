@@ -61,7 +61,7 @@ protected:
 	NIXONLY(virtual void kick_socket()=0);
 public:
 
-	socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type st);
+	socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type_e st);
 	socket_listener(const netkit::ipap &bind, handler *h);
 	/*virtual*/ ~socket_listener() {}
 
@@ -97,6 +97,7 @@ class udp_listener : public socket_listener
 
 protected:
 	/*virtual*/ void accept_impl() override;
+	NIXONLY(virtual void kick_socket());
 public:
 
 	udp_listener(loader& ldr, const str::astr& name, const asts& bb);

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <unordered_set>
+#include <condition_variable>
+#include <mutex>
 
 class dnspp
 {
@@ -404,7 +406,7 @@ class dns_resolver
 public:
 
 	dns_resolver(bool parse_hosts);
-	
+
 	netkit::ipap resolve(const str::astr &hn, bool log_it);
 	void load_serves(engine *e, const asts* s);
 };

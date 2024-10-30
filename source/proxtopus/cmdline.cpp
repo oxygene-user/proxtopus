@@ -43,6 +43,10 @@ extern char _binary_res_help_txt_start;
 extern char _binary_res_help_txt_end;
 extern char _binary_res_help_listener_txt_start;
 extern char _binary_res_help_listener_txt_end;
+extern char _binary_res_help_handler_txt_start;
+extern char _binary_res_help_handler_txt_end;
+extern char _binary_res_help_proxy_txt_start;
+extern char _binary_res_help_proxy_txt_end;
 extern char _binary_res_help_nix_txt_start;
 extern char _binary_res_help_nix_txt_end;
 #include <sys/utsname.h>
@@ -136,7 +140,7 @@ str::astr lazy_os_desc()
 str::astr lazy_exe()
 {
 	return str::to_utf8(get_name(get_exec_full_name()));
-	
+
 }
 
 void rpl(std::vector<char>& file, const str::astr_view& var, std::function<str::astr()> lazyrepl)

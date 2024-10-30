@@ -27,7 +27,7 @@ public:
 	* IMPORTANT! it is necessary to ensure the life-time of the transport for the entire period of use of the returned pipe
 	*/
 	virtual std::unique_ptr<netkit::udp_pipe> prepare(netkit::udp_pipe* /*transport*/) const { return std::unique_ptr<netkit::udp_pipe>(); }
-	virtual bool support(netkit::socket_type st) const { return st == netkit::ST_TCP; }
+	virtual bool support(netkit::socket_type_e st) const { return st == netkit::ST_TCP; }
 
 	const str::astr& get_name() const { return name; }
 	str::astr desc() const;
@@ -56,7 +56,7 @@ public:
 
 	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override; // tcp tunnel
 	/*virtual*/ std::unique_ptr<netkit::udp_pipe> prepare(netkit::udp_pipe* /*transport*/) const override; //udp tunnel
-	/*virtual*/ bool support(netkit::socket_type) const { return true; }
+	/*virtual*/ bool support(netkit::socket_type_e) const { return true; }
 
 	bool prepare_udp_assoc(netkit::endpoint & udp_assoc_ep, netkit::pipe_ptr &pip, bool log_fails) const;
 	static void push_atyp(netkit::pgen& pg, const netkit::endpoint& addr);

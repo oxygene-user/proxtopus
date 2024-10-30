@@ -159,6 +159,7 @@
 		<Unit filename="botan/system_rng.cpp" />
 		<Unit filename="botan/system_rng.h" />
 		<Unit filename="botan/types.h" />
+		<Unit filename="proxtopus/base.h" />
 		<Unit filename="proxtopus/botan.cpp" />
 		<Unit filename="proxtopus/cipher_ss.cpp" />
 		<Unit filename="proxtopus/cipher_ss.h" />
@@ -166,6 +167,8 @@
 		<Unit filename="proxtopus/cmdline.h" />
 		<Unit filename="proxtopus/connect.cpp" />
 		<Unit filename="proxtopus/connect.h" />
+		<Unit filename="proxtopus/dnsq.cpp" />
+		<Unit filename="proxtopus/dnsq.h" />
 		<Unit filename="proxtopus/engine.cpp" />
 		<Unit filename="proxtopus/engine.h" />
 		<Unit filename="proxtopus/fsys.cpp" />
@@ -206,12 +209,22 @@
 			<Option link="1" />
 			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
 		</Unit>
+		<Unit filename="res/help_handler.txt">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
+		</Unit>
 		<Unit filename="res/help_listener.txt">
 			<Option compile="1" />
 			<Option link="1" />
 			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
 		</Unit>
 		<Unit filename="res/help_nix.txt">
+			<Option compile="1" />
+			<Option link="1" />
+			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
+		</Unit>
+		<Unit filename="res/help_proxy.txt">
 			<Option compile="1" />
 			<Option link="1" />
 			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />

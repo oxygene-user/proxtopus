@@ -55,7 +55,7 @@ namespace netkit
 		return cvt<Endian::little>::to_he(v_network);
 	}
 
-	enum socket_type : u8
+	enum socket_type_e : u8
 	{
 		ST_UNDEFINED,
 		ST_TCP,
@@ -125,9 +125,9 @@ namespace netkit
 			{
 				return h ^ std::hash<u32>()(ipv4.s_addr);
 			}
-			
+
 			return h ^ std::hash<u128>()(ref_cast<u128>(ipv6));
-			
+
 		}
 
 		ipap &init_localhost()
@@ -520,7 +520,7 @@ namespace netkit
 		str::astr domain_;
 		ipap ip;
 		endpoint_state state_ = EPS_EMPTY;
-		socket_type sockt = ST_UNDEFINED;
+		socket_type_e sockt = ST_UNDEFINED;
 
 		void check_domain_or_ip();
 
@@ -607,7 +607,7 @@ namespace netkit
 		{
 			return state_;
 		}
-		socket_type socket_type() const
+		socket_type_e socket_type() const
 		{
 			return sockt;
 		}
@@ -841,7 +841,7 @@ namespace netkit
 	/*
 	*   pgen is a wrapper for a byte array
 	*   does not own the array
-	* 
+	*
 	*   ptr - pointer to current write position; used for pushing data to array
 	*   sz - array size; maximum vaule for ptr;
 	*   extra - extra space before an array; can be used to insert some data before existing data

@@ -88,20 +88,16 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 		return netkit::pipe_ptr();
 
 	netkit::pipe_ptr p_enc(new ss::core::crypto_pipe(pipe_2_proxy, std::move(core.cb()), core.masterKey, core.cp));
-	
+
 	// just send connect request (shadowsocks 2012 protocol spec)
 	// no need to wait answer: stream mode just after request
-
 
 	u8 packet[512];
 	netkit::pgen pg(packet, 512);
 
 	proxy_socks5::push_atyp(pg, addr2);
 
-    if (p_enc->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL)
-        return netkit::pipe_ptr();
-
-	return p_enc;
+    return (p_enc->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL) ? netkit::pipe_ptr() : p_enc;
 }
 
 /*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_shadowsocks::prepare(netkit::udp_pipe* transport) const

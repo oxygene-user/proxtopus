@@ -11,6 +11,14 @@
 #include <span>
 #include <bit>
 
+#ifdef __GNUC__
+#define ALLOCA (u8 *)alloca
+#endif
+#ifdef _MSC_VER
+#define ALLOCA (u8 *)_alloca
+#endif // _MSC_VER
+
+
 class Endian
 {
 public:
@@ -1152,7 +1160,7 @@ namespace str
 			shared_str* x = (shared_str*)malloc( s.length() + sizeof(shared_str) );
 			*(u16*)x = 0;
 			x->len = tools::as_byte(s.length());
-			memcpy(x + 1, s.data(), s.length());
+			memcpy((void *)(x + 1), s.data(), s.length());
 			return ptr(x);
 		}
 		str::astr_view cstr() const
