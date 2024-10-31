@@ -152,6 +152,8 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
     netkit::ipap cnct = netkit::ipap::localhost(bind.v4);
     if (!bind.is_wildcard())
         cnct = bind;
+    else
+        cnct.set_port(bind.port);
 
     SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_STREAM, IPPROTO_TCP);
     cnct.connect(s);
@@ -205,6 +207,8 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
     netkit::ipap cnct = netkit::ipap::localhost(bind.v4);
     if (!bind.is_wildcard())
         cnct = bind;
+    else
+        cnct.set_port(bind.port);
 
     SOCKET s = ::socket(cnct.v4 ? AF_INET : AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 	u8 tmp = 0;
@@ -238,7 +242,11 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
 		{
 			netkit::udp_packet p(bind.v4);
 			if (sock.recv(p))
-				hand->on_udp( sock, p );
+            {
+                if (glb.is_stop())
+                    break;
+                hand->on_udp( sock, p );
+            }
 		}
 
 		hand->stop();

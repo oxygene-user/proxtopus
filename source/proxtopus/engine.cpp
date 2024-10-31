@@ -91,6 +91,8 @@ signed_t engine::working()
 {
 	if (glb.is_stop())
 	{
+	    LOG_I("stoping...");
+	    Print();
 		for (std::unique_ptr<listener> & l : listners)
 			l->stop();
 

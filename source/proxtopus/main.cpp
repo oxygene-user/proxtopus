@@ -397,6 +397,19 @@ int main(NIXONLY(int argc, char* argv[]))
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 	set_unhandled_exception_filter();
 #endif
+#ifdef _NIX
+    struct on_shutdown
+    {
+        ~on_shutdown()
+        {
+            struct termios t;
+            tcgetattr(STDIN_FILENO,&t);
+            t.c_lflag |= ECHO;
+            tcsetattr(STDIN_FILENO, TCSANOW, &t);
+        };
+
+    } onsh;
+#endif // _NIX
 
 	set_start_path();
 	shapka();

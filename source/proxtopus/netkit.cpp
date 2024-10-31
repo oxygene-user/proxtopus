@@ -422,6 +422,7 @@ namespace netkit
         {
             closesocket(s);
             LOG_I("listener %s has been terminated", name.c_str());
+            Print();
             return nullptr;
         }
 
