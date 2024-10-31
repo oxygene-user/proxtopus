@@ -549,8 +549,8 @@ void handler::tcp_processing_thread::close()
 
 void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 {
-	std::array<u8, 65535> packet;
-	netkit::pgen pg(packet.data(), packet.max_size());
+    u8 packet[65536];
+	netkit::pgen pg(packet, 65535);
 	if (auto to = h->udp_timeout(); to > 0)
 		cutoff_time = chrono::ms() + to;
 
@@ -597,7 +597,7 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 	for (;;)
 	{
 		pg.set_extra(32);
-		auto ior = pipe->recv(from, pg, packet.max_size()-32);
+		auto ior = pipe->recv(from, pg, 65535-32);
 		if (ior != netkit::ior_ok)
 		{
 			if (ior == netkit::ior_timeout && !is_timeout(chrono::ms()))

@@ -27,7 +27,7 @@ nameservers {
 	//  [option][option] - optional parameters with format name:value
 	//    available options:
 	//      zone:com        - use this dns server for resolving only domain names in specified zone (com in this example); this option can be used multiple times with different values
-	//      proxy:proxyname - use proxy to access this dns server; only socks5 proxy with udp support can be used (see proxy section)
+	//      proxy:proxyname - use proxy to access this dns server; only socks5 or shadowsocks proxy with udp support can be used (see proxy section)
 	//                        note: access to name servers that were obtained by accessing a non-recursive DNS server that was accessed through a proxy will also be accessed through the same proxy
 	//                        important: this is not name resolution via proxy, this is access to the dns server using udp proxy
 	// examples:

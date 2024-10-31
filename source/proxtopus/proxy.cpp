@@ -285,14 +285,15 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
     pg.push8(1); // connect
     pg.push8(0);
 
-	push_atyp(pg, addr2);
+    push_atyp(pg, addr2);
+
     if (pipe_to_proxy->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL)
         return netkit::pipe_ptr();
 
-	if (!recv_rep(packet, pipe_to_proxy.get(), nullptr, makeptr(str::view(addr2.domain()))))
-		return netkit::pipe_ptr();
+    if (!recv_rep(packet, pipe_to_proxy.get(), nullptr, makeptr(str::view(addr2.domain()))))
+        return netkit::pipe_ptr();
 
-	return pipe_to_proxy;
+    return pipe_to_proxy;
 }
 
 namespace
