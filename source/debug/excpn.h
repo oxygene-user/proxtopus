@@ -21,7 +21,9 @@ private:
     static LONG WINAPI DUMP(HANDLE hFile, MINIDUMPWRITEDUMP pDump, EXCEPTION_POINTERS* pExp);
 protected:
 	virtual LONG TraceFinal(EXCEPTION_POINTERS* pExp);
-    virtual void OnOutput(LPCSTR szText, size_t len) const override;
+    virtual void OnOutput(const char *szText, size_t len) const override;
+
+    static void glpp(const char* s, size_t l);
 public:
 	exceptions_best_friend();
 

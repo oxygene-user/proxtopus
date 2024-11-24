@@ -112,11 +112,7 @@ namespace netkit
 		u16 port = 0; // in native order (will be converted to network order directly while filling sockaddr_in or sockaddr_in6 structures)
 		bool v4 = true;
 
-		void clear()
-		{
-			v4 = glb.cfg.ipstack == conf::gip_only4 || glb.cfg.ipstack == conf::gip_prior4;
-			if (v4) ipv4.s_addr = 0; else memset(&ipv6, 0, sizeof(ipv6));
-		}
+		void clear();
 
 		std::size_t calc_hash() const
 		{
@@ -349,6 +345,14 @@ namespace netkit
 				return memcmp(&ipv6, &a.ipv6, sizeof(ipv6)) == 0;
 			return false;
 		}
+        bool copmpare_a(const u8 *data, signed_t dsz) const // compare only address
+        {
+            if (v4 && dsz == 4)
+                return ipv4.s_addr == *(const u32 *)data;
+            if (!v4 && dsz == 16)
+                return memcmp(&ipv6, data, sizeof(ipv6)) == 0;
+            return false;
+        }
 
 		bool operator==(const ipap& a) const // compare address and port
 		{
@@ -767,10 +771,7 @@ namespace netkit
 		{
 			addr = ipp;
 		}
-		void set_address(endpoint & ainf)
-		{
-			set_address( ainf.resolve_ip(glb.cfg.ipstack | conf::gip_any) );
-		}
+		void set_address(endpoint& ainf);
 
 		bool connect();
 

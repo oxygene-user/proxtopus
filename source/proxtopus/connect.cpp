@@ -56,7 +56,7 @@ namespace conn
 		if (addr.state() == netkit::EPS_RESLOVED)
 		{
 
-			netkit::tcp_pipe* con = new netkit::tcp_pipe();
+			netkit::tcp_pipe* con = NEW netkit::tcp_pipe();
 			con->set_address(addr);
 
 			//if (addr.domain() != "play.google.com")

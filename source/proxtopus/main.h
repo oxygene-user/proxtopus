@@ -58,6 +58,7 @@ struct global_data
 #endif
 
 #ifdef _WIN32
+	HMODULE module = nullptr;
 	SERVICE_STATUS_HANDLE hSrv = nullptr;
 #endif
 	conf cfg;
@@ -101,6 +102,7 @@ struct global_data
 
 	spinlock::syncvar<std::vector<str::astr>> prints;
     Botan::HKDF kdf = Botan::HKDF(std::make_unique<Botan::HMAC>(std::make_unique<Botan::SHA_1>()));
+	interceptor icpt;
 
 private:
 	volatile bool exit = false;

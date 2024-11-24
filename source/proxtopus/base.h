@@ -1,11 +1,20 @@
 #pragma once
 
-#define USE_ARENAS
 #ifdef _DEBUG
 //#define COUNT_ALLOCS
 //#define LOG_TRAFFIC
 #endif
 
+#include "mem.h"
+
+class Endian
+{
+public:
+    Endian() = delete;
+
+    static constexpr bool little = std::endian::native == std::endian::little;
+    static constexpr bool big = std::endian::native == std::endian::big;
+};
 
 #if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
 #define MODE64
@@ -31,6 +40,129 @@ using i64 = int64_t;
 using u64 = uint64_t;
 using WORD = uint16_t;
 #endif
+
+
+template<typename Tout, typename Tin> Tout& ref_cast(Tin& t)
+{
+    static_assert(sizeof(Tout) <= sizeof(Tin), "ref cast fail");
+    return (Tout&)t;
+}
+template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
+{
+    static_assert(sizeof(Tout) <= sizeof(Tin), "ref cast fail");
+    return *(const Tout*)&t;
+}
+
+template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t1, const Tin& t2)
+{
+    static_assert(sizeof(Tout) <= (sizeof(Tin) * 2), "ref cast fail");
+    ASSERT(((u8*)&t1) + sizeof(Tin) == (u8*)&t2);
+    return *(const Tout*)&t1;
+}
+
+#ifdef MODE64
+struct u128
+{
+    u64 low;
+    u64 hi;
+
+    u128() {}
+    u128(u64 v) :low(v), hi(0)
+    {
+    }
+
+    operator u64() const
+    {
+        return low;
+    }
+
+    bool operator >= (u64 v) const
+    {
+        return hi > 0 || low >= v;
+    }
+
+    u128& operator=(u64 v)
+    {
+        low = v;
+        hi = 0;
+        return *this;
+    }
+
+    u128& operator-=(u128 v)
+    {
+        if (low < v.low)
+        {
+            hi -= v.hi - 1;
+            low -= v.low;
+        }
+        else
+        {
+            hi -= v.hi;
+            low -= v.low;
+        }
+        return *this;
+    }
+    u128& operator+=(u64 v)
+    {
+#ifdef _MSC_VER
+        _addcarry_u64(_addcarry_u64(0, low, v, &low), hi, 0, &hi);
+#endif
+#ifdef __GNUC__
+        DEBUGBREAK();
+#endif
+        return *this;
+    }
+    u128& operator+=(const u128& v)
+    {
+#ifdef _MSC_VER
+        _addcarry_u64(_addcarry_u64(0, low, v.low, &low), hi, v.hi, &hi);
+#endif
+#ifdef __GNUC__
+        DEBUGBREAK();
+#endif
+        return *this;
+    }
+};
+#endif
+
+template <> struct std::hash<u128>
+{
+    std::size_t operator()(const u128& k) const
+    {
+        return std::hash<u64>()(k.low) ^ std::hash<u64>()(k.hi);
+    }
+};
+
+
+namespace tools
+{
+
+    template<class T> inline void swap(T& first, T& second)
+    {
+        T temp = std::move(first);
+        first = std::move(second);
+        second = std::move(temp);
+    }
+
+    u8 inline as_byte(signed_t b) { return static_cast<u8>(b & 0xFF); }
+    //u8 inline as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
+    u8 inline as_byte(u64 b) { return static_cast<u8>(b & 0xFF); }
+#ifdef MODE64
+    u8 inline as_byte(u128 b) { return as_byte((u64)b); }
+#endif
+//    wchar inline as_wchar(size_t x) { return static_cast<wchar>(x & 0xFFFF); }
+    u32 inline as_dword(size_t x) { return static_cast<u32>(x & 0xFFFFFFFF); }
+    u16 inline as_word(size_t x) { return static_cast<u16>(x & 0xFFFF); }
+
+    template<typename EL, typename ELC> inline signed_t find(const std::vector<EL>& ar, const ELC& el)
+    {
+        for (signed_t i = 0, c = ar.size(); i < c; ++i)
+            if (ar[i] == el)
+                return i;
+        return -1;
+    }
+}
+
 
 
 #define SLASSERT ASSERT
@@ -79,6 +211,9 @@ inline bool is_debugger_present()
 #endif
 	return false;
 }
+
+using printfunc = void(const char* s, size_t l);
+void GetPrint(printfunc pf);
 
 void Print(); // print current queue
 void Print(const char* format, ...);

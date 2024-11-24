@@ -15,7 +15,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 	handler* h = nullptr;
 	if (ASTR("direct") == t)
 	{
-		h = new handler_direct(ldr, owner, bb, st);
+		h = NEW handler_direct(ldr, owner, bb, st);
 	}
 	else if (str::starts_with(t, ASTR("socks")))
 	{
@@ -27,11 +27,11 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
             return nullptr;
 		}
 
-		h = new handler_socks(ldr, owner, bb, str::view(t).substr(5));
+		h = NEW handler_socks(ldr, owner, bb, str::view(t).substr(5));
 	}
 	else if (ASTR("shadowsocks") == t)
 	{
-		h = new handler_ss(ldr, owner, bb, st);
+		h = NEW handler_ss(ldr, owner, bb, st);
 	}
 
 	if (h != nullptr)
@@ -111,7 +111,7 @@ void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 
 
 	auto tcpw = tcp_pth.lock_write();
-	tcp_processing_thread *npt = new tcp_processing_thread();
+	tcp_processing_thread *npt = NEW tcp_processing_thread();
 	npt->get_next_ptr()->reset(tcpw().get());
 	tcpw().release();
 	tcpw().reset(npt);
@@ -221,49 +221,59 @@ handler::bridged::process_result handler::bridged::process(u8* data, netkit::pip
 
 	if (masks.have_read(mask1))
 	{
-		signed_t rcvsize = pipe2->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL ? 1 : BRIDGE_BUFFER_SIZE;
-
-		signed_t sz = pipe1->recv(data, rcvsize);
-		if (sz < 0)
-			return SLOT_DEAD;
-
-		if (sz > 0)
+		if (pipe2->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL)
 		{
-			netkit::pipe::sendrslt r = pipe2->send(data, sz);
-			if (r == netkit::pipe::SEND_FAIL)
-				return SLOT_DEAD;
 
-			if (r == netkit::pipe::SEND_OK)
-				masks.remove_write(mask2);
+		}
+		else
+        {
+            signed_t sz = pipe1->recv(data, BRIDGE_BUFFER_SIZE);
+            if (sz < 0)
+                rv = SLOT_DEAD;
+			else if (sz > 0)
+            {
+                netkit::pipe::sendrslt r = pipe2->send(data, sz);
+                if (r == netkit::pipe::SEND_FAIL)
+                    return SLOT_DEAD;
+
+                if (r == netkit::pipe::SEND_OK)
+                    masks.remove_write(mask2);
 
 #ifdef LOG_TRAFFIC
-			loger.log12(data, sz);
+                loger.log12(data, sz);
 #endif
+            }
 		}
-		if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+        if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+
 	}
 	if (masks.have_read(mask2))
 	{
-		signed_t rcvsize = pipe1->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL ? 1 : BRIDGE_BUFFER_SIZE;
-
-		signed_t sz = pipe2->recv(data, rcvsize);
-		if (sz < 0)
-			return SLOT_DEAD;
-		if (sz > 0)
+		if (pipe1->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL)
 		{
-			netkit::pipe::sendrslt r = pipe1->send(data, sz);
-			if (r == netkit::pipe::SEND_FAIL)
-				return SLOT_DEAD;
+		}
+		else
+        {
+            signed_t sz = pipe2->recv(data, BRIDGE_BUFFER_SIZE);
+            if (sz < 0)
+                rv =  SLOT_DEAD;
+            else if (sz > 0)
+            {
+                netkit::pipe::sendrslt r = pipe1->send(data, sz);
+                if (r == netkit::pipe::SEND_FAIL)
+                    return SLOT_DEAD;
 
-			if (r == netkit::pipe::SEND_OK)
-				masks.remove_write(mask1);
+                if (r == netkit::pipe::SEND_OK)
+                    masks.remove_write(mask1);
 
 #ifdef LOG_TRAFFIC
-			loger.log21(data, sz);
+                loger.log21(data, sz);
 #endif
 
+            }
 		}
-		if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+        if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+
 	}
 
 	if (masks.have_write(mask1))
@@ -584,7 +594,7 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
             if (!ts.data)
             {
                 // wait for send and init thread storage for pipe
-                Sleep(0);
+				spinlock::sleep(0);
                 continue;
             }
 
@@ -651,7 +661,7 @@ void handler::stop()
 
 	for (; tcp_pth.lock_read()().get() != nullptr || !udp_pth.empty();)
 	{
-		Sleep(100);
+		spinlock::sleep(100);
 		release_udps();
 	}
 }
@@ -683,7 +693,7 @@ void handler::on_udp(netkit::socket& lstnr, netkit::udp_packet& p)
 
     if (wt == nullptr)
     {
-        wt = new udp_processing_thread(this, std::move(hss), p.from);
+        wt = NEW udp_processing_thread(this, std::move(hss), p.from);
         rslt.first->second = wt;
 
         std::thread th(&handler::udp_worker, this, &lstnr, wt.get());

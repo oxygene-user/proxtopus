@@ -4,6 +4,11 @@ global_data glb;
 
 #ifdef _WIN32
 
+#ifdef MEMSPY
+#include "../debug/memspy.h"
+#endif
+
+
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -55,14 +60,15 @@ static void shapka()
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
 #endif
 
+	auto numcores = Botan::OS::get_cpu_available();
 
 	Print("proxtopus v0.5 (build " __DATE__ " " __TIME__ ")\n");
+	Print("cores count: %u\n", numcores);
 	Print();
 }
 
 #ifdef _DEBUG
-void dns_test();
-void fifo_test();
+void do_tests();
 #endif // _DEBUG
 
 int run_engine(bool as_service)
@@ -95,8 +101,7 @@ int run_engine(bool as_service)
 #endif // _NIX
 
 #ifdef _DEBUG
-	dns_test();
-	fifo_test();
+	do_tests();
 #endif
 
 	for (;;)
@@ -105,7 +110,7 @@ int run_engine(bool as_service)
 		if (ms < 0)
 			break;
 		Print();
-		Sleep((int)ms);
+		spinlock::sleep((int)ms);
 	}
 
 	return e.exit_code;
@@ -394,6 +399,8 @@ std::vector<FN> makepa(int argc, char* argv[])
 
 int main(NIXONLY(int argc, char* argv[]))
 {
+    g_single_core = Botan::OS::get_cpu_available() == 1;
+
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 	set_unhandled_exception_filter();
 #endif

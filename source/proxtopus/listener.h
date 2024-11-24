@@ -1,6 +1,5 @@
 #pragma once
 
-#include "netkit.h"
 #include "handlers.h"
 
 class loader;

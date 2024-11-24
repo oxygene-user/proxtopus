@@ -1,5 +1,16 @@
 #pragma once
 
+template <typename T> struct has_alloc {
+    typedef char one;
+    struct two { char x[2]; };
+
+    template <typename C> static one test(decltype(&C::alloc));
+    template <typename C> static two test(...);
+
+public:
+    enum { value = sizeof(test<T>(0)) == sizeof(char) };
+};
+
 template<size_t elsz, signed_t arsz, typename fallback> struct arena
 {
 	volatile spinlock::long3264 ff = 0;
@@ -52,6 +63,10 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 
 #ifdef _DEBUG
 			++current;
+
+			if (current > arsz)
+				DEBUGBREAK();
+
 			if (current > peak)
 				peak = current;
 
@@ -70,7 +85,16 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 
 			return nf;
 		}
-		return fallback::alloc(sz);
+
+		if constexpr (has_alloc<fallback>::value)
+		{
+			return fallback::alloc(sz);
+		}
+		else
+		{
+            return fallback()(sz);
+		}
+
 	}
 
 	bool free(void* p)

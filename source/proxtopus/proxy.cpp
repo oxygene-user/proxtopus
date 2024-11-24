@@ -13,7 +13,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 
 	if (ASTR("socks4") == t)
 	{
-		proxy_socks4* p = new proxy_socks4(ldr, name, bb);
+		proxy_socks4* p = NEW proxy_socks4(ldr, name, bb);
 		if (ldr.exit_code != 0)
 		{
 			delete p;
@@ -24,7 +24,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 
 	if (ASTR("socks5") == t)
 	{
-		proxy_socks5* p = new proxy_socks5(ldr, name, bb);
+		proxy_socks5* p = NEW proxy_socks5(ldr, name, bb);
 		if (ldr.exit_code != 0)
 		{
 			delete p;
@@ -35,7 +35,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 
 	if (ASTR("shadowsocks") == t)
 	{
-		proxy_shadowsocks* p = new proxy_shadowsocks(ldr, name, bb);
+		proxy_shadowsocks* p = NEW proxy_shadowsocks(ldr, name, bb);
 		if (ldr.exit_code != 0)
 		{
 			delete p;

@@ -330,9 +330,10 @@ class dns_resolver
 
 	struct query_internals : public udp_transport
 	{
-		std::array<str::astr, dnspp::maximum_cnames> hns;
+        std::array<str::astr, dnspp::maximum_cnames> cnames; // zero index - always starting host
+		str::astr host; // now resolving
 		std::array<ptr::shared_ptr<nameserver>, dnspp::maximum_fails> ns;
-		signed_t hn_count = 1, rindex;
+		signed_t rindex, cnames_cnt = 0, cnames_checkd = 0;
 		signed_t used_ips = 0; // actual count of items in ns array
 		ptr::shared_ptr<nameserver> last_ns;
 		std::unordered_set< str::astr > pairs;
@@ -351,18 +352,23 @@ class dns_resolver
 
 		query_internals(const str::astr_view& hn, bool casedn = true)
 		{
-			hns[0] = hn;
-			if (casedn)
-			{
-				for (char* c = hns[0].data(), *e = hns[0].data() + hns[0].length(); c < e; ++c)
-				{
-					char ch = *c;
-					if (ch >= 'A' && ch <= 'Z')
-					{
-						*c = ch + 32;
-					}
-				}
-			}
+			host = hn;
+
+            if (casedn)
+            {
+                for (char* c = host.data(), *e = host.data() + host.length(); c < e; ++c)
+                {
+                    char ch = *c;
+                    if (ch >= 'A' && ch <= 'Z')
+                    {
+                        *c = ch + 32;
+                    }
+                }
+            }
+
+			add_cname(host);
+			cnames_checkd = 1; // make it already checked
+
 		}
 
 		netkit::io_result query(netkit::pgen& pg /* in/out*/);
@@ -372,13 +378,49 @@ class dns_resolver
 			return decaytime == 0 || ct < decaytime;
 		};
 
-		const str::astr& cur_host() const
+		bool has_cname(const str::astr& cn) const
 		{
-			return hns[hn_count - 1];
+			for (signed_t i = 0; i < cnames_cnt; ++i)
+				if (cnames[i] == cn)
+					return true;
+			return false;
 		}
+
+        bool has_unchecked_cname() const
+        {
+			for (signed_t i = 0; i < cnames_cnt; ++i)
+			{
+				signed_t mask = signed_t(1) << i;
+                if (0 != (mask & cnames_checkd))
+                    continue;
+				return true;
+			}
+            return false;
+        }
+
+		void add_cname(const str::astr& cn)
+		{
+			if (cnames_cnt < dnspp::maximum_cnames)
+				cnames[cnames_cnt++] = cn;
+		}
+
+		bool check_cname(str::astr& cn)
+		{
+			for (signed_t i = 0; i < cnames_cnt; ++i)
+			{
+				signed_t mask = signed_t(1) << i;
+				if (0 != (mask & cnames_checkd))
+					continue;
+				cnames_checkd |= mask;
+				cn = cnames[i];
+				return true;
+			}
+			return false;
+		}
+
 		str::astr pairkey(const netkit::ipap& nsip) const
 		{
-			auto s = cur_host();
+			auto s = host;
 			s.push_back('|');
 			s.append((const char*)&nsip, nsip.v4 ? sizeof(netkit::ipap::ipv4) : sizeof(netkit::ipap::ipv6));
 			return s;

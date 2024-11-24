@@ -13,6 +13,7 @@ class loader
 
 public:
 	const asts* nameservers = nullptr;
+	const asts* icpt = nullptr;
 
 	using listener_loader = std::function< bool(const str::astr&, const asts&) >;
 	using proxy_loader = std::function< bool(const str::astr&, const asts&) >;

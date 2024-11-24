@@ -283,7 +283,8 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	if (data == nullptr)
 		return pipe->send(nullptr, 0); // check allow send
 
-	crypto->encipher(std::span<const u8>(data, datasize), encrypted_data, nullptr);
+	if (datasize != 0)
+		crypto->encipher(std::span<const u8>(data, datasize), encrypted_data, nullptr);
 	sendrslt rslt = pipe->send(encrypted_data.data(), encrypted_data.size());
 	encrypted_data.clear(); // IMPORTANT: clear after send, not before (due encrypted_data contains salt before 1st send)
 
@@ -545,6 +546,10 @@ namespace
 			if (payloadsize > AEAD_CHUNK_SIZE_MASK)
 				return -1; // looks like chunk size is corrupted or wrong decrypted
 			last_block_payload_size = payloadsize; // keep payloadsize in case of incomplete data because we have already increased IV
+
+			if (payloadsize == 0)
+				return -1;
+
 		}
 		catch (...)
 		{
@@ -552,7 +557,6 @@ namespace
 		}
 	}
 
-	ASSERT(payloadsize > 0);
 	if (payloadsize + AEAD_TAG_SIZE > (unprocessed.size() - from_current))
 		return 0; // not yet ready data
 

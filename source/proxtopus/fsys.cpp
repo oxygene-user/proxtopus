@@ -196,7 +196,7 @@ void  set_start_path(FN& wd, FN* exename)
 	size_t idx = wd.find_last_of(MAKEFN("/\\"));
 	if (idx == wd.npos)
 	{
-		//while(true) Sleep(0);
+		//while(true) spinlock::sleep(0);
 		DEBUGBREAK(); // OPA!
 	}
 	if (nullptr != exename)

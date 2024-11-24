@@ -19,15 +19,6 @@
 #endif // _MSC_VER
 
 
-class Endian
-{
-public:
-	Endian() = delete;
-
-	static constexpr bool little = std::endian::native == std::endian::little;
-	static constexpr bool big = std::endian::native == std::endian::big;
-};
-
 
 bool messagebox(const char* s1, const char* s2, int options);
 
@@ -48,78 +39,6 @@ template<typename T> const T* makeptr(const T& t) { return &t; }
 #define PTR_TO_UNSIGNED( p ) ((size_t)p)
 #define ALIGN(n) __declspec( align( n ) )
 
-#ifdef MODE64
-struct u128
-{
-	u64 low;
-	u64 hi;
-
-    u128() {}
-	u128(u64 v):low(v), hi(0)
-	{
-	}
-
-    operator u64() const
-    {
-        return low;
-    }
-
-	bool operator >= (u64 v) const
-	{
-		return hi > 0 || low >= v;
-	}
-
-    u128& operator=(u64 v)
-    {
-        low = v;
-        hi = 0;
-        return *this;
-    }
-
-    u128& operator-=(u128 v)
-    {
-        if (low < v.low)
-        {
-            hi -= v.hi - 1;
-            low -= v.low;
-        }
-        else
-        {
-			hi -= v.hi;
-			low -= v.low;
-        }
-        return *this;
-    }
-	u128& operator+=(u64 v)
-	{
-#ifdef _MSC_VER
-		_addcarry_u64(_addcarry_u64(0, low, v, &low), hi, 0, &hi);
-#endif
-#ifdef __GNUC__
-		DEBUGBREAK();
-#endif
-		return *this;
-	}
-	u128& operator+=(const u128 &v)
-	{
-#ifdef _MSC_VER
-		_addcarry_u64(_addcarry_u64(0, low, v.low, &low), hi, v.hi, &hi);
-#endif
-#ifdef __GNUC__
-		DEBUGBREAK();
-#endif
-		return *this;
-	}
-};
-#endif
-
-template <> struct std::hash<u128>
-{
-    std::size_t operator()(const u128& k) const
-    {
-        return std::hash<u64>()(k.low) ^ std::hash<u64>()(k.hi);
-    }
-};
 
 
 #ifdef MODE64
@@ -139,24 +58,6 @@ template<> struct vbv<4> { u32 v; };
 
 typedef unsigned long Color;
 
-
-template<typename Tout, typename Tin> Tout& ref_cast(Tin& t)
-{
-	static_assert(sizeof(Tout) <= sizeof(Tin), "ref cast fail");
-	return (Tout&)t;
-}
-template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
-{
-	static_assert(sizeof(Tout) <= sizeof(Tin), "ref cast fail");
-	return *(const Tout*)&t;
-}
-
-template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t1, const Tin& t2)
-{
-	static_assert(sizeof(Tout) <= (sizeof(Tin) * 2), "ref cast fail");
-	ASSERT(((u8*)&t1) + sizeof(Tin) == (u8*)&t2);
-	return *(const Tout*)&t1;
-}
 
 #ifdef _NIX
 inline int timeGetTime()
@@ -343,35 +244,6 @@ namespace math
 
 }
 
-namespace tools
-{
-
-    template<class T> inline void swap(T& first, T& second)
-    {
-        T temp = std::move(first);
-        first = std::move(second);
-        second = std::move(temp);
-    }
-
-	u8 inline as_byte(signed_t b) { return static_cast<u8>(b & 0xFF); }
-    //u8 inline as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
-	u8 inline as_byte(u64 b) { return static_cast<u8>(b & 0xFF); }
-#ifdef MODE64
-	u8 inline as_byte(u128 b) { return as_byte((u64)b); }
-#endif
-    wchar inline as_wchar(size_t x) { return static_cast<wchar>(x & 0xFFFF); }
-	u32 inline as_dword(size_t x) { return static_cast<u32>(x & 0xFFFFFFFF); }
-	u16 inline as_word(size_t x) { return static_cast<u16>(x & 0xFFFF); }
-
-	template<typename EL, typename ELC> inline signed_t find(const std::vector<EL>& ar, const ELC& el)
-	{
-		for (signed_t i = 0, c = ar.size(); i < c; ++i)
-			if (ar[i] == el)
-				return i;
-		return -1;
-	}
-}
-
 
 namespace math
 {
@@ -404,283 +276,6 @@ namespace math
 	}
     */
 }
-
-namespace ptr
-{
-    /*
-        intrusive shared pointer
-
-        example:
-        shared_ptr<MyClass> p(new MyClass(...)), p2(p), p3=p;
-        . . .
-    */
-
-    template <class T> class shared_ptr // T must be public child of shared_object
-    {
-        T *object = nullptr;
-
-        void unconnect()
-        {
-            if (object) T::dec_ref(object);
-        }
-
-        void connect(T *p)
-        {
-            object = p;
-            if (object) object->add_ref();
-        }
-
-    public:
-        shared_ptr() {}
-        //shared_ptr(const T &obj):object(new T (obj)) {object->ref = 1;}
-        shared_ptr(T *p) { connect(p); } // now safe todo: shared_ptr p1(obj), p2(obj);
-        shared_ptr(const shared_ptr &p) { connect(p.object); }
-        shared_ptr(shared_ptr &&p) :object(p.object) { p.object = nullptr; }
-
-        shared_ptr &operator=(T *p)
-        {
-            if (p) p->add_ref(); // ref up - to correct self assign
-            unconnect();
-            object = p;
-            return *this;
-        }
-        shared_ptr &operator=(const shared_ptr &p)
-        {
-            return *this = p.object;
-        }
-
-		shared_ptr& operator=(shared_ptr&& p)
-		{
-            unconnect();
-            object = p.object;
-            p.object = nullptr;
-            return *this;
-		}
-
-        ~shared_ptr() { unconnect(); }
-
-        void swap(shared_ptr &p) { tools::swap(*this, p); }
-
-        operator T *() const { return object; }
-        T *operator->() const { return object; }
-
-        T *get() { return object; }
-        const T *get() const { return object; }
-    };
-
-    template<typename N = int> struct intref
-    {
-        N value = 0;
-
-        intref& operator++()
-        {
-            ++value;
-            return *this;
-        }
-		intref& operator--()
-		{
-			--value;
-			return *this;
-		}
-
-		bool operator()()
-		{
-			auto nv = --value;
-			ASSERT(nv >= 0);
-			return nv == 0;
-		}
-		bool operator *() const
-        {
-            return value > 1;
-        }
-    };
-
-	using intref_sync = intref<std::atomic<signed_t>>;
-
-	struct DELETER
-    {
-        template<typename T> static void kill(T* o)
-        {
-            delete o;
-        }
-    };
-
-	struct FREER
-	{
-		template<typename T> static void kill(T* o)
-		{
-			free(o);
-		}
-	};
-
-	struct RELEASER
-	{
-		template<typename T> static void kill(T* o)
-		{
-			o->release();
-		}
-	};
-
-    template<typename REF, typename OKILLER = DELETER> class shared_object_t
-    {
-        mutable REF ref;
-
-        shared_object_t(const shared_object_t &) = delete;
-        void operator=(const shared_object_t &) = delete;
-    public:
-        shared_object_t() {}
-
-        bool is_multi_ref() const { return *ref; }
-        void add_ref() const { ++ref; }
-		void dec_ref_no_check() const { --ref; }
-        template <class T> static void dec_ref(T *object)
-        {
-            if (object->ref())
-                OKILLER::kill(object);
-        }
-    };
-
-    using shared_object = shared_object_t<intref<int>>;
-	using sync_shared_object = shared_object_t<intref_sync>;
-    template <typename KILLER> using sync_shared_object_ck = shared_object_t<intref_sync, KILLER>; // with custom killer
-
-	// intrusive UNMOVABLE weak pointer
-    // UNMOVABLE means that you cannot use memcpy to copy this pointer
-
-	template<class OO> struct eyelet_s;
-	template<class OO, class OO1 = OO> struct iweak_ptr
-	{
-		friend struct eyelet_s<OO>;
-	private:
-		iweak_ptr* prev = nullptr;
-		iweak_ptr* next = nullptr;
-		OO* oobject = nullptr;
-
-	public:
-
-		iweak_ptr() {}
-		iweak_ptr(const iweak_ptr& hook)
-		{
-			if (hook.get()) const_cast<OO*>(static_cast<const OO*>(hook.get()))->hook_connect(this);
-		}
-
-		iweak_ptr(OO1* ob)
-		{
-			if (ob) ((OO*)ob)->OO::hook_connect(this);
-		}
-		~iweak_ptr()
-		{
-			unconnect();
-		}
-
-		void unconnect()
-		{
-			if (oobject) oobject->hook_unconnect(this);
-		}
-
-		iweak_ptr& operator = (const iweak_ptr& hook)
-		{
-			if (hook.get() != get())
-			{
-				unconnect();
-				if (hook.get()) const_cast<OO*>(hook.get())->hook_connect(this);
-			}
-			return *this;
-		}
-
-		iweak_ptr& operator = (OO1* obj)
-		{
-			if (obj != get())
-			{
-				unconnect();
-				if (obj) obj->OO::hook_connect(this);
-			}
-			return *this;
-		}
-
-		explicit operator bool() { return get() != nullptr; }
-
-		template<typename OO2> bool operator==(const OO2* obj) const { return oobject == ptr_cast<const OO2*>(obj); }
-
-		OO1* operator()() { return static_cast<OO1*>(oobject); }
-		const OO1* operator()() const { return static_cast<const OO1*>(oobject); }
-
-		operator OO1* () const { return static_cast<OO1*>(oobject); }
-		OO1* operator->() const { return static_cast<OO1*>(oobject); }
-
-		OO1* get() { return static_cast<OO1*>(oobject); }
-		const OO1* get() const { return static_cast<OO1*>(oobject); }
-
-		bool expired() const { return get() == nullptr; }
-	};
-
-	template<class OO> struct eyelet_s
-	{
-		iweak_ptr<OO>* first = nullptr;
-
-		eyelet_s() {}
-		~eyelet_s()
-		{
-			iweak_ptr<OO>* f = first;
-			for (; f;)
-			{
-				iweak_ptr<OO>* next = f->next;
-
-				f->oobject = nullptr;
-				f->prev = nullptr;
-				f->next = nullptr;
-
-				f = next;
-			}
-		}
-
-		void connect(OO* object, iweak_ptr<OO, OO>* hook)
-		{
-			if (hook->get()) hook->get()->hook_unconnect(hook);
-			hook->oobject = object;
-			hook->prev = nullptr;
-			hook->next = first;
-			if (first) first->prev = hook;
-			first = hook;
-		}
-
-		void    unconnect(iweak_ptr<OO, OO>* hook)
-		{
-#ifdef _DEBUG
-			iweak_ptr<OO>* f = first;
-			for (; f; f = f->next)
-			{
-				if (f == hook) break;
-			}
-			ASSERT(f == hook, "foreigner hook!!!");
-
-#endif
-			if (first == hook)
-			{
-				ASSERT(first->prev == nullptr);
-				first = hook->next;
-				if (first)
-				{
-					first->prev = nullptr;
-				}
-				hook->next = nullptr;
-			}
-			else
-			{
-				ASSERT(hook->prev != nullptr);
-				hook->prev->next = hook->next;
-				if (hook->next) { hook->next->prev = hook->prev; hook->next = nullptr; };
-				hook->prev = nullptr;
-			}
-			hook->oobject = nullptr;
-		}
-	};
-
-}
-
-#define DECLARE_EYELET( obj ) private: ptr::eyelet_s<obj> _ptr_eyelet; public: \
-	template<class OO1> void hook_connect( ptr::iweak_ptr<obj, OO1> * hook ) { _ptr_eyelet.connect(this, reinterpret_cast<ptr::iweak_ptr<obj>*>(hook)); } \
-	template<class OO1> void hook_unconnect( ptr::iweak_ptr<obj, OO1> * hook ) { _ptr_eyelet.unconnect(reinterpret_cast<ptr::iweak_ptr<obj>*>(hook)); } private:
 
 
 #define __STR2__(x) #x
@@ -715,8 +310,6 @@ template<typename CH> inline bool is_digit(CH c)
 	return c >= L'0' && c <= '9';
 }
 
-
-#include "sts.h"
 
 namespace str
 {
@@ -782,7 +375,7 @@ namespace tools
 
 			if (!first)
 			{
-				first.reset(new chunk());
+				first.reset(NEW chunk());
 				last = first.get();
 				last_size = 0;
 			}
@@ -801,7 +394,7 @@ namespace tools
 				if (data.size() > 0)
 				{
 					if (!ch->next)
-						ch->next.reset(new chunk());
+						ch->next.reset(NEW chunk());
 					ch = ch->next.get();
 					last = ch;
 					continue;
@@ -818,7 +411,7 @@ namespace tools
 		{
 			if (!first)
 			{
-				first.reset(new chunk());
+				first.reset(NEW chunk());
 				last = first.get();
 				last_size = 0;
 			}
@@ -833,7 +426,7 @@ namespace tools
 				if (last_size == SIZE)
 				{
 					last_size = 0;
-					last->next.reset( new chunk() );
+					last->next.reset( NEW chunk() );
 					last = last->next.get();
 				}
 			}
@@ -1184,8 +777,4 @@ namespace str
 	static_assert(sizeof(shared_str) == 3);
 
 }
-
-#ifdef _NIX
-void Sleep(int ms);
-#endif
 

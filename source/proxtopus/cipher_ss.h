@@ -259,7 +259,7 @@ namespace ss
 				volatile spinlock::long3264& v;
 				crypto_pipe* owner;
 				incdec(volatile spinlock::long3264& v, crypto_pipe* owner) :v(v), owner(owner) { if (spinlock::increment(v) > 10000) owner = nullptr; }
-				~incdec() { if (spinlock::decrement(v) > 10000) owner->close(true); }
+				~incdec() { if (spinlock::decrement(v) > 10000 && owner) owner->close(true); }
 				operator bool() const
 				{
 					return owner == nullptr;

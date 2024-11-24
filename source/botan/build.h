@@ -125,12 +125,7 @@
 #include <memory.h>
 #endif
 
-namespace ma
-{
-	void* ma(size_t size);
-	void* rs(void* p, size_t size);
-	void mf(void* p);
-}
+#include "mem.h"
 
 namespace Botan {
 
@@ -158,7 +153,7 @@ namespace Botan {
 	};
 	*/
 	template<> struct secure_vector<uint8_t> {
-		secure_vector():buf((uint8_t*)ma::ma(32)), cap(32) {}
+		secure_vector():buf((uint8_t*)MA(32)), cap(32) {}
 		~secure_vector() {
 			ma::mf(buf);
 		}
@@ -182,21 +177,21 @@ namespace Botan {
 		secure_vector(size_t fill_cnt) {
 			sz = fill_cnt;
 			cap = capsize(sz);
-			buf = (uint8_t*)ma::ma(cap);
+			buf = (uint8_t*)MA(cap);
 		}
 
 		secure_vector(const uint8_t *ds, const uint8_t* de)
 		{
 			sz = de - ds;
 			cap = capsize(sz);
-			buf = (uint8_t  *)ma::ma(cap);
+			buf = (uint8_t  *)MA(cap);
 			memcpy(buf, ds, sz);
 		}
 		template<typename Iter> secure_vector(const Iter&bgn, const Iter& end)
 		{
 			sz = end - bgn;
 			cap = capsize(sz);
-			buf = (uint8_t*)ma::ma(cap);
+			buf = (uint8_t*)MA(cap);
 			memcpy(buf, &*bgn, sz);
 		}
 
@@ -210,7 +205,7 @@ namespace Botan {
 			else
 			{
 				cap = capsize(sz);
-				buf = (uint8_t*)ma::rs( buf, cap );
+				buf = (uint8_t*)MRS( buf, cap );
 				memcpy(buf, &*bgn, sz);
 			}
 		}
@@ -226,7 +221,7 @@ namespace Botan {
 
 			sz = ov.sz;
 			cap = capsize(ov.sz);
-			buf = (uint8_t*)ma::rs(buf, cap);
+			buf = (uint8_t*)MRS(buf, cap);
 			memcpy(buf, ov.buf, ov.sz);
 
 			return *this;
@@ -277,7 +272,7 @@ namespace Botan {
 
 			size_t nsz = sz + in.size();
 			cap = capsize(nsz);
-			buf = (uint8_t*)ma::rs(buf, cap);
+			buf = (uint8_t*)MRS(buf, cap);
 			memcpy(buf + sz, in.data(), in.size());
 			sz += in.size();
 
@@ -314,7 +309,7 @@ namespace Botan {
 			}
 
 			cap = capsize(nsz);
-			buf = (uint8_t *)ma::rs(buf, cap);
+			buf = (uint8_t *)MRS(buf, cap);
 			//memset(buf + sz, 0, nsz - sz);
 			sz = nsz;
 		}
@@ -324,7 +319,7 @@ namespace Botan {
 			if (size > cap)
 			{
 				cap = capsize(size);
-				buf = (uint8_t*)ma::rs(buf, cap);
+				buf = (uint8_t*)MRS(buf, cap);
 			}
 		}
 

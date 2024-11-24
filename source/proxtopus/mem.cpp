@@ -1,7 +1,12 @@
 #include "pch.h"
 
+#ifdef MEMSPY
+#include "../debug/memspy.h"
+#endif
+
 namespace ma
 {
+
 
 #if defined _DEBUG && defined COUNT_ALLOCS
 	struct aa
@@ -129,14 +134,23 @@ namespace ma
 
 #endif
 
-	void* rs(void* p, size_t size)
+#ifdef MEMSPY
+	void* rs(const char* f, size_t l, void* p, size_t size)
+#else
+    void* rs(void* p, size_t size)
+#endif
 	{
+#ifdef MEMSPY
+        if (true)
+            return mspy_realloc(f, (int)l, 0, p, size);
+#endif
+
 #ifdef USE_ARENAS
 		if (glb.arena16.here(p))
 		{
 			if (size <= 16)
 				return p;
-			void* np = ma(size);
+			void* np = MA(size);
 			memcpy(np, p, 16);
 			glb.arena16.free(p);
 			return np;
@@ -145,7 +159,7 @@ namespace ma
 		{
 			if (size <= 32)
 				return p;
-			void* np = ma(size);
+			void* np = MA(size);
 			memcpy(np, p, 32);
 			glb.arena32.free(p);
 			return np;
@@ -154,7 +168,7 @@ namespace ma
 		{
 			if (size <= 64)
 				return p;
-			void* np = ma(size);
+			void* np = MA(size);
 			memcpy(np, p, 64);
 			glb.arena64.free(p);
 			return np;
@@ -169,8 +183,17 @@ namespace ma
 		return realloc(p, size);
 	}
 
+#ifdef MEMSPY
+	void* ma(const char* f, size_t l, size_t size)
+#else
 	void* ma(size_t size)
+#endif
 	{
+#ifdef MEMSPY
+		if (true)
+			return mspy_malloc(f, (int)l, 0, size);
+#endif
+
 #ifdef USE_ARENAS
 		if (size <= 16)
 			return glb.arena16.alloc(size);
@@ -188,6 +211,14 @@ namespace ma
 	}
 	void mf(void* p)
 	{
+#ifdef MEMSPY
+		if (true)
+		{
+			mspy_free(p);
+			return;
+		}
+#endif
+
 #ifdef USE_ARENAS
 		if (glb.arena16.free(p))
 			return;
@@ -219,40 +250,49 @@ global_data::global_data()
 	cfg.crash_log_file = str::astr(ASTR("proxtopus.crush.log"));
 	cfg.dump_file = str::astr(ASTR("proxtopus.dmp"));
 #endif
-
 }
 
+#ifdef MEMSPY
+void* operator new(std::size_t size, const char* f, std::size_t l) {
+    return ma::ma(f,l,size);
+}
+void operator delete(void *ptr, const char*, std::size_t) {
+	ma::mf(ptr);
+}
+#endif
+
+
 void* operator new(std::size_t size) {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void* operator new[](std::size_t size) {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
-	return ma::ma(size);
+	return MA(size);
 }
 
 
 void* operator new(std::size_t size, std::align_val_t /*alignment*/) {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void* operator new[](std::size_t size, std::align_val_t /*alignment*/) {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void* operator new(std::size_t size, std::align_val_t /*alignment*/, const std::nothrow_t&) noexcept {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void* operator new[](std::size_t size, std::align_val_t /*alignment*/, const std::nothrow_t&) noexcept {
-	return ma::ma(size);
+	return MA(size);
 }
 
 void operator delete(void* ptr) noexcept {

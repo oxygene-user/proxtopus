@@ -164,11 +164,11 @@ std::vector<char> load_res(int idr)
 	std::vector<char> file;
 
 #ifdef _WIN32
-	HMODULE me = GetModuleHandleW(nullptr);
-	HRSRC hRes = FindResourceW(me, MAKEINTRESOURCE(idr), L"HELP");
-	HGLOBAL resh = LoadResource(me, hRes);
+	glb.module = GetModuleHandleW(nullptr);
+	HRSRC hRes = FindResourceW(glb.module, MAKEINTRESOURCE(idr), L"HELP");
+	HGLOBAL resh = LoadResource(glb.module, hRes);
 	void * data = LockResource(resh);
-	signed_t datasize = SizeofResource(me, hRes);
+	signed_t datasize = SizeofResource(glb.module, hRes);
 	std::span<const char> d((const char*)data, datasize);
 	file.insert(file.begin(), d.begin(), d.end());
 	FreeResource(resh);

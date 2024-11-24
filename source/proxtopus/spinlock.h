@@ -41,9 +41,23 @@
 #define DEBUG_DEADLOCK
 #endif
 
+#ifndef IS_SINGLE_CORE
+#define IS_SINGLE_CORE (false)
+#endif
+
 namespace spinlock
 {
 #if defined _WIN32
+
+    inline void sleep()
+    {
+        _mm_pause();
+    }
+    inline void sleep(int ms)
+    {
+        Sleep(ms);
+    }
+
 typedef __int64 int64;
 #define WIN32ALIGN __declspec(align(ALIGNBYTES))
 #elif defined __linux__
@@ -170,8 +184,39 @@ inline int64 SLlInterlockedExchange64(volatile int64* lock, int64 newValue)
 }
 
 #elif defined(__linux__)
+inline void sleep()
+{
+    sched_yield();
+}
+inline void sleep(int ms)
+{
+    if (0 == ms)
+    {
+        sched_yield();
+        return;
+    }
+    struct timespec req;
+    req.tv_sec = ms >= 1000 ? (ms / 1000) : 0;
+    req.tv_nsec = (ms - req.tv_sec * 1000) * 1000000;
 
-inline void _mm_pause() { usleep( 0 ); }
+    // Loop until we've slept long enough
+    do
+    {
+        // Store remainder back on top of the original required time
+        if (0 != nanosleep(&req, &req))
+        {
+            /* If any error other than a signal interrupt occurs, return an error */
+            if (errno != EINTR)
+                return;
+        }
+        else
+        {
+            // nanosleep succeeded, so exit the loop
+            break;
+        }
+    } while (req.tv_sec > 0 || req.tv_nsec > 0);
+}
+
 
 #define SLxInterlockedCompareExchange(a,b,c)     __sync_val_compare_and_swap(a,c,b)
 #define SLxInterlockedCompareExchange32(a,b,c)   __sync_val_compare_and_swap(a,c,b)
@@ -242,7 +287,7 @@ SLINLINE void lock_write(RWLOCK &lock)
 	}
 	thread |= LOCK_WRITE_VAL;
 
-	DEADLOCKCHECK_INIT();
+    long3264 spincount = 0;
 	for(;;) // initial lock
 	{
 		RWLOCKVALUE tmp = val & LOCK_READ_MASK;
@@ -250,17 +295,38 @@ SLINLINE void lock_write(RWLOCK &lock)
 		val = SLxInterlockedCompareExchange64(&lock, val, tmp);
 		if (val == tmp) // no more writers - set current thread to block new readers
 			break;
-		DEADLOCKCHECK(lock);
-		_mm_pause();
+        if (IS_SINGLE_CORE)
+        {
+            sleep(0);
+        }
+        else
+        {
+            ++spincount;
+            if (spincount > 100000)
+                sleep(0);
+            else
+                sleep();
+        }
 	}
 
 	for (;;) // if there are readers from current thread - deadlock
 	{
 		if (!(lock & LOCK_READ_MASK)) // all readers gone
 			return;
-		DEADLOCKCHECK(lock);
-		_mm_pause();
-	}
+    
+        if (IS_SINGLE_CORE)
+        {
+            sleep(0);
+        }
+        else
+        {
+            ++spincount;
+            if (spincount > 100000)
+                sleep(0);
+            else
+                sleep();
+        }
+    }
 }
 
 SLINLINE void lock_read(RWLOCK &lock)
@@ -273,7 +339,7 @@ SLINLINE void lock_read(RWLOCK &lock)
 		return;
 	}
 
-	DEADLOCKCHECK_INIT();
+    long3264 spincount = 0;
 	for (;;) // Initial lock
 	{
 		RWLOCKVALUE tmp = val & LOCK_READ_MASK;
@@ -281,9 +347,20 @@ SLINLINE void lock_read(RWLOCK &lock)
 		val = SLxInterlockedCompareExchange64(&lock, val, tmp);
 		if (val == tmp) // only readers
 			break;
-		DEADLOCKCHECK(lock);
-		_mm_pause();
-	}
+    
+        if (IS_SINGLE_CORE)
+        {
+            sleep(0);
+        }
+        else
+        {
+            ++spincount;
+            if (spincount > 100000)
+                sleep(0);
+            else
+                sleep();
+        }
+    }
 }
 
 SLINLINE bool try_lock_read( RWLOCK &lock )
@@ -296,7 +373,7 @@ SLINLINE bool try_lock_read( RWLOCK &lock )
         return true;
     }
 
-    DEADLOCKCHECK_INIT();
+    //DEADLOCKCHECK_INIT();
 
     RWLOCKVALUE tmp = val & LOCK_READ_MASK;
     val = tmp + LOCK_READ_VAL;
@@ -650,6 +727,13 @@ public:
     {
         spinlock::lock_read(m_lock);
         return read_c( m_var, this );
+    }
+
+    template<typename H> void lock_read(const H& h)
+    {
+        spinlock::lock_read(m_lock);
+        h(m_var);
+        spinlock::unlock_read(m_lock);
     }
 
     /**

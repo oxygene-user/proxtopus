@@ -4,7 +4,7 @@
 
 template <typename CH> sts_t<CH>& sts_t<CH>::add_comment(const string_view_type& comment)
 {
-	element* e = new element(this);
+	element* e = NEW element(this);
 
 	/*auto rslt =*/ elements.insert(std::pair(static_name_comment, &e->sts));
 	
@@ -18,7 +18,7 @@ template <typename CH> sts_t<CH>& sts_t<CH>::add_comment(const string_view_type&
 
 template <typename CH> sts_t<CH>& sts_t<CH>::add_block()
 {
-	element* e = new element(this);
+	element* e = NEW element(this);
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
 	return e->sts;
@@ -33,11 +33,11 @@ template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_view_type &n
 		if (!rslt.second)
 			return *rslt.first->second; // already exist, return it
 
-		e = new element(this);
+		e = NEW element(this);
 		e->name = &rslt.first->first;
 		rslt.first->second = &e->sts;
 	} else
-		e = new element(this);
+		e = NEW element(this);
 
     if (first_element == nullptr) first_element = e; else last_element->next = e;
     last_element = e;
@@ -54,12 +54,12 @@ template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name)
 		{
 			return *rslt.first->second; // already exist, return it
 		}
-		e = new element(this);
+		e = NEW element(this);
 		e->name = &rslt.first->first;
 		rslt.first->second = &e->sts;
 	}
 	else
-		e = new element(this);
+		e = NEW element(this);
 
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
@@ -68,7 +68,7 @@ template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name)
 
 template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name, const sts_t &oth) // create copy
 {
-	element* e = new element(this, oth);
+	element* e = NEW element(this, oth);
 
 	if (!name.empty())
 	{

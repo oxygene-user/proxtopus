@@ -596,7 +596,7 @@ StackWalker::StackWalker(DWORD dwProcessId, HANDLE hProcess)
   this->m_options = OptionsAll;
   this->m_modulesLoaded = FALSE;
   this->m_hProcess = hProcess;
-  this->m_sw = new StackWalkerInternal(this, this->m_hProcess);
+  this->m_sw = NEW StackWalkerInternal(this, this->m_hProcess);
   this->m_dwProcessId = dwProcessId;
   this->m_szSymPath = nullptr;
 }
@@ -605,7 +605,7 @@ StackWalker::StackWalker(int options, LPCSTR szSymPath, DWORD dwProcessId, HANDL
   this->m_options = options;
   this->m_modulesLoaded = FALSE;
   this->m_hProcess = hProcess;
-  this->m_sw = new StackWalkerInternal(this, this->m_hProcess);
+  this->m_sw = NEW StackWalkerInternal(this, this->m_hProcess);
   this->m_dwProcessId = dwProcessId;
   if (szSymPath != nullptr)
   {
@@ -1026,7 +1026,7 @@ void StackWalker::OnSymInit(LPCSTR, DWORD, LPCSTR)
 #endif
 }
 
-void StackWalker::OnOutput(LPCSTR szText, size_t /*len*/)const
+void StackWalker::OnOutput(const char* szText, size_t /*len*/)const
 {
 	printf("%08X %s", (unsigned int)GetCurrentThreadId(), szText);
 

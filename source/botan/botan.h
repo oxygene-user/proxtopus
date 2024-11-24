@@ -16,7 +16,7 @@
 
 struct IUnknown;
 
-
+#include "./internal/os_utils.h"
 #include "./internal/md5.h"
 #include "./auto_rng.h"
 #include "./kdf.h"

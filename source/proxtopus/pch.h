@@ -60,18 +60,26 @@
 #include "botan/botan.h"
 #include "base.h"
 #include "str_helpers.h"
+
+extern bool g_single_core;
+#define IS_SINGLE_CORE (g_single_core)
+
 #include "spinlock.h"
 #include "fsys.h"
 #include "arena.h"
+#include "sts.h"
 #ifndef _NIX
 #include "../debug/excpn.h"
 #endif
+#include "ptrs.h"
+#include "tools.h"
+#include "netkit.h"
+#include "icpt.h"
 #include "main.h"
 #include "resource.h"
 
 #include "rndgen.h"
 
-#include "tools.h"
 #include "cmdline.h"
 #include "loader.h"
 #include "listener.h"

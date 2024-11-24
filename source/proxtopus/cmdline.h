@@ -24,6 +24,9 @@ enum AppExitCode
 										// {to} field of direct handler not defined or invalid (listener: [%s]). Valid format of {to} field is: domain_or_ipv4:port
 	EXIT_FAIL_IPV46_VALS = 14,
     EXIT_FAIL_SOCKET_TYPE = 15,
+
+	EXIT_FAIL_ICPT_NOT_SUPPORTED = 16,
+	EXIT_FAIL_ICPT_INIT_ERROR = 17,
 	
 	EXIT_FAIL_ELEVATION = 98,
 	EXIT_FAIL_CTLHANDLE = 99,

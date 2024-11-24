@@ -74,6 +74,15 @@ engine::engine()
 		glb.dns->load_serves(this, ldr.nameservers);
 	}
 
+	if (ldr.icpt)
+	{
+		if (!glb.icpt.load(this, ldr.icpt))
+		{
+			exit_code = ldr.exit_code;
+            glb.stop();
+            return;
+		}
+	}
 
 	for (auto &l : listners)
 		l->open();

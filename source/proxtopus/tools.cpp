@@ -2,37 +2,6 @@
 #ifdef _NIX
 #include <iconv.h>
 #include <iostream>
-
-void Sleep(int ms)
-{
-	if (0 == ms)
-	{
-		sched_yield();
-		return;
-	}
-	struct timespec req;
-	req.tv_sec = ms >= 1000 ? (ms / 1000) : 0;
-	req.tv_nsec = (ms - req.tv_sec * 1000) * 1000000;
-
-	// Loop until we've slept long enough
-	do
-	{
-		// Store remainder back on top of the original required time
-		if (0 != nanosleep(&req, &req))
-		{
-			/* If any error other than a signal interrupt occurs, return an error */
-			if (errno != EINTR)
-				return;
-		}
-		else
-		{
-			// nanosleep succeeded, so exit the loop
-			break;
-		}
-	} while (req.tv_sec > 0 || req.tv_nsec > 0);
-}
-
-
 #endif
 
 namespace
@@ -227,6 +196,17 @@ static void cprintf(console_buffer *cb, const char* s, signed_t sl)
 	{
 		cb->write(s + p, sl - p);
 	}
+}
+
+void GetPrint(printfunc pf)
+{
+	glb.prints.lock_read([&](const std::vector<str::astr>& cp) {
+        for (auto s : cp)
+        {
+            pf(s.c_str(), s.length());
+        }
+	});
+
 }
 
 void Print()

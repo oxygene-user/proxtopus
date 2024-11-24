@@ -85,6 +85,7 @@ bool loader::load_conf(const FN& cfp)
 	listeners = cfgsts.get(ASTR("listeners"));
 	prox = cfgsts.get(ASTR("proxy"));
 	nameservers = cfgsts.get(ASTR("nameservers"));
+	icpt = cfgsts.get(ASTR("icpt"));
 
 	if (nullptr == listeners)
 	{
@@ -137,7 +138,7 @@ bool loader::load_conf(const FN& cfp)
 	}
 
 	if ((glb.cfg.dnso & conf::dnso_mask) == conf::dnso_internal)
-		glb.dns.reset(new dns_resolver(0 != (glb.cfg.dnso & conf::dnso_bit_parse_hosts)));
+		glb.dns.reset(NEW dns_resolver(0 != (glb.cfg.dnso & conf::dnso_bit_parse_hosts)));
 
 	return true;
 }

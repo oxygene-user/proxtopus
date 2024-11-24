@@ -49,9 +49,12 @@
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(GARBAGE)\libs\</AdditionalLibraryDirectories>
       <ProgramDatabaseFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(GARBAGE)\bin\proxtopus.pdb</ProgramDatabaseFile>
+      <UACExecutionLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">RequireAdministrator</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="debug\memspy.h" />
+    <ClInclude Include="mem.h" />
     <ClInclude Include="proxtopus\arena.h" />
     <ClInclude Include="proxtopus\base.h" />
     <ClInclude Include="botan\aead.h" />
@@ -138,6 +141,7 @@
     <ClInclude Include="proxtopus\fsys.h" />
     <ClInclude Include="proxtopus\handlers.h" />
     <ClInclude Include="proxtopus\handler_ss.h" />
+    <ClInclude Include="proxtopus\icpt.h" />
     <ClInclude Include="proxtopus\listener.h" />
     <ClInclude Include="proxtopus\loader.h" />
     <ClInclude Include="proxtopus\logger.h" />
@@ -145,6 +149,7 @@
     <ClInclude Include="proxtopus\pch.h" />
     <ClInclude Include="proxtopus\proxy.h" />
     <ClInclude Include="proxtopus\proxy_ss.h" />
+    <ClInclude Include="proxtopus\ptrs.h" />
     <ClInclude Include="proxtopus\resource.h" />
     <ClInclude Include="proxtopus\rndgen.h" />
     <ClInclude Include="proxtopus\str_helpers.h" />
@@ -321,6 +326,10 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
+    <ClCompile Include="debug\memspy.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="proxtopus\dnsq.cpp" />
     <ClCompile Include="proxtopus\cipher_ss.cpp" />
     <ClCompile Include="proxtopus\cmdline.cpp" />
@@ -330,6 +339,7 @@
     <ClCompile Include="proxtopus\fsys.cpp" />
     <ClCompile Include="proxtopus\handlers.cpp" />
     <ClCompile Include="proxtopus\handler_ss.cpp" />
+    <ClCompile Include="proxtopus\icpt.cpp" />
     <ClCompile Include="proxtopus\listener.cpp" />
     <ClCompile Include="proxtopus\loader.cpp" />
     <ClCompile Include="proxtopus\logger.cpp" />

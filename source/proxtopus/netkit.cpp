@@ -15,6 +15,12 @@ namespace netkit
         const int SD_SEND = SHUT_WR;
 #endif
 
+    void ipap::clear()
+    {
+        v4 = glb.cfg.ipstack == conf::gip_only4 || glb.cfg.ipstack == conf::gip_prior4;
+        if (v4) ipv4.s_addr = 0; else memset(&ipv6, 0, sizeof(ipv6));
+    }
+
 	ipap ipap::parse6(const str::astr_view& s, bool parse_port)
 	{
 		bool colon = false;
@@ -426,7 +432,7 @@ namespace netkit
             return nullptr;
         }
 
-		return new tcp_pipe(s, ipap(&aaaa, addrlen));
+		return NEW tcp_pipe(s, ipap(&aaaa, addrlen));
 	}
 
 	bool socket::recv(udp_packet& p)
@@ -448,6 +454,11 @@ namespace netkit
 	{
 		return tgt_ip.sendto(s, p);
 	}
+
+    void tcp_pipe::set_address(endpoint& ainf)
+    {
+        set_address(ainf.resolve_ip(glb.cfg.ipstack | conf::gip_any));
+    }
 
 	bool tcp_pipe::connect()
 	{
@@ -610,7 +621,11 @@ namespace netkit
 					if (!rcv_all())
 						return -1;
 					if (rcvbuf.datasize() < maxdatasz)
-						wait(get_waitable(), LOOP_PERIOD);
+					{
+						wrslt rslt = wait(get_waitable(), LOOP_PERIOD);
+						if (rslt == WR_CLOSED)
+							return -1;
+					}
 				}
 				rcvbuf.peek(data, maxdatasz);
 				return maxdatasz;
@@ -1276,7 +1291,7 @@ namespace netkit
 	void udp_prepare(thread_storage& ts, bool v4)
 	{
 		if (ts.data == nullptr || static_cast<udpss*>(ts.data.get())->v4 != v4)
-			ts.data.reset(new udpss(v4));
+			ts.data.reset(NEW udpss(v4));
 	}
 	*/
 
@@ -1297,7 +1312,7 @@ namespace netkit
 
 		if (s == nullptr || s->v4 != ep->get_ip().v4)
 		{
-			s = new udpss(ep->get_ip().v4);
+			s = NEW udpss(ep->get_ip().v4);
 		}
 
         if (!s->s.send(pg.to_span(), ep->get_ip()))

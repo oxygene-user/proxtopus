@@ -101,12 +101,17 @@ const char* ExceptionCodeToStr(DWORD exceptioncode)
 	}
 }
 
+void exceptions_best_friend::glpp(const char* s, size_t l)
+{
+	glb.ebf.OnOutput(s,l);
+};
+
 void exceptions_best_friend::trace_info(EXCEPTION_POINTERS* pExp)
 {
 	// generate exception text and out
 
 	char modulename[256];
-	GetModuleFileNameA(NULL, modulename, 256);
+	GetModuleFileNameA(nullptr, modulename, 256);
 
 	char* name=strrchr(modulename,'\\');
 	if (name)
@@ -114,8 +119,9 @@ void exceptions_best_friend::trace_info(EXCEPTION_POINTERS* pExp)
 		name++;
 		int len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Exception info [%04X]:\r\n\r\n%s caused a %s at %04X:%p\r\n\r\n", (int)GetCurrentThreadId(), name, ExceptionCodeToStr(pExp->ExceptionRecord->ExceptionCode), pExp->ContextRecord->SegCs, (LPVOID)pExp->ExceptionRecord->ExceptionAddress);
 		OnOutput(outBuffer, len);
+		//GetPrint(glpp);
 
-		unsigned char* code = NULL;
+		unsigned char* code = nullptr;
 
 		__try{
 #ifdef _M_IX86
@@ -186,7 +192,7 @@ LONG WINAPI exceptions_best_friend::exception_filter(EXCEPTION_POINTERS* pExp)
 
 	if (pExp->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW){
 		self.trace_info(pExp);
-		Sleep(1000000);
+		spinlock::sleep(1000000);
 	}
 
     SIMPLELOCK(self.lock);
@@ -227,7 +233,7 @@ LONG exceptions_best_friend::TraceFinal(EXCEPTION_POINTERS* pExp)
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
-void exceptions_best_friend::OnOutput(LPCSTR szText, size_t len) const
+void exceptions_best_friend::OnOutput(const char* szText, size_t len) const
 {
 	size_t maxlen = output.max_size() - output_len - 1;
     if (len > maxlen) len = maxlen;

@@ -276,7 +276,7 @@ public:
   
   virtual void OnOSVersion(DWORD dwMajorVersion, DWORD dwMinorVersion, DWORD dwBuildNumber, LPCSTR szCSDVersion, WORD wServicePackMajor, WORD wServicePackMinor, WORD wSuiteMask, BYTE  wProductType)const;
   virtual void OnCallstackEntry(CallstackEntryType eType, CallstackEntry &entry, STACKFRAME64 &stackInfo)const;  
-  virtual void OnOutput(LPCSTR szText, size_t len)const;
+  virtual void OnOutput(const char* szText, size_t len)const;
   void OnOutput1(LPCSTR szText)const { OnOutput(szText, strlen(szText)); }
 
   StackWalkerInternal *m_sw;

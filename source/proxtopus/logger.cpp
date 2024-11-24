@@ -37,9 +37,6 @@ void logger::mute()
 
 void logger::newline(int sev, const str::astr& s)
 {
-	if (glb.log_muted)
-		return;
-
 	auto tid = []() -> const char*
 		{
 			static thread_local std::array<char, 8> tids;
@@ -56,9 +53,13 @@ void logger::newline(int sev, const str::astr& s)
 	switch (sev)
 	{
 	case SEV_WARNING:
+        if (glb.log_muted)
+            return;
 		Print(FOREGROUND_RED | FOREGROUND_GREEN, "warning: %s\n", s.c_str());
 		break;
     case SEV_IMPORTANT:
+        if (glb.log_muted)
+            return;
 		Print(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY, "beep: %s\n", s.c_str());
 		break;
 	case SEV_ERROR:
@@ -68,6 +69,8 @@ void logger::newline(int sev, const str::astr& s)
 		Print("%s %s\n", tid(), s.c_str());
 		break;
 	default:
+        if (glb.log_muted)
+            return;
 		Print("note: %s\n", s.c_str());
 		break;
 	}

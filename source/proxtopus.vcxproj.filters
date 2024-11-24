@@ -39,6 +39,9 @@
     <Filter Include="src\dns">
       <UniqueIdentifier>{0f2f76cf-6f8e-4b0a-91b0-2039702ae488}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\intercept">
+      <UniqueIdentifier>{b2952a83-d06d-4d64-aefd-650b591fd50a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="proxtopus.natvis" />
@@ -241,6 +244,12 @@
     </ClCompile>
     <ClCompile Include="proxtopus\tests.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\icpt.cpp">
+      <Filter>src\intercept</Filter>
+    </ClCompile>
+    <ClCompile Include="debug\memspy.cpp">
+      <Filter>src\debug</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -538,6 +547,18 @@
     </ClInclude>
     <ClInclude Include="proxtopus\dnsq.h">
       <Filter>src\dns</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\icpt.h">
+      <Filter>src\intercept</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\ptrs.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="debug\memspy.h">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="mem.h">
+      <Filter>src\system</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

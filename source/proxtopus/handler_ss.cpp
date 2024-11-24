@@ -20,7 +20,7 @@ void handler_ss::on_pipe(netkit::pipe* pipe)
 void handler_ss::worker(netkit::pipe* raw_pipe)
 {
 	netkit::pipe_ptr p(raw_pipe);
-	netkit::pipe_ptr p_enc(new ss::core::crypto_pipe(p, std::move(core.cb()), core.masterKey, core.cp));
+	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(p, std::move(core.cb()), core.masterKey, core.cp));
 
 	u8 packet[512];
 	signed_t rb = p_enc->recv(packet, -2);
@@ -90,7 +90,7 @@ namespace
     core.deriveAeadSubkey(subkey, std::span<const u8>(p.packet, core.cp.KeySize));
 
 	if (ctx.data == nullptr)
-		ctx.data.reset(new udp_cipher( std::move(core.cb()) ));
+		ctx.data.reset(NEW udp_cipher( std::move(core.cb()) ));
 	udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
 
 	ss::outbuffer buf2r;

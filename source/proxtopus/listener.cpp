@@ -15,7 +15,7 @@ void listener::build(larray& arr, loader &ldr, const str::astr& name, const asts
 		listener* l = nullptr;
 		if (ASTR("tcp") == *tkn)
 		{
-			l = new tcp_listener(ldr, name, bb);
+			l = NEW tcp_listener(ldr, name, bb);
 			if (ldr.exit_code != EXIT_OK)
 			{
 				delete l;
@@ -23,7 +23,7 @@ void listener::build(larray& arr, loader &ldr, const str::astr& name, const asts
 			}
 		} else if (ASTR("udp") == *tkn)
 		{
-			l = new udp_listener(ldr, name, bb);
+			l = NEW udp_listener(ldr, name, bb);
 			if (ldr.exit_code != EXIT_OK)
 			{
 				delete l;
@@ -129,7 +129,7 @@ void socket_listener::acceptor()
 	close(false);
 
 	while (state.lock_read()().stage != IDLE)
-        Sleep(100);
+		spinlock::sleep(100);
 
 	state.lock_write()().need_stop = false;
 }
