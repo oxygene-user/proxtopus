@@ -105,25 +105,27 @@ void fifo_test()
 	__debugbreak();
 }
 
-
-void arena_test()
+namespace
 {
     struct fb0
     {
         static void* alloc(size_t)
         {
-			return nullptr;
+            return nullptr;
         }
     };
+}
 
-	arena < 8, 512, fb0 > a;
+using ARENA = arena < 8, 512, fb0 >;
 
-	void* aa[1024];
+void arena_test1(ARENA *a)
+{
+    void* aa[1024];
 
-	for (int i = 0; i < 1024; ++i)
-	{
-		aa[i] = a.alloc(8);
-	}
+    for (int i = 0; i < 1024; ++i)
+    {
+        aa[i] = a->alloc(8);
+    }
 
 	srand(2);
 
@@ -132,21 +134,47 @@ void arena_test()
 		int j = rand() & 1023;
 		if (aa[j])
 		{
-			a.free(aa[j]);
+			a->free(aa[j]);
 			aa[j] = nullptr;
 
 			if ((rand() & 3) != 0)
-				aa[j] = a.alloc(8);
+				aa[j] = a->alloc(8);
 		}
 		else
 		{
-			aa[j] = a.alloc(8);
+			aa[j] = a->alloc(8);
 		}
 	}
 
-	__debugbreak();
+    for (int i = 0; i < 1024; ++i)
+    {
+        if (aa[i]) a->free(aa[i]);
+    }
+
+	--cntt;
 }
 
+void arena_test()
+{
+    ARENA a;
+
+	for (int i = 0; i < 8; ++i)
+	{
+        ++cntt;
+
+        std::thread th(arena_test1, &a);
+        th.detach();
+	}
+
+    while (cntt > 0)
+    {
+        Print();
+        spinlock::sleep(100);
+    }
+
+    __debugbreak();
+
+}
 
 void do_tests()
 {

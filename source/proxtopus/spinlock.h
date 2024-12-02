@@ -265,17 +265,6 @@ SLINLINE uint32_t tid_self() { return ::pthread_self() & 0xffffffff; }
 #define CHECK_READ_LOCK(lock) SLASSERT(lock & LOCK_READ_MASK, "No READ LOCK: %llu", lock)
 #define CHECK_LOCK(lock) if (!(lock & LOCK_READ_MASK) && !(lock & LOCK_WRITE_MASK)) SLERROR("No LOCK: %llu", lock)
 
-#define DEADLOCK_COUNTER 3000000000LU // 30 seconds
-#if defined(DEBUG_DEADLOCK) && defined(_WIN32)
-#define DEADLOCKCHECK_INIT() spinlock::int64 deadlockcounter=0;
-//#define DEADLOCKCHECK(counter) if (deadlockcounter++>DEADLOCK_COUNTER){ SLERROR("Deadlock: %llu", counter); }
-#define DEADLOCKCHECK(counter) if (deadlockcounter++>1000000){ __debugbreak(); }
-#else
-#define DEADLOCKCHECK_INIT()
-#define DEADLOCKCHECK(counter)
-#endif
-
-
 SLINLINE void lock_write(RWLOCK &lock)
 {
 	RWLOCKVALUE thread = tid_self();
@@ -288,44 +277,31 @@ SLINLINE void lock_write(RWLOCK &lock)
 	thread |= LOCK_WRITE_VAL;
 
     long3264 spincount = 0;
-	for(;;) // initial lock
+	for(;; ++spincount) // initial lock
 	{
 		RWLOCKVALUE tmp = val & LOCK_READ_MASK;
 		val = tmp | thread;
 		val = SLxInterlockedCompareExchange64(&lock, val, tmp);
 		if (val == tmp) // no more writers - set current thread to block new readers
 			break;
-        if (IS_SINGLE_CORE)
-        {
-            sleep(0);
-        }
+
+        if (IS_SINGLE_CORE || spincount > 10000)
+            sleep((spincount >> 17) & 0xff);
         else
-        {
-            ++spincount;
-            if (spincount > 100000)
-                sleep(0);
-            else
-                sleep();
-        }
+            sleep();
+
 	}
 
-	for (;;) // if there are readers from current thread - deadlock
+	for (;; ++spincount) // if there are readers from current thread - deadlock
 	{
 		if (!(lock & LOCK_READ_MASK)) // all readers gone
 			return;
     
-        if (IS_SINGLE_CORE)
-        {
-            sleep(0);
-        }
+        if (IS_SINGLE_CORE || spincount > 10000)
+            sleep((spincount >> 17) & 0xff);
         else
-        {
-            ++spincount;
-            if (spincount > 100000)
-                sleep(0);
-            else
-                sleep();
-        }
+            sleep();
+
     }
 }
 
@@ -339,8 +315,8 @@ SLINLINE void lock_read(RWLOCK &lock)
 		return;
 	}
 
-    long3264 spincount = 0;
-	for (;;) // Initial lock
+    
+	for (long3264 spincount = 0;; ++spincount) // Initial lock
 	{
 		RWLOCKVALUE tmp = val & LOCK_READ_MASK;
 		val = tmp + LOCK_READ_VAL;
@@ -348,18 +324,10 @@ SLINLINE void lock_read(RWLOCK &lock)
 		if (val == tmp) // only readers
 			break;
     
-        if (IS_SINGLE_CORE)
-        {
-            sleep(0);
-        }
+        if (IS_SINGLE_CORE || spincount > 10000)
+            sleep((spincount >> 17) & 0xff);
         else
-        {
-            ++spincount;
-            if (spincount > 100000)
-                sleep(0);
-            else
-                sleep();
-        }
+            sleep();
     }
 }
 
@@ -372,8 +340,6 @@ SLINLINE bool try_lock_read( RWLOCK &lock )
         SLxInterlockedAdd64( &lock, LOCK_READ_VAL );
         return true;
     }
-
-    //DEADLOCKCHECK_INIT();
 
     RWLOCKVALUE tmp = val & LOCK_READ_MASK;
     val = tmp + LOCK_READ_VAL;

@@ -125,7 +125,7 @@
 #include <memory.h>
 #endif
 
-#include "mem.h"
+#include "../proxtopus/mem.h"
 
 namespace Botan {
 

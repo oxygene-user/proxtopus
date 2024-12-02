@@ -46,17 +46,27 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 #endif
 
 		spinlock::long3264 unlockff = ff & ~(0x80000000ull);
-		if (unlockff < arsz)
+		while (unlockff < arsz)
 		{
 			spinlock::long3264 lockff;
 
-			for (;;)
+            for (spinlock::long3264 spincount = 0;; ++spincount)
 			{
 				unlockff = ff & ~(0x80000000ull);
 				lockff = 0x80000000ull | unlockff;
 				if (spinlock::atomic_replace(ff, unlockff, lockff))
 					break; // lock success
-				_mm_pause();
+
+				if (g_single_core || spincount > 10000)
+					spinlock::sleep((spincount >> 17) & 0xff);
+                else
+                    spinlock::sleep();
+			}
+
+			if (unlockff >= arsz)
+			{
+				spinlock::atomic_replace(ff, lockff, unlockff);
+				break;
 			}
 
 			int* nf = (int*)(buf + (elsz * unlockff));
@@ -106,13 +116,17 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 
 		spinlock::long3264 unlockff;
 		spinlock::long3264 lockff;
-		for (;;)
+		for (spinlock::long3264 spincount = 0;;++spincount)
 		{
 			unlockff = ff & ~(0x80000000ull);
 			lockff = 0x80000000ull | unlockff;
 			if (spinlock::atomic_replace(ff, unlockff, lockff))
 				break; // lock success
-			_mm_pause();
+
+            if (g_single_core || spincount > 10000)
+                spinlock::sleep((spincount >> 17) & 0xff);
+            else
+                spinlock::sleep();
 		}
 
 		int* ef = (int*)(buf + (elsz * index));

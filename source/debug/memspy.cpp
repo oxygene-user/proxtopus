@@ -11,7 +11,7 @@ struct IUnknown;
 // CONFIG!
 //if you get a memory problem, change values of config here and recompile - it is ok
 
-#define MEMSPY_DISABLE 0
+#define MEMSPY_DISABLE 1
 #define MEMSPY_CALL_STACK 1                 // store callstack for every allocation
 #define MEMSPY_CALL_STACK_DEEP 4            // bigger values - slower (captain obvious)
 #define MEMSPY_CALL_STACK_SKIP 1            // skip top of stack addresses
@@ -397,6 +397,10 @@ void reset_allocnum()
     numpool = 0;
 }
 
+#endif
+
+#if MEMSPY_DISABLE
+#pragma warning(disable:4100) // unreferenced formal parameter
 #endif
 
 

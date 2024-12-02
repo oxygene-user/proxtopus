@@ -53,12 +53,19 @@ template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
     return *(const Tout*)&t;
 }
 
-template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t1, const Tin& t2)
-{
-    static_assert(sizeof(Tout) <= (sizeof(Tin) * 2), "ref cast fail");
-    ASSERT(((u8*)&t1) + sizeof(Tin) == (u8*)&t2);
-    return *(const Tout*)&t1;
-}
+#ifdef _MSC_VER
+#define DEBUGBREAK() __debugbreak()
+#define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
+#define NIXONLY(...)
+#define UNREACHABLE() __assume(0)
+#endif
+
+#ifdef __GNUC__
+#define UNREACHABLE() __builtin_unreachable()
+#define DEBUGBREAK() __builtin_trap()
+#define NOWARNING(n,...) __VA_ARGS__
+#endif
+
 
 #ifdef MODE64
 struct u128
@@ -170,19 +177,6 @@ namespace tools
 
 #define ERRORM(fn, ln, ...) (([&]()->bool { Print(FOREGROUND_RED, "%s\n", str::build_string_d(fn, ln, ##__VA_ARGS__).c_str()); return true; })())
 #define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, ##__VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
-
-#ifdef _MSC_VER
-#define DEBUGBREAK() __debugbreak()
-#define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
-#define NIXONLY(...)
-#define UNREACHABLE() __assume(0)
-#endif
-
-#ifdef __GNUC__
-#define UNREACHABLE() __builtin_unreachable()
-#define DEBUGBREAK() __builtin_trap()
-#define NOWARNING(n,...) __VA_ARGS__
-#endif
 
 #ifdef _NIX
 #define NIXONLY(...) __VA_ARGS__
