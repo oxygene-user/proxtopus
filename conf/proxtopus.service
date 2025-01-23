@@ -1,0 +1,19 @@
+[Unit]
+Description=Proxtopus Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+DynamicUser=true
+ExecStart=/opt/proxtopus/proxtopus
+StandardOutput=null
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+
+
