@@ -4,10 +4,9 @@
 
 class handler_ss : public handler // socks4 and socks5
 {
-	void worker(netkit::pipe* pipe);
-
 	ss::core core;
     signed_t udp_timeout_ms = 10000;
+    bool allow_private = false;
 
 protected:
     /*virtual*/ bool handle_packet(netkit::thread_storage& ctx, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg) override;
@@ -28,6 +27,6 @@ public:
     }
 
 
-	/*virtual*/ void on_pipe(netkit::pipe* pipe) override;
+	/*virtual*/ void handle_pipe(netkit::pipe* pipe) override;
 };
 

@@ -51,6 +51,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <set>
 #include <mutex>
 #include <shared_mutex>
 #include <functional>
@@ -71,14 +72,15 @@ extern bool g_single_core;
 #ifndef _NIX
 #include "../debug/excpn.h"
 #endif
+#include "rndgen.h"
 #include "ptrs.h"
 #include "tools.h"
+#include "json.h"
+#include "macro.h"
 #include "netkit.h"
 #include "icpt.h"
 #include "main.h"
 #include "resource.h"
-
-#include "rndgen.h"
 
 #include "cmdline.h"
 #include "loader.h"

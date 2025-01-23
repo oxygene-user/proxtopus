@@ -18,22 +18,32 @@ inline bool __is_slash(const FNc c)
 	return c == NATIVE_SLASH || c == ENEMY_SLASH;
 }
 
-inline bool __ending_slash(const FNview& path)
+inline bool __starts_with_slash(const FNview& path)
+{
+    if (path.length() == 0)
+        return false;
+    return __is_slash(path[0]);
+}
+
+
+inline bool __ends_with_slash(const FNview& path)
 {
 	return path.size() > 0 && __is_slash(path[path.size() - 1]);
 }
 
-void __append_slash_if_not(FNc *path, size_t len) // unsafe! be sure buf has enough space
+bool __append_slash_if_not(FNc *path, size_t len) // unsafe! be sure buf has enough space
 {
 	if (len == 0 || !__is_slash(path[len - 1]))
 	{
 		path[len] = NATIVE_SLASH;
 		path[len+1] = 0;
+		return true;
 	}
+	return false;
 }
 void __append_slash_if_not(FN &path)
 {
-	if (!__ending_slash(path))
+	if (!__ends_with_slash(path))
 		path.push_back(NATIVE_SLASH);
 }
 
@@ -56,14 +66,16 @@ void  __build_full_path(FN& path)
 		{
 			size_t len = GetCurrentDirectoryW(MAX_PATH_LENGTH - 8, buf);
 			buf[len] = 0;
-			__append_slash_if_not(buf, len);
+			if (__append_slash_if_not(buf, len))
+				++len;
 			path.insert(0, buf, len);
 		}
 		else
 		{
 			size_t len = GetFullPathNameW(disk.c_str(), MAX_PATH_LENGTH - 8, buf, nullptr);
 			buf[len] = 0;
-			__append_slash_if_not(buf, len);
+            if (__append_slash_if_not(buf, len))
+                ++len;
 			path.insert(0, buf, len);
 		}
 	}
@@ -241,37 +253,92 @@ FN get_name(const FN& full_file_path)
 	return full_file_path.substr(z+1);
 }
 
-void path_simplify(FN& path)
+void path_simplify(FN& path, bool make_full)
 {
 	str::replace_all<FNc>(path, ENEMY_SLASH, NATIVE_SLASH);
 	__remove_crap(path);
-	__build_full_path(path);
+	if (make_full)
+		__build_full_path(path);
 }
 
+bool is_path_exists(const FNview& path)
+{
+#ifdef _WIN32
+    WIN32_FIND_DATAW find_data;
+	FN p(path);
+
+    if (__ends_with_slash(p)) p.resize(p.length()-1);
+    if (p.length() == 2 && p[p.length() - 1] == ':')
+    {
+		p.push_back(NATIVE_SLASH);
+        UINT r = GetDriveTypeW(p.c_str());
+        return (r != DRIVE_NO_ROOT_DIR);
+    }
+
+    HANDLE fh = FindFirstFileW(p.c_str(), &find_data);
+    if (fh == INVALID_HANDLE_VALUE) return false;
+    FindClose(fh);
+
+    return (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#endif // _WIN32
+#ifdef _NIX
+    struct stat st = {};
+	FN p(path);
+    return 0 == stat(p.c_str(), &st) && (st.st_mode & S_IFDIR) != 0;
+#endif //_NIX
+}
+
+bool is_file_exists(const FN& fname)
+{
+#ifdef _WIN32
+
+	DWORD a = GetFileAttributesW(fname.c_str());
+	if (a == INVALID_FILE_ATTRIBUTES || (a & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		return false;
+	return true;
+
+#endif // _WIN32
+#ifdef _NIX
+    struct stat st = {};
+    return 0 == stat(fname.c_str(), &st) && (st.st_mode & S_IFREG) != 0;
+#endif //_NIX
+
+}
+
+/*
 FN path_fix(const FN& path)
 {
-	if (path.size() >= 2 && path[0] == '.' && path[1] == '\\')
+	if (path.size() >= 2 && path[0] == '.' && path[1] == NATIVE_SLASH)
 	{
 		// replace '.' with path of exe file
 		return path_concat(get_start_path(), FNview(path).substr(2));
 	}
 	return path;
 }
+*/
 
 FN path_concat(const FNview &path, const FNview &fn)
 {
 	FN c(path);
-	if (c.length() > 0 && c[c.length() - 1] != '\\')
-		c.push_back('\\');
-	c.append(fn);
+	__append_slash_if_not(c);
+	c.append(__starts_with_slash(fn) ? fn.substr(1) : fn);
 	return c;
+}
+
+FN path_concat(const FNview& path1, const FNview& path2, const FNview& fn)
+{
+    FN c(path1);
+    __append_slash_if_not(c);
+    c.append(__starts_with_slash(path2) ? path2.substr(1) : path2);
+    __append_slash_if_not(c);
+	c.append(__starts_with_slash(fn) ? fn.substr(1) : fn);
+    return c;
 }
 
 void path_append(FN& path, const FNview& fn)
 {
-	if (path.length() > 0 && path[path.length() - 1] != '\\')
-		path.push_back('\\');
-	path.append(fn);
+    __append_slash_if_not(path);
+	path.append(__starts_with_slash(fn) ? fn.substr(1) : fn);
 }
 
 str::astr path_print_str(const FN& path)
@@ -279,8 +346,8 @@ str::astr path_print_str(const FN& path)
 	str::astr p = str::to_utf8(path);
 	for (signed_t i = p.length() - 1; i >= 0; --i)
 	{
-		if (p[i] == '\\')
-			p.insert(p.begin() + i, '\\');
+		if (__is_slash(p[i]))
+			p.insert(p.begin() + i, NATIVE_SLASH);
 	}
 	return p;
 }

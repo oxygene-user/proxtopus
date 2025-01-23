@@ -9,16 +9,13 @@ handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::soc
         udp_timeout_ms = bb.get_int(ASTR("udp-timeout"), udp_timeout_ms);
     }
 
+	allow_private = bb.get_bool(ASTR("allow-private"), true);
 }
 
-void handler_ss::on_pipe(netkit::pipe* pipe)
+void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 {
-	std::thread th(&handler_ss::worker, this, pipe);
-	th.detach();
-}
+	DL(DLCH_THREADS, "ss worker in (%u)", glb.numtcp);
 
-void handler_ss::worker(netkit::pipe* raw_pipe)
-{
 	netkit::pipe_ptr p(raw_pipe);
 	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(p, std::move(core.cb()), core.masterKey, core.cp));
 
@@ -49,11 +46,13 @@ void handler_ss::worker(netkit::pipe* raw_pipe)
 		break;
 
 	case 4: // ipv6
-		/* ipv6 not supported yet */
 		p_enc->recv(packet+2, -15); // read 15 of 16 bytes of ipv6 address (1st byte already read)
 		ep.set_ipap(netkit::ipap::build(packet + 1, 16));
-		return;
+        break;
 	}
+
+	if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
+        return;
 
 	rb = p_enc->recv(packet, -2);
 	if (rb != 2)
@@ -64,6 +63,8 @@ void handler_ss::worker(netkit::pipe* raw_pipe)
 
 	if (netkit::pipe_ptr outcon = connect(ep, false))
 		bridge(/*ep,*/ std::move(p_enc), std::move(outcon));
+
+	DL(DLCH_THREADS, "ss worker out (%u)", glb.numtcp);
 }
 
 namespace

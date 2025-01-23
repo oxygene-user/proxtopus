@@ -5,9 +5,9 @@
 class loader;
 class proxy;
 class listener;
-using larray = std::vector<std::unique_ptr<listener>>;
+using lcoll = api_collection_uptr<listener>;
 
-class listener
+class listener : public apiobj
 {
 protected:
 	str::astr name;
@@ -22,6 +22,8 @@ public:
 	listener(handler* h) { hand.reset(h); h->owner = this; }
 	virtual ~listener() {}
 
+	/*virtual*/ void api(json_saver &) const override;
+
 	virtual void open() = 0;
 	virtual void stop() = 0;
 	virtual void close(bool fbc) = 0;
@@ -31,7 +33,7 @@ public:
 		return name;
 	}
 
-	static void build(larray &arr, loader& ldr, const str::astr& name, const asts& bb);
+	static void build(lcoll &arr, loader& ldr, const str::astr& name, const asts& bb);
 };
 
 class socket_listener : public listener
@@ -64,6 +66,8 @@ public:
 	socket_listener(const netkit::ipap &bind, handler *h);
 	/*virtual*/ ~socket_listener() {}
 
+	/*virtual*/ void api(json_saver&) const override;
+
 	/*virtual*/ void open() override;
 	/*virtual*/ void stop() override;
 
@@ -82,6 +86,8 @@ public:
 
 	tcp_listener(loader& ldr, const str::astr& name, const asts& bb);
 	/*virtual*/ ~tcp_listener() {}
+
+	/*virtual*/ void api(json_saver&) const override;
 
 	/*virtual*/ void close(bool fbc) override
 	{
@@ -102,6 +108,8 @@ public:
 	udp_listener(loader& ldr, const str::astr& name, const asts& bb);
 	udp_listener(const netkit::ipap& bind, handler* h);
 	/*virtual*/ ~udp_listener() {}
+
+	/*virtual*/ void api(json_saver&) const override;
 
 	/*virtual*/ void close(bool fbc) override
 	{

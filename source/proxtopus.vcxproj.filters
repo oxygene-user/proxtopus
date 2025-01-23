@@ -42,6 +42,12 @@
     <Filter Include="src\intercept">
       <UniqueIdentifier>{b2952a83-d06d-4d64-aefd-650b591fd50a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\handlers\http">
+      <UniqueIdentifier>{4bf8de27-c0d0-4f69-8801-866b469bbf9a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\tools">
+      <UniqueIdentifier>{95d79d14-93d7-4f59-b3d9-428e0484a507}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="proxtopus.natvis" />
@@ -51,12 +57,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="proxtopus\main.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="proxtopus\sts.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="proxtopus\tools.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="proxtopus\logger.cpp">
@@ -73,9 +73,6 @@
     </ClCompile>
     <ClCompile Include="proxtopus\handlers.cpp">
       <Filter>src\handlers</Filter>
-    </ClCompile>
-    <ClCompile Include="proxtopus\fsys.cpp">
-      <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="proxtopus\engine.cpp">
       <Filter>src\engine</Filter>
@@ -251,18 +248,33 @@
     <ClCompile Include="debug\memspy.cpp">
       <Filter>src\debug</Filter>
     </ClCompile>
+    <ClCompile Include="debug\handler_dbg.cpp">
+      <Filter>src\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\handler_http.cpp">
+      <Filter>src\handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\http_api.cpp">
+      <Filter>src\handlers\http</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\tools.cpp">
+      <Filter>src\tools</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\sts.cpp">
+      <Filter>src\tools</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\fsys.cpp">
+      <Filter>src\tools</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\json.cpp">
+      <Filter>src\tools</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\macro.cpp">
+      <Filter>src\tools</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="proxtopus\pch.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="proxtopus\str_helpers.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="proxtopus\sts.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="proxtopus\tools.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="proxtopus\logger.h">
@@ -279,9 +291,6 @@
     </ClInclude>
     <ClInclude Include="proxtopus\handlers.h">
       <Filter>src\handlers</Filter>
-    </ClInclude>
-    <ClInclude Include="proxtopus\fsys.h">
-      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="proxtopus\engine.h">
       <Filter>src\engine</Filter>
@@ -551,14 +560,41 @@
     <ClInclude Include="proxtopus\icpt.h">
       <Filter>src\intercept</Filter>
     </ClInclude>
-    <ClInclude Include="proxtopus\ptrs.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="debug\memspy.h">
       <Filter>src\debug</Filter>
     </ClInclude>
     <ClInclude Include="mem.h">
       <Filter>src\system</Filter>
+    </ClInclude>
+    <ClInclude Include="debug\handler_dbg.h">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\handler_http.h">
+      <Filter>src\handlers</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\http_api.h">
+      <Filter>src\handlers\http</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\tools.h">
+      <Filter>src\tools</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\sts.h">
+      <Filter>src\tools</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\fsys.h">
+      <Filter>src\tools</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\str_helpers.h">
+      <Filter>src\tools</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\ptrs.h">
+      <Filter>src\tools</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\json.h">
+      <Filter>src\tools</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\macro.h">
+      <Filter>src\tools</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -575,16 +611,7 @@
     <Text Include="res\help.txt">
       <Filter>res</Filter>
     </Text>
-    <Text Include="res\help_listener.txt">
-      <Filter>res</Filter>
-    </Text>
     <Text Include="res\help_win.txt">
-      <Filter>res</Filter>
-    </Text>
-    <Text Include="res\help_handler.txt">
-      <Filter>res</Filter>
-    </Text>
-    <Text Include="res\help_proxy.txt">
       <Filter>res</Filter>
     </Text>
   </ItemGroup>

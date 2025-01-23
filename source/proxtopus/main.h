@@ -1,5 +1,7 @@
 #pragma once
 
+#define PROXTOPUS_VER "0.6"
+
 struct conf
 {
 	enum getip_options
@@ -30,6 +32,8 @@ struct conf
 	str::astr crash_log_file;
 	str::astr dump_file;
 #endif
+	str::astr debug_log_file;
+	signed_t debug_log_mask = 0;
 	getip_options ipstack = gip_prior4;
 	dns_options dnso = dnso_internal_with_hosts;
 
@@ -49,6 +53,7 @@ struct global_data
 {
 	struct first_init { first_init(); } _finint;
 
+	engine* e = nullptr;
 	FN path_config;
 	str::astr emptys;
 
@@ -108,6 +113,8 @@ private:
 	volatile bool exit = false;
 public:
 	volatile spinlock::long3264 numlisteners = 0;
+	volatile spinlock::long3264 numtcp = 0; // number of tcp processing threads
+	volatile spinlock::long3264 numudp = 0; // number of udp processing threads
 
 	void stop() { Print(); exit = true; }
 	bool is_stop() { return exit; }

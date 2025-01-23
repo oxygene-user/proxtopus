@@ -90,7 +90,6 @@ namespace chrono
 
 }
 
-
 namespace math
 {
     template<typename T> struct is_signed { static const bool value = (((T)-1) < 0); };
@@ -302,7 +301,7 @@ namespace math
 
 template<typename CH> inline bool is_letter(CH c)
 {
-	return c >= L'a' && c <= 'z';
+	return (c >= L'a' && c <= 'z') || (c >= L'A' && c <= 'Z');
 }
 
 template<typename CH> inline bool is_digit(CH c)
@@ -313,7 +312,7 @@ template<typename CH> inline bool is_digit(CH c)
 
 namespace str
 {
-	template<typename CH> std::basic_string<CH> replace_all_copy(const std::basic_string<CH>& source, const std::basic_string_view<CH>&what, const std::basic_string_view<CH>& to)
+	template<typename CH> str::xstr<CH> replace_all_copy(const str::xstr_view<CH>& source, const str::xstr_view<CH>&what, const str::xstr_view<CH>& to)
 	{
 		std::string new_string;
         new_string.reserve(source.length());
@@ -355,6 +354,28 @@ namespace tools
 		signed_t first_skip = 0;
 		signed_t last_size = 0;
 
+		void insert_impl(std::span<const u8> &data)
+		{
+			if (first_skip > 0)
+			{
+				signed_t cpy = math::minv(first_skip, data.size());
+
+				memcpy( first->data + first_skip - cpy, data.data() + data.size() - cpy, cpy );
+				data = std::span( data.data(), data.size() - cpy );
+				first_skip -= cpy;
+				return;
+			}
+
+            chunk* nch = NEW chunk();
+			signed_t cpy = math::minv(SIZE, data.size());
+			memcpy(nch->data + SIZE - cpy, data.data() + data.size() - cpy, cpy);
+			data = std::span(data.data(), data.size() - cpy);
+			first_skip = SIZE - cpy;
+			nch->next.reset( first.get() );
+			first.release();
+			first.reset(nch);
+		}
+
 	public:
 
 		void clear()
@@ -363,6 +384,18 @@ namespace tools
             last = nullptr;
             first_skip = 0;
             last_size = 0;
+		}
+
+		void insert(std::span<const u8> data) // insert to beginning
+		{
+			if (!first)
+			{
+				assign(data);
+				return;
+			}
+
+			while (data.size() > 0)
+				insert_impl( data );
 		}
 
 		void assign(std::span<const u8> data)
@@ -555,6 +588,23 @@ namespace tools
 		bool is_full() const
 		{
 			return (start == 0 && end == size) || (end + 1 == start);
+		}
+
+		bool insert(const u8* d, signed_t sz)
+		{
+			if (get_free_size() < sz)
+				return false;
+
+			signed_t dsz = datasize();
+			u8* temp = ALLOCA(dsz);
+			peek(temp, dsz);
+			clear();
+			auto t = get_1st_free();
+			ASSERT((signed_t)t.size() <= (sz + dsz));
+			memcpy(t.data(), d, sz);
+            memcpy(t.data() + sz, temp, dsz);
+			confirm(sz + dsz);
+			return true;
 		}
 
 		void clear()
@@ -778,3 +828,21 @@ namespace str
 
 }
 
+namespace stats
+{
+    struct tick_collector
+    {
+		const char* tag;
+        signed_t start_ms = 0;
+        signed_t collect_start_ms = 0;
+
+        std::vector<std::pair<u16, u16>> mss;
+
+		tick_collector(const char* tag);
+		~tick_collector();
+
+		void collect();
+
+    };
+
+}

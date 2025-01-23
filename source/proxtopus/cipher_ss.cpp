@@ -182,10 +182,10 @@ bool ss::cipher_dec::process(std::span<const u8> input, data_acceptor &output)
 
 str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 {
-	str::astr url = bb.get_string(ASTR("url"));
+	const str::astr &url = bb.get_string(ASTR("url"), glb.emptys);
 
-	str::astr method = bb.get_string(ASTR("method"));
-	str::astr password = bb.get_string(ASTR("password"));
+	str::astr method = bb.get_string(ASTR("method"), glb.emptys);
+	str::astr password = bb.get_string(ASTR("password"), glb.emptys);
 	str::astr addr;
 
 	if (url.starts_with(ASTR("ss://")))
@@ -198,12 +198,12 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 			addr = url.substr(x + 1, y);
 			char *outb = (char*)ALLOCA(x);
 			signed_t sz = str::decode_base64(str::astr_view(url.data() + 5, x - 5), outb, x);
-			url = str::astr_view(outb, sz);
-			size_t z = url.find(':');
-			if (z != url.npos)
+			str::astr_view dec(outb, sz);
+			size_t z = dec.find(':');
+			if (z != dec.npos)
 			{
-				method = url.substr(0, z);
-				password = url.substr(z + 1);
+				method = dec.substr(0, z);
+				password = dec.substr(z + 1);
 			}
 		}
 	}
@@ -356,6 +356,16 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<crypto
 	}
 
 	return rv;
+}
+
+/*virtual*/ bool ss::core::crypto_pipe::unrecv(const u8* data, signed_t sz)
+{
+	if (pipe && sz > 0)
+	{
+		decrypted_data.insert(std::span(data, sz));
+		netkit::make_ready(pipe->get_waitable(), READY_PIPE);
+	}
+	return true;
 }
 
 /*virtual*/ netkit::WAITABLE ss::core::crypto_pipe::get_waitable()

@@ -1,6 +1,6 @@
 #pragma once
 
-class proxy
+class proxy : public apiobj
 {
 protected:
 	str::astr name;
@@ -32,6 +32,8 @@ public:
 	const str::astr& get_name() const { return name; }
 	str::astr desc() const;
 	const netkit::endpoint& get_addr() const { return addr; }
+
+	/*virtual*/ void api(json_saver& j) const override;
 };
 
 
@@ -43,6 +45,7 @@ public:
 	/*virtual*/ ~proxy_socks4() {}
 
 	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override;
+	/*virtual*/ void api(json_saver& j) const override;
 };
 
 class proxy_socks5 : public proxy
@@ -54,6 +57,7 @@ public:
 	proxy_socks5(loader& ldr, const str::astr& name, const asts& bb);
 	/*virtual*/ ~proxy_socks5() {}
 
+	/*virtual*/ void api(json_saver&) const override;
 	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override; // tcp tunnel
 	/*virtual*/ std::unique_ptr<netkit::udp_pipe> prepare(netkit::udp_pipe* /*transport*/) const override; //udp tunnel
 	/*virtual*/ bool support(netkit::socket_type_e) const { return true; }
@@ -64,5 +68,19 @@ public:
 	static bool read_atyp(netkit::pgen& pg, netkit::endpoint& addr);
 
 };
+
+class proxy_http : public proxy
+{
+	str::astr host;
+	std::vector<std::pair<str::astr, str::astr>> fields;
+
+public:
+	proxy_http(loader& ldr, const str::astr& name, const asts& bb);
+    /*virtual*/ ~proxy_http() {}
+
+    /*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override;
+    /*virtual*/ void api(json_saver& j) const override;
+};
+
 
 #include "proxy_ss.h"

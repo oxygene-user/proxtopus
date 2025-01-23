@@ -3,7 +3,7 @@
 proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 {
 
-	str::astr t = bb.get_string(ASTR("type"));
+	str::astr t = bb.get_string(ASTR("type"), glb.emptys);
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
@@ -44,6 +44,18 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 		return p;
 	}
 
+    if (ASTR("http") == t)
+    {
+        proxy_http* p = NEW proxy_http(ldr, name, bb);
+        if (ldr.exit_code != 0)
+        {
+            delete p;
+            return nullptr;
+        }
+        return p;
+    }
+
+
 	LOG_E("unknown {type} [%s] for proxy [%s]; type {proxtopus help proxy} for more information", str::printable(t), str::printable(name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 
@@ -55,7 +67,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 
 proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required):name(name)
 {
-	str::astr a = bb.get_string(ASTR("addr"));
+	str::astr a = bb.get_string(ASTR("addr"), glb.emptys);
 	if (a.empty())
 	{
 		if (addr_required)
@@ -68,6 +80,14 @@ proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_requi
 		addr.preparse(a);
 }
 
+/*virtual*/ void proxy::api(json_saver& j) const
+{
+	j.field(ASTR("id"), get_id());
+    j.field(ASTR("name"), get_name());
+	j.field(ASTR("endpoint"), addr.to_string());
+
+}
+
 str::astr proxy::desc() const
 {
 	return name + "@" + addr.desc();
@@ -75,7 +95,7 @@ str::astr proxy::desc() const
 
 proxy_socks4::proxy_socks4(loader& ldr, const str::astr& name, const asts& bb):proxy(ldr, name, bb)
 {
-	userid = bb.get_string(ASTR("userid"));
+	userid = bb.get_string(ASTR("userid"), glb.emptys);
 	if (userid.length() > 255)
 		userid.resize(255);
 }
@@ -98,6 +118,12 @@ namespace {
 	};
 #pragma pack(pop)
 
+}
+
+/*virtual*/ void proxy_socks4::api(json_saver& j) const
+{
+	proxy::api(j);
+	j.field(ASTR("type"), ASTR("socks4"));
 }
 
 netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2) const
@@ -134,7 +160,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
 {
 
-	str::astr pwd, user = bb.get_string(ASTR("auth"));
+	str::astr pwd, user = bb.get_string(ASTR("auth"), glb.emptys);
 	if (size_t dv = user.find(':'); dv != user.npos)
 	{
 		pwd = user.substr(dv + 1);
@@ -156,8 +182,14 @@ proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :
 		pg.pushs(pwd);
 
 	}
-
 }
+
+/*virtual*/ void proxy_socks5::api(json_saver& j) const
+{
+    proxy::api(j);
+    j.field(ASTR("type"), ASTR("socks5"));
+}
+
 
 bool proxy_socks5::initial_setup(u8* packet, netkit::pipe* p2p) const
 {
@@ -490,5 +522,76 @@ bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pip
 	if (prepare_udp_assoc(ep, p2p, true))
 		return std::make_unique<udp_via_socks5>(this, transport, ep, p2p);
 	return std::unique_ptr<netkit::udp_pipe>();
+}
+
+
+
+proxy_http::proxy_http(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
+{
+	host = ASTR("$(v)"); // by default : variable[0] means request string
+	host = bb.get_string(ASTR("host"), host);
+	if (const auto* f = bb.get(ASTR("fields")))
+	{
+		for (auto it = f->begin(); it; ++it)
+			fields.emplace_back( it.name(), it->as_string() );
+	}
+}
+
+netkit::pipe_ptr proxy_http::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2) const
+{
+    if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
+        return netkit::pipe_ptr();
+
+    netkit::pipe_tools pt(pipe_to_proxy.get());
+
+    buffer b;
+    str::astr eps = addr2.to_string();
+    str::strop<buffer>::append(b, ASTR("CONNECT "));
+	str::strop<buffer>::append(b, eps);
+	str::strop<buffer>::append(b, ASTR(" HTTP/1.1\r\nHost: "));
+
+	macro_context mc(eps);
+	eps = host;
+	macro_expand(&mc, eps);
+
+	str::strop<buffer>::append(b, eps);
+
+	for (const auto& f : fields)
+	{
+        str::strop<buffer>::append(b, ASTR("\r\n"));
+		str::strop<buffer>::append(b, f.first);
+		str::strop<buffer>::append(b, ASTR(": "));
+
+        eps = f.second;
+        macro_expand(&mc, eps);
+		str::strop<buffer>::append(b, eps);
+
+	}
+
+	str::strop<buffer>::append(b, ASTR("\r\n\r\n"));
+
+    if (pt.send(b) == netkit::pipe::SEND_FAIL)
+    {
+        return netkit::pipe_ptr();
+    }
+
+	str::astr answ;
+	pt.read_line(&answ);
+	pt.read_line(nullptr);
+
+	if (!answ.starts_with(ASTR("HTTP/1.1 200")) && !answ.starts_with(ASTR("HTTP/1.0 200")))
+        return netkit::pipe_ptr();
+
+	if (!pt.undo_recv())
+		return netkit::pipe_ptr();
+
+    return pipe_to_proxy;
+
+}
+
+void proxy_http::api(json_saver& j) const
+{
+    proxy::api(j);
+    j.field(ASTR("type"), ASTR("http"));
 }
 

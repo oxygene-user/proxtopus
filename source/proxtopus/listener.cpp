@@ -1,8 +1,17 @@
 #include "pch.h"
 
-void listener::build(larray& arr, loader &ldr, const str::astr& name, const asts& bb)
+void listener::api(json_saver& s) const
 {
-	str::astr t = bb.get_string(ASTR("type"));
+	apiobj::api(s);
+	s.field(ASTR("name"), name);
+	s.obj(ASTR("handler"));
+	hand->api(s);
+	s.objclose();
+}
+
+void listener::build(lcoll& arr, loader &ldr, const str::astr& name, const asts& bb)
+{
+	str::astr t = bb.get_string(ASTR("type"), glb.emptys);
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
@@ -65,7 +74,7 @@ socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts&
 
 	hand.reset(h);
 
-	str::astr bs = bb.get_string(ASTR("bind"));
+	str::astr bs = bb.get_string(ASTR("bind"), glb.emptys);
 	bind = netkit::ipap::parse(bs);
 
 	if (bind.port == 0)
@@ -98,6 +107,12 @@ void socket_listener::acceptor()
 	spinlock::decrement(glb.numlisteners);
 }
 
+/*virtual*/ void socket_listener::api(json_saver& j) const
+{
+	listener::api(j);
+	j.field(ASTR("bind"), bind.to_string(true));
+	j.field(ASTR("idle"), state.lock_read()().stage == IDLE ? 1 : 0);
+}
 
 /*virtual*/ void socket_listener::open()
 {
@@ -138,12 +153,21 @@ void socket_listener::acceptor()
 
 tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :socket_listener(ldr, name, bb, netkit::ST_TCP)
 {
+	if (!hand)
+		return;
+
 	if (!hand->compatible(netkit::ST_TCP))
 	{
 		ldr.exit_code = EXIT_FAIL_INCOMPATIBLE_HANDLER;
 		LOG_E("handler %s is not compatible with listener [%s] (TCP not supported)", str::printable(hand->desc()), str::printable(name));
 		return;
 	}
+}
+
+/*virtual*/ void tcp_listener::api(json_saver& j) const
+{
+	socket_listener::api(j);
+	j.field(ASTR("type"), ASTR("tcp"));
 }
 
 #ifdef _NIX
@@ -161,6 +185,11 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 }
 #endif
 
+void pipe_worker(handler* h, netkit::pipe* p)
+{
+	h->handle_pipe(p);
+}
+
 /*virtual*/ void tcp_listener::accept_impl()
 {
 	if (sock.listen(name, bind))
@@ -171,11 +200,18 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 
 		LOG_N("listener {%s} has been started (bind: %s)", str::printable(name), bind.to_string(true).c_str());
 
+		stats::tick_collector cl("tcp lst");
+
 		for (; !state.lock_read()().need_stop;)
 		{
+			cl.collect();
+
 			netkit::tcp_pipe* pipe = sock.tcp_accept(name);
 			if (nullptr != pipe)
-				hand->on_pipe(pipe);
+			{
+                std::thread th(pipe_worker, hand.get(), pipe);
+                th.detach();
+			}
 		}
 
 		hand->stop();
@@ -200,6 +236,13 @@ udp_listener::udp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener(bind, h)
 {
 }
+
+/*virtual*/ void udp_listener::api(json_saver& j) const
+{
+    socket_listener::api(j);
+    j.field(ASTR("type"), ASTR("udp"));
+}
+
 
 #ifdef _NIX
 /*virtual*/ void udp_listener::kick_socket()
@@ -238,14 +281,18 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
             LOG_N("udp listener {%s} has been started (bind: %s)", str::printable(name), bind.to_string(port).c_str());
 		}
 
+		stats::tick_collector cl("udp lst");
+
 		for (; !state.lock_read()().need_stop;)
 		{
+			cl.collect();
+
 			netkit::udp_packet p(bind.v4);
 			if (sock.recv(p))
             {
                 if (glb.is_stop())
                     break;
-                hand->on_udp( sock, p );
+                hand->udp_dispatch( sock, p );
             }
 		}
 

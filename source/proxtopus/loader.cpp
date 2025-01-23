@@ -1,72 +1,5 @@
 #include "pch.h"
 
-template<unsigned sz> void sset(std::array<wchar, sz>& s, const char *ss, signed_t cl)
-{
-	str::wstr x = str::from_utf8(str::astr_view(ss, cl));
-	signed_t cpy = math::minv(x.length(), s.max_size() - 1);
-	memcpy( s.data(), x.c_str(), cpy * sizeof(wchar) );
-	s[cpy] = 0;
-}
-
-#ifdef _WIN32
-void expand_env(str::astr &path)
-{
-	std::array<wchar, MAX_PATH_LENGTH + 1> b, name;
-
-	size_t dprc = 0;
-	for (;;)
-	{
-		size_t ii = path.find(ASTR("${"), dprc);
-		if (ii == path.npos) break;
-		ii += dprc;
-		size_t iie = ii + 2;
-		for (; iie < path.length();)
-		{
-			if (path[iie] == '}')
-			{
-				if ((iie - ii) > 1)
-				{
-					size_t ll = iie - ii - 2;
-					if (ll >= MAX_PATH_LENGTH)
-					{
-						dprc = iie + 1;
-						break;
-					}
-					sset(name, path.data() + ii + 2, ll);
-
-					int pl = GetEnvironmentVariableW(name.data(), b.data(), MAX_PATH_LENGTH);
-					if (pl && pl < MAX_PATH_LENGTH)
-					{
-						str::astr s = str::to_utf8(str::wstr_view(b.data(), pl));
-						path.replace(path.begin() + ii, path.begin() + ll + 3, s.c_str(), s.length());
-						break;
-
-					}
-					else
-					{
-						dprc = iie + 1;
-						break;
-					}
-
-				}
-				else
-				{
-					dprc = iie + 1;
-					break;
-				}
-			}
-			if (is_letter(path[iie]) || is_digit(path[iie]) || path[iie] == '_')
-			{
-				++iie;
-				continue;
-			}
-			dprc = iie + 1;
-			break;
-		}
-	}
-}
-#endif
-
 
 bool loader::load_conf(const FN& cfp)
 {
@@ -97,8 +30,8 @@ bool loader::load_conf(const FN& cfp)
 	settings = cfgsts.get(ASTR("settings"));
 	if (settings)
 	{
-		signed_t ipv4 = settings->get_int("ipv4", 1);
-		signed_t ipv6 = settings->get_int("ipv6", 0);
+		signed_t ipv4 = settings->get_int(ASTR("ipv4"), 1);
+		signed_t ipv6 = settings->get_int(ASTR("ipv6"), 0);
 		if (ipv4 < 0) ipv4 = 0;
 		if (ipv6 < 0) ipv6 = 0;
 		if (ipv4 == ipv6)
@@ -116,7 +49,7 @@ bool loader::load_conf(const FN& cfp)
 		else
 			glb.cfg.ipstack = conf::gip_prior6;
 
-		str::astr dnso = settings->get_string("dns");
+		str::astr dnso = settings->get_string(ASTR("dns"), glb.emptys);
 		if (dnso.starts_with(ASTR("int")))
 		{
 			glb.cfg.dnso = conf::dnso_internal;
@@ -129,12 +62,27 @@ bool loader::load_conf(const FN& cfp)
 			glb.cfg.dnso = conf::dnso_system;
 
 
+		macro_context ctx(settings);
+
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 		glb.cfg.crash_log_file = settings->get_string(ASTR("crash_log_file"), glb.cfg.crash_log_file);
 		glb.cfg.dump_file = settings->get_string(ASTR("dump_file"), glb.cfg.dump_file);
-		expand_env(glb.cfg.crash_log_file);
-		expand_env(glb.cfg.dump_file);
+		macro_expand(&ctx, glb.cfg.crash_log_file);
+		macro_expand(&ctx, glb.cfg.dump_file);
 #endif
+
+		glb.cfg.debug_log_file = settings->get_string(ASTR("debug_log_file"), glb.cfg.debug_log_file);
+		macro_expand(&ctx, glb.cfg.debug_log_file);
+
+		str::astr dlm = settings->get_string(ASTR("debug_log_mask"), glb.emptys);
+		for (str::token<char, str::sep_onechar<char, '|'>> tkn(str::view(dlm)); tkn; tkn())
+		{
+			if (ASTR("dns") == *tkn)
+				glb.cfg.debug_log_mask |= 1ull << DLCH_DNS;
+            if (ASTR("threads") == *tkn)
+                glb.cfg.debug_log_mask |= 1ull << DLCH_THREADS;
+		}
+
 	}
 
 	if ((glb.cfg.dnso & conf::dnso_mask) == conf::dnso_internal)

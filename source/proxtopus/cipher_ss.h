@@ -284,6 +284,7 @@ namespace ss
 			/*virtual*/ bool alive() override;
 			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
+			/*virtual*/ bool unrecv(const u8* data, signed_t sz) override;
 			/*virtual*/ netkit::WAITABLE get_waitable() override;
 			/*virtual*/ void close(bool flush_before_close) override;
 

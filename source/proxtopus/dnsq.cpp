@@ -10,22 +10,6 @@
 #define ALLOWIPV4 (glb.cfg.ipstack != conf::gip_only6)
 #define ALLOWIPV6 (glb.cfg.ipstack != conf::gip_only4)
 
-//#define DETAILED_LOG
-//#define LOG_LEVEL_1
-#define DT //;Print()
-
-#ifdef DETAILED_LOG
-#define DL(...) LOG_D(__VA_ARGS__) DT
-#define LL1(...) LOG_D(__VA_ARGS__) DT
-#else
-#define DL(...)
-#ifdef LOG_LEVEL_1
-#define LL1 LOG_D
-#else
-#define LL1(...)
-#endif
-#endif
-
 dnspp::dnspp()
 {
 }
@@ -209,7 +193,7 @@ static bool extract_dns_string(str::astr &s, netkit::pgen& pg, signed_t lim = -1
 u16 dnspp::packet_id(const u8* data)
 {
 	const header* hdr = (const header *)data;
-	return netkit::to_he(hdr->id);
+	return netkit::to_he16(hdr->id);
 }
 
 dnspp::parse_result dnspp::parser::start()
@@ -219,7 +203,7 @@ dnspp::parse_result dnspp::parser::start()
 
 	if (nullptr == hdr)
 		return parse_data_error;
-	if (netkit::to_he(hdr->id) != ((spinlock::tid_self() >> 4) & 0xffff))
+	if (netkit::to_he16(hdr->id) != ((spinlock::tid_self() >> 4) & 0xffff))
 		return parse_data_error;
 	if (!hdr->qr)
 		return parse_data_error;
@@ -229,10 +213,10 @@ dnspp::parse_result dnspp::parser::start()
 		return parse_server_error;
 	if (hdr->rcode == 3)
 		return parse_name_not_found;
-	signed_t nques = netkit::to_he(hdr->nques);
-	psize[0] = netkit::to_he(hdr->nansw);
-	psize[1] = netkit::to_he(hdr->nauth);
-	psize[2] = netkit::to_he(hdr->nainf);
+	signed_t nques = netkit::to_he16(hdr->nques);
+	psize[0] = netkit::to_he16(hdr->nansw);
+	psize[1] = netkit::to_he16(hdr->nauth);
+	psize[2] = netkit::to_he16(hdr->nainf);
 
 	if (psize[0] == 0 && psize[1] == 0 && psize[2] == 0)
 		return parse_empty;
@@ -550,7 +534,7 @@ bool dns_resolver::find_ns(query_internals& qi, signed_t deep)
 
 							zs.unlock();
 
-							DL("select resolver for %s : %s (no ip)", qi.host.c_str(), ns->name->to_string().c_str());
+							DL(DLCH_DNS, "select resolver for %s : %s (no ip)", qi.host.c_str(), ns->name->to_string().c_str());
 
 							for (signed_t tcount = 3; tcount >= 0; --tcount)
 							{
@@ -581,7 +565,7 @@ bool dns_resolver::find_ns(query_internals& qi, signed_t deep)
 									if (tcount > 0)
 										continue;
 
-									DL("can't resolve resolver's ip (%s)", ns->name->to_string().c_str());
+									DL(DLCH_DNS, "can't resolve resolver's ip (%s)", ns->name->to_string().c_str());
 									add_zone_ns_ip(ns.get(), nullptr);
 									break;
 								}
@@ -593,7 +577,7 @@ bool dns_resolver::find_ns(query_internals& qi, signed_t deep)
 						qi.last_ns = ns;
 						zs.unlock();
 
-						DL("select resolver for %s : %s (%s)", qi.host.c_str(), ns->name->to_string().c_str(), ns->ip.to_string(true).c_str());
+						DL(DLCH_DNS, "select resolver for %s : %s (%s)", qi.host.c_str(), ns->name->to_string().c_str(), ns->ip.to_string(true).c_str());
 						return samehostandresolver;
 					}
 
@@ -685,7 +669,7 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 				nns->prx = prx;
 				nns->decaytime = ct + ns.ttl;
 				z->servers.emplace_back(nns);
-				DL("add zone ns %s (\"%s\") with ip: %s", ns.name->to_string().c_str(), ns.zone.c_str(), ip.to_string(false).c_str());
+				DL(DLCH_DNS, "add zone ns %s (\"%s\") with ip: %s", ns.name->to_string().c_str(), ns.zone.c_str(), ip.to_string(false).c_str());
 			}
 			if (ns.ips.empty() && !found)
 			{
@@ -693,7 +677,7 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 				nns->prx = prx;
 				nns->decaytime = ct + ns.ttl;
 				z->servers.emplace_back(nns);
-				DL("add zone ns (\"%s\") unresolved for now: %s", ns.zone.c_str(), ns.name->to_string().c_str());
+				DL(DLCH_DNS, "add zone ns (\"%s\") unresolved for now: %s", ns.zone.c_str(), ns.name->to_string().c_str());
 			}
 
 			return;
@@ -716,7 +700,7 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 		nns->prx = prx;
 		nns->decaytime = ct + ns.ttl;
 		a->servers.emplace_back(nns);
-		DL("new zone ns %s (\"%s\") with ip: %s", ns.name->to_string().c_str(), ns.zone.c_str(), ip.to_string(false).c_str());
+		DL(DLCH_DNS, "new zone ns %s (\"%s\") with ip: %s", ns.name->to_string().c_str(), ns.zone.c_str(), ip.to_string(false).c_str());
 	}
 	if (ns.ips.empty())
 	{
@@ -724,7 +708,7 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 		nns->prx = prx;
 		nns->decaytime = ct + ns.ttl;
 		a->servers.emplace_back(nns);
-		DL("new zone ns (\"%s\") unresolved for now: %s", ns.zone.c_str(), ns.name->to_string().c_str());
+		DL(DLCH_DNS, "new zone ns (\"%s\") unresolved for now: %s", ns.zone.c_str(), ns.name->to_string().c_str());
 	}
 
 };
@@ -835,7 +819,7 @@ netkit::ipap dns_resolver::resolve(const str::astr& hn_, bool log_it)
 		break;
 	}
 
-	LL1("query failed \"%s\"", qi.cnames[0].c_str());
+	DL(DLCH_DNS, "query failed \"%s\"", qi.cnames[0].c_str());
 
 	return netkit::ipap();
 }
@@ -860,7 +844,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::resolve(query_internals &
 
 	if (lock_resolving)
 	{
-		LL1("query \"%s\"", qi.host.c_str());
+		DL(DLCH_DNS, "query \"%s\"", qi.host.c_str());
 
 		if (auto p = start_resolving(qi.host))
 			return p;
@@ -919,7 +903,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::resolve(query_internals &
 				}
 			};
 
-		DL("query: %s ? %s (%s)", qi.host.c_str(), qi.last_ns->name->to_string().c_str(), qi.ns[qi.used_ips - 1]->ip.to_string(true).c_str());
+		DL(DLCH_DNS, "query: %s ? %s (%s)", qi.host.c_str(), qi.last_ns->name->to_string().c_str(), qi.ns[qi.used_ips - 1]->ip.to_string(true).c_str());
 
 		for (signed_t tcount = 3; tcount >= 0; --tcount)
 		{
@@ -931,7 +915,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::resolve(query_internals &
 			if (tcount > 0)
 				continue;
 
-			DL("query failed: %s ? %s (%s)", qi.host.c_str(), qi.last_ns->name->to_string().c_str(), qi.ns[qi.used_ips - 1]->ip.to_string(true).c_str());
+			DL(DLCH_DNS, "query failed: %s ? %s (%s)", qi.host.c_str(), qi.last_ns->name->to_string().c_str(), qi.ns[qi.used_ips - 1]->ip.to_string(true).c_str());
 			++qi.last_ns->failcount;
 
 			if (find_ns(qi, 0))
@@ -971,7 +955,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::resolve(query_internals &
 					rec_prepare();
 					qi.add_cname(parser.cname);
 
-					DL("cname: %s -> %s", qi.host.c_str(), parser.cname.c_str());
+					DL(DLCH_DNS, "cname: %s -> %s", qi.host.c_str(), parser.cname.c_str());
 
 					auto cw = cache.lock_write();
 					cw().set(qi.host, rec);
@@ -1025,7 +1009,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::resolve(query_internals &
 						netkit::ipap ip = netkit::ipap::build((const u8*)parser.cname.data(), 4, 0);
 						cache_rec::add_ip(rec2->ips.lock_write()(), ip);
 
-						DL("resolved %s with ip %s", parser.host.c_str(), ip.to_string(false).c_str());
+						DL(DLCH_DNS, "resolved %s with ip %s", parser.host.c_str(), ip.to_string(false).c_str());
 
 						auto cw = cache.lock_write();
 						cw().set(parser.host, rec2);
@@ -1123,7 +1107,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::resolve(query_internals &
 				}
 				else
 				{
-					LL1("resolved %s -> %s", qi.host.c_str(), rec->to_string(false).c_str());
+					DL(DLCH_DNS, "resolved %s -> %s", qi.host.c_str(), rec->to_string(false).c_str());
 					done_resolve(qi.cnames.data(), qi.cnames_cnt);
 					return rec;
 				}

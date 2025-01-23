@@ -39,16 +39,10 @@ str::astr read_reg(const wchar *n)
 #endif
 
 #ifdef _NIX
-extern char _binary_res_help_txt_start;
-extern char _binary_res_help_txt_end;
-extern char _binary_res_help_listener_txt_start;
-extern char _binary_res_help_listener_txt_end;
-extern char _binary_res_help_handler_txt_start;
-extern char _binary_res_help_handler_txt_end;
-extern char _binary_res_help_proxy_txt_start;
-extern char _binary_res_help_proxy_txt_end;
-extern char _binary_res_help_nix_txt_start;
-extern char _binary_res_help_nix_txt_end;
+extern u8 _binary_res_help_txt_start;
+extern u8 _binary_res_help_txt_end;
+extern u8 _binary_res_help_nix_txt_start;
+extern u8 _binary_res_help_nix_txt_end;
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
@@ -143,25 +137,25 @@ str::astr lazy_exe()
 
 }
 
-void rpl(std::vector<char>& file, const str::astr_view& var, std::function<str::astr()> lazyrepl)
+void rpl(buffer& file, const str::astr_view& var, std::function<str::astr()> lazyrepl)
 {
 	str::astr lrs;
 	for (;;)
 	{
-		str::astr_view fv(file.data(), file.size());
+		str::astr_view fv = str::view(file);
 		size_t x = fv.find(var);
 		if (x == fv.npos)
 			return;
 		if (lrs.empty())
 			lrs = lazyrepl();
-		file.erase(file.begin() + x, file.begin() + x + var.length());
-		file.insert(file.begin() + x, lrs.begin(), lrs.end());
+
+		file.replace(x, var.length(), str::span(lrs));
 	}
 }
 
-std::vector<char> load_res(int idr)
+buffer load_res(int idr)
 {
-	std::vector<char> file;
+	buffer file;
 
 #ifdef _WIN32
 	glb.module = GetModuleHandleW(nullptr);
@@ -169,8 +163,8 @@ std::vector<char> load_res(int idr)
 	HGLOBAL resh = LoadResource(glb.module, hRes);
 	void * data = LockResource(resh);
 	signed_t datasize = SizeofResource(glb.module, hRes);
-	std::span<const char> d((const char*)data, datasize);
-	file.insert(file.begin(), d.begin(), d.end());
+	std::span<const u8> d((const u8*)data, datasize);
+	file += d;
 	FreeResource(resh);
 #endif
 
@@ -179,32 +173,14 @@ std::vector<char> load_res(int idr)
     {
         case IDR_HELP:
         {
-            std::span<const char> data(&_binary_res_help_txt_start, &_binary_res_help_txt_end-&_binary_res_help_txt_start);
-            file.insert(file.begin(), data.begin(), data.end());
-        }
-        break;
-        case IDR_HELP_LISTENER:
-        {
-            std::span<const char> data(&_binary_res_help_listener_txt_start, &_binary_res_help_listener_txt_end-&_binary_res_help_listener_txt_start);
-            file.insert(file.begin(), data.begin(), data.end());
-        }
-        break;
-		case IDR_HELP_HANDLER:
-		{
-			std::span<const char> data(&_binary_res_help_handler_txt_start, &_binary_res_help_handler_txt_end - &_binary_res_help_handler_txt_start);
-			file.insert(file.begin(), data.begin(), data.end());
-		}
-		break;
-        case IDR_HELP_PROXY:
-        {
-            std::span<const char> data(&_binary_res_help_proxy_txt_start, &_binary_res_help_proxy_txt_end - &_binary_res_help_proxy_txt_start);
-            file.insert(file.begin(), data.begin(), data.end());
+            std::span<const u8> data(&_binary_res_help_txt_start, &_binary_res_help_txt_end-&_binary_res_help_txt_start);
+            file += data;
         }
         break;
 		case IDR_HELP_PLATFORM:
         {
-            std::span<const char> data(&_binary_res_help_nix_txt_start, &_binary_res_help_nix_txt_end-&_binary_res_help_nix_txt_start);
-            file.insert(file.begin(), data.begin(), data.end());
+            std::span<const u8> data(&_binary_res_help_nix_txt_start, &_binary_res_help_nix_txt_end-&_binary_res_help_nix_txt_start);
+            file += data;
         }
         break;
     }
@@ -212,8 +188,8 @@ std::vector<char> load_res(int idr)
 
 	if (idr == IDR_HELP)
 	{
-		std::vector<char> h2part = load_res(IDR_HELP_PLATFORM);
-		file.insert(file.end(), h2part.begin(), h2part.end());
+		buffer h2part = load_res(IDR_HELP_PLATFORM);
+		file += h2part;
 		rpl(file, ASTR("$(OS_DESC)"), lazy_os_desc);
 	}
 
@@ -232,26 +208,6 @@ bool commandline::help() const
 			return true;
 		}
 
-		if (parar_.size() == 3)
-		{
-			if (parar_[2] == MAKEFN("listener"))
-			{
-				Print(load_res(IDR_HELP_LISTENER));
-				return true;
-			}
-			if (parar_[2] == MAKEFN("handler"))
-			{
-				Print(load_res(IDR_HELP_HANDLER));
-				return true;
-			}
-            if (parar_[2] == MAKEFN("proxy"))
-            {
-                Print(load_res(IDR_HELP_PROXY));
-                return true;
-            }
-
-		}
-
 
 		Print("We are very sorry, but this help is under construction.\n");
 
@@ -265,7 +221,7 @@ FN commandline::path_config() const
 	if (signed_t ci = tools::find(parar_, MAKEFN("conf")); ci > 0 && (size_t)(ci + 1) < parar_.size())
 	{
 		FN pc(parar_[ci+1]);
-		path_simplify(pc);
+		path_simplify(pc, true);
 		return pc;
 	}
 

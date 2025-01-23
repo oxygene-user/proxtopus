@@ -19,8 +19,8 @@ struct thread_storage;
 
 namespace netkit
 {
-	template <bool native_little> struct cvt {};
-	template<> struct cvt<true> {
+	template <bool native_little, int sz> struct cvt {};
+	template<> struct cvt<true, 2> {
 		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
 		{
 			return ((v_nitive & 0xff) << 8) | ((v_nitive >> 8) & 0xff);
@@ -30,7 +30,13 @@ namespace netkit
 			return ((v_network & 0xff) << 8) | ((v_network >> 8) & 0xff);
 		}
 	};
-	template<> struct cvt<false> {
+    template<> struct cvt<true, 4> {
+        static inline u32 to_he(u32 v_network) // convert to host-endian
+        {
+            return ((v_network & 0xff) << 24) | ((v_network & 0xff00) << 8) | ((v_network & 0xff0000) >> 8) | ((v_network & 0xff000000) >> 24);
+        }
+    };
+	template<> struct cvt<false, 2> {
 		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
 		{
 			return v_nitive;
@@ -40,19 +46,29 @@ namespace netkit
 			return v_network;
 		}
 	};
+    template<> struct cvt<false, 4> {
+        static inline u32 to_he(u32 v_network) // convert to host-endian
+        {
+            return v_network;
+        }
+    };
 
 	inline u16 to_ne16(signed_t v_nitive)
 	{
-		return cvt<Endian::little>::to_ne((u16)(v_nitive & 0xffff));
+		return cvt<Endian::little, 2>::to_ne((u16)(v_nitive & 0xffff));
 	}
+    inline u16 to_he16(signed_t v_nitive)
+    {
+        return cvt<Endian::little, 2>::to_he((u16)(v_nitive & 0xffff));
+    }
 
 	inline u16 to_ne(u16 v_nitive)
 	{
-		return cvt<Endian::little>::to_ne(v_nitive);
+		return cvt<Endian::little, 2>::to_ne(v_nitive);
 	}
-	inline u16 to_he(u16 v_network)
+	template <typename T> T to_he(T v_network)
 	{
-		return cvt<Endian::little>::to_he(v_network);
+		return cvt<Endian::little, sizeof(T)>::to_he(v_network);
 	}
 
 	enum socket_type_e : u8
@@ -148,6 +164,30 @@ namespace netkit
 		    return *this;
 		}
 
+		bool match4(u8 a1, u8 a2, u8 a3, u8 a4, u8 m) const
+		{
+			u32 ipt = ((u32)a1 << 24) | ((u32)a2 << 16) | ((u32)a3 << 8) | a4;
+			u32 msk = ((1 << m) - 1) << (32-m);
+			return (to_he(ipv4.s_addr) & msk) == ipt;
+		}
+
+		bool is_private() const
+		{
+			if (v4)
+			{
+				return match4(10, 0, 0, 0, 8) ||
+					match4(172, 16, 0, 0, 12) ||
+					match4(192, 168, 0, 0, 16) ||
+					match4(100, 64, 0, 0, 10) ||
+					match4(127, 0, 0, 0, 8);
+			}
+            
+			//fd00::/8
+
+			return *reinterpret_cast<const u8*>(&ipv6) == 0xfd;
+
+		}
+
 		bool is_wildcard() const
 		{
 		    if (v4) return ipv4.s_addr == 0;
@@ -192,7 +232,7 @@ namespace netkit
 			}
 #ifdef _DEBUG
 			if (port == 53 && ip.port == 0)
-				__debugbreak();
+				DEBUGBREAK();
 #endif
 			port = ip.port;
 			return *this;
@@ -268,14 +308,16 @@ namespace netkit
 		{
 			if (const u8 *octs = octets())
 			{
-				str::astr s = std::to_string(octs[0]);
-				s.push_back('.'); s.append(std::to_string(octs[1]));
-				s.push_back('.'); s.append(std::to_string(octs[2]));
-				s.push_back('.'); s.append(std::to_string(octs[3]));
+				str::astr s;
+				str::append_num(s, octs[0], 0);
+				s.push_back('.'); str::append_num(s, octs[1], 0);
+				s.push_back('.'); str::append_num(s, octs[2], 0);
+				s.push_back('.'); str::append_num(s, octs[3], 0);
+
 				if (logport > 0)
 				{
 					s.push_back(':');
-					s.append(std::to_string(logport));
+					str::append_num(s, logport, 0);
 				}
 				return s;
 			}
@@ -317,7 +359,7 @@ namespace netkit
 				if (logport > 0)
 				{
 					s.append(ASTR("]:"));
-					s.append(std::to_string(logport));
+					str::append_num(s, logport, 0);
 				}
 				return s;
 			}
@@ -385,11 +427,17 @@ namespace netkit
 		EPS_DOMAIN,
 		EPS_RESLOVED,
 	};
+    enum endpoint_string : u8
+    {
+        EPS_DEFAUL,
+        EPS_GET_IP_IF_RESOLVED,
+    };
 
 	enum wrslt
 	{
 		WR_TIMEOUT,
 		WR_READY4READ,
+		WR_READY4WRITE,
 		WR_CLOSED,
 	};
 
@@ -419,6 +467,7 @@ namespace netkit
 #define NULL_WAITABLE ((netkit::WAITABLE)nullptr)
 
 	wrslt wait(WAITABLE s, long microsec);
+	wrslt wait_write(WAITABLE s, long microsec);
 
 	struct pipe;
 	class pipe_waiter
@@ -441,16 +490,37 @@ namespace netkit
 
 	public:
 
+		void prepare()
+		{
+			numw = 0;
+			readymask = 0;
+		}
+
 		class mask
 		{
 			u64 readm = 0;
 			u64 closem = 0;
 			u64 writem = 0;
+			bool by_signal = false;
 
 		public:
-			mask(u64 readmask = 0):readm(readmask)
+			mask(u64 readmask):readm(readmask)
 			{
 			}
+            mask(bool bsgn = false) :by_signal(bsgn)
+            {
+            }
+
+			void set_by_signal()
+			{
+				by_signal = true;
+			}
+
+#ifdef _DEBUG
+			u64 rm() const { return readm; };
+			u64 cm() const { return closem; };
+			u64 wm() const { return writem; };
+#endif
 
 			bool have_read(u64 m)
 			{
@@ -489,6 +559,7 @@ namespace netkit
 			void remove_write(u64 m) { writem &= ~m; }
 
 			bool is_empty() const { return readm == 0 && closem == 0 && writem == 0; }
+			bool is_bysignal() const { return by_signal; }
 		};
 
 #ifdef _NIX
@@ -619,40 +690,8 @@ namespace netkit
 		{
 			return domain_;
 		}
-		str::astr desc() const
-		{
-			str::astr d(domain_);
-			if (!d.empty())
-			{
-				d.push_back(':'); d.append(std::to_string(ip.port));
-			}
-			switch (state_)
-			{
-			case netkit::EPS_DOMAIN:
-				break;
-			case netkit::EPS_RESLOVED:
-				if (d.empty())
-				{
-					d = ip.to_string(true);
-				}
-				else
-				{
-					str::astr ipa = ip.to_string(false);
-					if (d.find(ipa) == d.npos)
-					{
-						d.append(ASTR(" ("));
-						d.append(ipa);
-						d.push_back(')');
-					}
-				}
-				break;
-			default:
-				if (!d.empty()) d.push_back(' ');
-				d.append(ASTR("(unresolved)"));
-				break;
-			}
-			return d;
-		}
+		str::astr desc() const; // human readable string
+		str::astr to_string(endpoint_string eps = EPS_DEFAUL) const; // machine readable string
 	};
 
 	struct udp_packet
@@ -734,6 +773,7 @@ namespace netkit
 		virtual WAITABLE get_waitable() = 0;
 		virtual void close(bool flush_before_close) = 0;
 		virtual bool alive() = 0;
+		virtual bool unrecv(const u8* data, signed_t sz) = 0; // just add data to recv buf
 	};
 
 	using pipe_ptr = ptr::shared_ptr<pipe>;
@@ -742,9 +782,13 @@ namespace netkit
 	{
 		ipap addr;
 		signed_t creationtime = 0;
+		signed_t lastcheckalive = 0;
 
 		tools::circular_buffer<16384*3> rcvbuf;
 		tools::chunk_buffer<16384> outbuf;
+
+		bool connection_still_alive();
+		pipe::sendrslt trysend(); // just try to send outbuf
 
 		tcp_pipe() { creationtime = chrono::ms(); }
 		tcp_pipe(SOCKET s, const ipap& addr) :addr(addr) { _socket = s; creationtime = chrono::ms(); }
@@ -793,6 +837,7 @@ namespace netkit
 
 		/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 		/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
+		/*virtual*/ bool unrecv(const u8* data, signed_t sz) override;
 
 		enum read_result : u8
 		{
@@ -1077,6 +1122,88 @@ namespace netkit
 	void udp_prepare(thread_storage& ts, bool v4);
 	io_result udp_send(thread_storage& ts, const endpoint& toaddr, const pgen& pg /* in */);
 	io_result udp_recv(thread_storage& ts, netkit::ipap& from, pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/);
+
+	class pipe_tools
+	{
+		struct simple_buffer
+		{
+			uint8_t* buf;
+			size_t sz = 0, cap = 8192;
+			simple_buffer()
+			{
+				buf = (u8*)MA(8192);
+			}
+			static size_t capsize(size_t sz)
+			{
+				return (sz + 31) & (~31);
+			}
+
+			signed_t free_space() const
+			{
+				return cap - sz;
+			}
+			void reserve_space(signed_t sz_at_least)
+			{
+				if (free_space() >= sz_at_least)
+					return;
+				cap = capsize(sz + sz_at_least);
+				buf = (u8*)MRS(buf, cap);
+			}
+			u8* free_space_ptr()
+			{
+				return buf + sz;
+			}
+			void add_size(signed_t asz)
+			{
+				sz += asz;
+				ASSERT(sz <= cap);
+			}
+			u8* data() { return buf; }
+			const u8* data() const { return buf; }
+			signed_t size() const { return sz; }
+			str::astr_view view() const
+			{
+				return str::astr_view((const char*)buf, sz);
+			}
+			void cut_head(signed_t csz)
+			{
+				sz -= csz;
+				ASSERT(sz >= 0);
+				memcpy(buf, buf + csz, sz);
+			}
+		};
+
+		simple_buffer tempbuf;
+	protected:
+		netkit::pipe_ptr pp;
+
+		netkit::pipe::sendrslt send(const std::span<const u8>& d);
+
+	public:
+		pipe_tools(netkit::pipe* p) :pp(p) {}
+		~pipe_tools() {}
+
+		bool read_line(str::astr* s);
+		netkit::pipe::sendrslt send(const str::astr_view& d)
+		{
+			return this->send(str::span(d));
+		}
+		netkit::pipe::sendrslt send(const buffer& d)
+		{
+			return this->send(d.span());
+		}
+
+		bool undo_recv() // return tempbuf unused data to pipe
+		{
+			if (tempbuf.size() > 0)
+			{
+				return pp->unrecv(tempbuf.data(), tempbuf.size());
+			}
+			return true;
+		}
+
+    };
+
 
 
 } // namespace netkit

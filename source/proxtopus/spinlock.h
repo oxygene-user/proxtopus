@@ -393,8 +393,16 @@ struct auto_lock_write
     }
     ~auto_lock_write()
     {
-		if(lock)
-			unlock_write(*lock);
+        if (lock)
+            unlock_write(*lock);
+    }
+    void unlock()
+    {
+        if (lock)
+        {
+            unlock_write(*lock);
+            lock = nullptr;
+        }
     }
 };
 

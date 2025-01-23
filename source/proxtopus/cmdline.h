@@ -17,7 +17,7 @@ enum AppExitCode
 										// unknown {type} [%s] for lisnener [%s]. Type {proxtopus help listener} for more information.
 										// {type} not defined for handler of listener [%s]
 										// unknown {type} [%s] for handler of lisnener [%s]. Type {proxtopus --help handler} for more information.
-										// {type} not defined for proxy [%s]. Type {proxtopus help proxy} for more information. 
+										// {type} not defined for proxy [%s]. Type {proxtopus help proxy} for more information.
 										// unknown {type} [%s] for proxy [%s]. Type {proxtopus help proxy} for more information.
 	EXIT_FAIL_ADDR_UNDEFINED = 12,		// addr not defined for proxy [%s]
 	EXIT_FAIL_METHOD_UNDEFINED = 13,	// {method} not defined for proxy [%s]
@@ -27,7 +27,11 @@ enum AppExitCode
 
 	EXIT_FAIL_ICPT_NOT_SUPPORTED = 16,
 	EXIT_FAIL_ICPT_INIT_ERROR = 17,
-	
+
+	EXIT_FAIL_MODE_UNDEFINED = 18,
+
+	EXIT_FAIL_DUP_NAME = 50,
+
 	EXIT_FAIL_ELEVATION = 98,
 	EXIT_FAIL_CTLHANDLE = 99,
 
@@ -51,6 +55,11 @@ public:
 	const std::vector<FN>& parar() const
 	{
 		return parar_;
+	}
+
+	bool have_option(const FNview &opt) const
+	{
+		return std::find(parar_.begin() + 1, parar_.end(), opt) != parar_.end();
 	}
 
 	bool help() const;
@@ -77,7 +86,14 @@ public:
 		return parar_.size() > 1 ? parar_[1] == MAKEFN("service") : false;
 	}
 #endif
-	
+#ifdef _NIX
+    bool unmute() const
+    {
+        return have_option(MAKEFN("--unmute"));
+    }
+
+#endif
+
 
 	FN path_config() const;
 };

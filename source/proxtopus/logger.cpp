@@ -1,6 +1,37 @@
 #include "pch.h"
 
+
 #if LOGGER==2
+
+void logger::dstr(const char* msg)
+{
+    FILE* f = fopen(glb.cfg.debug_log_file.c_str(), "ab");
+    if (f)
+    {
+		size_t cur = (size_t)ftell(f);
+
+        fseek(f, 0, SEEK_END);
+		size_t len = (size_t)ftell(f);
+		if (len > 1024 * 128) // moar 1 mb
+		{
+			fclose(f);
+			f = fopen(glb.cfg.debug_log_file.c_str(), "w");
+		}
+		else
+		{
+			fseek(f, 0, (int)cur);
+		}
+
+        time_t curtime;
+        time(&curtime);
+        const tm& t = *localtime(&curtime);
+        fprintf(f, "[%u] (%i-%02i-%02i %02i:%02i:%02i) : %s\r\n", spinlock::tid_self(), t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, msg);
+        fclose(f);
+    }
+
+	
+}
+
 #include <codecvt>
 
 /*

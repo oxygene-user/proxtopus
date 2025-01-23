@@ -41,7 +41,7 @@
     <ClCompile>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)libext;$(SolutionDir)lib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)proxtopus</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
@@ -53,6 +53,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="debug\handler_dbg.h" />
     <ClInclude Include="debug\memspy.h" />
     <ClInclude Include="mem.h" />
     <ClInclude Include="proxtopus\arena.h" />
@@ -140,11 +141,15 @@
     <ClInclude Include="proxtopus\engine.h" />
     <ClInclude Include="proxtopus\fsys.h" />
     <ClInclude Include="proxtopus\handlers.h" />
+    <ClInclude Include="proxtopus\handler_http.h" />
     <ClInclude Include="proxtopus\handler_ss.h" />
+    <ClInclude Include="proxtopus\http_api.h" />
     <ClInclude Include="proxtopus\icpt.h" />
+    <ClInclude Include="proxtopus\json.h" />
     <ClInclude Include="proxtopus\listener.h" />
     <ClInclude Include="proxtopus\loader.h" />
     <ClInclude Include="proxtopus\logger.h" />
+    <ClInclude Include="proxtopus\macro.h" />
     <ClInclude Include="proxtopus\netkit.h" />
     <ClInclude Include="proxtopus\pch.h" />
     <ClInclude Include="proxtopus\proxy.h" />
@@ -326,6 +331,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <ForcedIncludeFiles>botan/botan.h</ForcedIncludeFiles>
     </ClCompile>
+    <ClCompile Include="debug\handler_dbg.cpp" />
     <ClCompile Include="debug\memspy.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -338,11 +344,15 @@
     <ClCompile Include="proxtopus\engine.cpp" />
     <ClCompile Include="proxtopus\fsys.cpp" />
     <ClCompile Include="proxtopus\handlers.cpp" />
+    <ClCompile Include="proxtopus\handler_http.cpp" />
     <ClCompile Include="proxtopus\handler_ss.cpp" />
+    <ClCompile Include="proxtopus\http_api.cpp" />
     <ClCompile Include="proxtopus\icpt.cpp" />
+    <ClCompile Include="proxtopus\json.cpp" />
     <ClCompile Include="proxtopus\listener.cpp" />
     <ClCompile Include="proxtopus\loader.cpp" />
     <ClCompile Include="proxtopus\logger.cpp" />
+    <ClCompile Include="proxtopus\macro.cpp" />
     <ClCompile Include="proxtopus\main.cpp" />
     <ClCompile Include="proxtopus\mem.cpp" />
     <ClCompile Include="proxtopus\netkit.cpp" />
@@ -371,9 +381,6 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="res\help.txt" />
-    <Text Include="res\help_handler.txt" />
-    <Text Include="res\help_listener.txt" />
-    <Text Include="res\help_proxy.txt" />
     <Text Include="res\help_win.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

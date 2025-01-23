@@ -180,6 +180,13 @@ namespace Botan {
 			buf = (uint8_t*)MA(cap);
 		}
 
+        secure_vector(size_t sz, size_t cap) {
+            sz = sz;
+            cap = cap;
+            buf = (uint8_t*)MA(cap);
+        }
+
+
 		secure_vector(const uint8_t *ds, const uint8_t* de)
 		{
 			sz = de - ds;
@@ -260,6 +267,66 @@ namespace Botan {
 
 		uint8_t& operator[](size_t index) { return buf[index]; }
 		uint8_t operator[](size_t index) const { return buf[index]; }
+
+		std::span<const uint8_t> span() const { return std::span(data(), size()); }
+
+		void replace(size_t off, size_t cnt, const std::span<const uint8_t>& d)
+		{
+			if (cnt == d.size())
+			{
+				// no need shift
+				memcpy(buf + off, d.data(), cnt);
+				return;
+			}
+            if (cnt > d.size())
+            {
+                // no need allocate
+				memcpy(buf + off, d.data(), d.size());
+				size_t shrink_size = cnt - d.size();
+				memcpy(buf + off + d.size(), buf + off + cnt, sz - off - cnt);
+				sz -= shrink_size;
+				return;
+            }
+
+			// d.size greater then cnt
+			// may be need to reallocate
+
+			size_t grow_size = d.size() - cnt;
+			if (sz + grow_size > cap)
+			{
+				cap = capsize(sz + grow_size);
+				uint8_t* nb = (uint8_t*)MA(cap);
+				memcpy(nb, buf, off);
+				memcpy(nb + off, d.data(), d.size());
+				memcpy(nb + off + d.size(), buf + off + cnt, sz - off - cnt);
+				ma::mf(buf);
+				buf = nb;
+			}
+			else
+			{
+				memmove(buf + off + d.size(), buf + off + cnt, sz - off - cnt);
+				memcpy(buf + off, d.data(), d.size());
+			}
+            sz += grow_size;
+
+		}
+
+        secure_vector& operator+=(uint8_t c) {
+
+            if (1 + sz <= cap)
+            {
+                buf[sz] = c;
+                ++sz;
+                return *this;
+            }
+
+            cap = capsize(sz + 1);
+            buf = (uint8_t*)MRS(buf, cap);
+            buf[sz] = c;
+            ++sz;
+            return *this;
+        }
+		secure_vector& operator+=(char c) { *this += (uint8_t)c; return *this; }
 
 		secure_vector& operator+=(const std::span<const uint8_t> &in) {
 

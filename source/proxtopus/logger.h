@@ -13,6 +13,8 @@ public:
 
 	static void mute();
 	static void newline(int color_, const str::astr& s);
+    static void dstr(const char* s);
+
 };
 
 enum severity_e
@@ -23,6 +25,14 @@ enum severity_e
 	SEV_ERROR,
 	SEV_DEBUG,
 };
+
+enum dlchnl_e
+{
+    DLCH_DNS,
+	DLCH_THREADS,
+};
+
+#define DL(chnl, ...) if (0 != (glb.cfg.debug_log_mask & (1ull << (chnl)))) logger::dstr(str::build_string(__VA_ARGS__).c_str())
 
 #define LOG_N(...) logger::newline(SEV_NOTE, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
 #define LOG_I(...) logger::newline(SEV_IMPORTANT, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))

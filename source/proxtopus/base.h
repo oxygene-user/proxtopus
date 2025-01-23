@@ -57,6 +57,7 @@ template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
 #define DEBUGBREAK() __debugbreak()
 #define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
 #define NIXONLY(...)
+#define WINONLY(...) __VA_ARGS__
 #define UNREACHABLE() __assume(0)
 #endif
 
@@ -180,6 +181,7 @@ namespace tools
 
 #ifdef _NIX
 #define NIXONLY(...) __VA_ARGS__
+#define WINONLY(...)
 
 #define MB_OK 1
 #define MB_ICONWARNING 2
@@ -212,5 +214,5 @@ void GetPrint(printfunc pf);
 void Print(); // print current queue
 void Print(const char* format, ...);
 void Print(signed_t color, const char* format, ...);
-void Print(const std::vector<char>& txt);
+void Print(const buffer& txt);
 

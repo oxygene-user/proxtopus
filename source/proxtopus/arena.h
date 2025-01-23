@@ -42,6 +42,8 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 	void* alloc(size_t sz)
 	{
 #ifdef _DEBUG
+        if (corrupt_guard == 0)
+            return malloc(sz);
 		ASSERT(corrupt_guard == 123456789);
 #endif
 

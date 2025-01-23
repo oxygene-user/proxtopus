@@ -274,9 +274,9 @@ void Println(const char* s, signed_t slen)
 	glb.prints.lock_write()().push_back(sln(s,slen));
 }
 
-void Print(const std::vector<char> &txt)
+void Print(const buffer &txt)
 {
-	str::token<char, str::sep_onechar<char, '\n'>> t( str::astr_view(txt.data(), txt.size()));
+	str::token<char, str::sep_onechar<char, '\n'>> t( str::view(txt) );
 	for (; t; t())
 	{
 		Println( t->data(), t->size() );
@@ -477,3 +477,70 @@ bool messagebox(const char* /*s1*/, const char* /*s2*/, int /*options*/)
     return true;
 }
 
+
+namespace stats
+{
+	tick_collector::tick_collector(const char* tag):tag(tag)
+	{
+		DL(DLCH_THREADS, "start collector %s", tag);
+	}
+    tick_collector::~tick_collector()
+    {
+        DL(DLCH_THREADS, "stop collector %s", tag);
+    }
+
+	void tick_collector::collect()
+	{
+		if (0 == (glb.cfg.debug_log_mask & (1ull << DLCH_THREADS)))
+			return;
+
+		signed_t ct = chrono::ms();
+		if (start_ms == 0)
+		{
+			start_ms = ct;
+			return;
+		}
+
+		signed_t dt = (ct - start_ms);
+		start_ms = ct;
+		if (collect_start_ms == 0)
+			collect_start_ms = ct;
+
+		if (dt > 65535)
+			dt = 65535;
+
+		u16 dt16 = (u16)dt;
+		if (mss.empty())
+		{
+			mss.push_back(std::pair(dt16, (u16)1));
+		}
+		else
+		{
+			if (mss[mss.size() - 1].first == dt16)
+				++mss[mss.size() - 1].second;
+			else
+				mss.push_back(std::pair(dt16, (u16)1));
+		}
+
+		if ((ct - collect_start_ms) > 5000)
+		{
+			collect_start_ms = ct;
+
+			str::astr mssc;
+			for (auto& x : mss)
+			{
+				if (!mssc.empty())
+					mssc.push_back(',');
+				mssc.append(std::to_string(x.first));
+				if (x.second > 1)
+				{
+					mssc.push_back('(');
+					mssc.append(std::to_string(x.second));
+					mssc.push_back(')');
+				}
+			}
+			mss.clear();
+			DL(DLCH_THREADS, "collected for %s : %s", tag, mssc.c_str());
+		}
+	}
+}

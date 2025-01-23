@@ -12,8 +12,8 @@ settings {
 	dns=int|hosts
 
 	// only for win32
-	crash_log_file=`${tmp}\proxtopus.log`
-	dump_file=`${tmp}\proxtopus.dmp`
+	crash_log_file=$(tmp)\proxtopus.log
+	dump_file=$(tmp)\proxtopus.dmp
 }
 
 nameservers {
@@ -92,10 +92,11 @@ listeners {
 	// 'shadowscl' is just name of listener and used only in logs
 	shadowscl {
 		type=tcp
-		bind=127.0.0.1:1180
+		bind=127.0.0.1:1080
 		handler {
 			type=socks
 			proxychain=shadowss
+			allow-private=1
 			//udp-bind=127.0.0.1
 		}
 

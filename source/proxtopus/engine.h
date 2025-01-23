@@ -2,9 +2,8 @@
 
 class engine
 {
-
-	larray listners;
-	std::vector<std::unique_ptr<proxy>> prox;
+	lcoll listners;
+	api_collection_uptr<proxy> prox;
 
 public:
 
@@ -23,6 +22,8 @@ public:
 		return nullptr;
 	}
 
+	const lcoll& l() const { return listners; }
+	const api_collection_uptr<proxy>& p() const { return prox; }
 };
 
 inline const proxy* loader::find_proxy(const str::astr_view& pn) const

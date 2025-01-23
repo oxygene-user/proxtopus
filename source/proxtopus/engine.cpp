@@ -2,6 +2,7 @@
 
 engine::engine()
 {
+	glb.e = this;
 #ifdef _WIN32
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -51,10 +52,13 @@ engine::engine()
 		}
 
 		listener::build(listners, ldr, name, lb);
+		if (ldr.exit_code != EXIT_OK)
+			return false;
+
 		return true;
 	});
 
-	if (exit_code != 0)
+	if (ldr.exit_code != 0)
 	{
 		exit_code = ldr.exit_code;
 		glb.stop();
@@ -67,6 +71,16 @@ engine::engine()
 		exit_code = EXIT_FAIL_NOLISTENERS;
 		glb.stop();
 		return;
+	}
+
+    for (signed_t idpool = 1; auto & p : prox)
+    {
+        p->id = idpool++;
+    }
+
+	for (signed_t idpool = 1; auto &l : listners)
+	{
+		l->id = idpool++;
 	}
 
 	if (ldr.nameservers && glb.dns != nullptr)
@@ -91,6 +105,7 @@ engine::engine()
 
 engine::~engine()
 {
+	glb.e = nullptr;
 #ifdef _WIN32
 	WSACleanup();
 #endif
@@ -111,6 +126,7 @@ signed_t engine::working()
 	if (glb.numlisteners <= 0)
 	{
 		LOG_E("there are no active listeners");
+		Print();
 		return -1;
 	}
 

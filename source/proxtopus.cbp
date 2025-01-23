@@ -13,7 +13,14 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-g" />
+					<Add option="-rdynamic" />
+					<Add option="-D_DEBUG" />
+					<Add option="-D_GLIBCXX_DEBUG" />
+					<Add directory="proxtopus" />
 				</Compiler>
+				<Linker>
+					<Add option="-g -rdynamic" />
+				</Linker>
 			</Target>
 			<Target title="Release">
 				<Option output="bin/proxtopus" prefix_auto="1" extension_auto="1" />
@@ -159,6 +166,21 @@
 		<Unit filename="botan/system_rng.cpp" />
 		<Unit filename="botan/system_rng.h" />
 		<Unit filename="botan/types.h" />
+		<Unit filename="debug/backward.cpp">
+			<Option target="Debug" />
+		</Unit>
+		<Unit filename="debug/backward.hpp">
+			<Option target="Debug" />
+		</Unit>
+		<Unit filename="debug/death_handler.h">
+			<Option target="Debug" />
+		</Unit>
+		<Unit filename="debug/handler_dbg.cpp">
+			<Option target="Debug" />
+		</Unit>
+		<Unit filename="debug/handler_dbg.h">
+			<Option target="Debug" />
+		</Unit>
 		<Unit filename="proxtopus/base.h" />
 		<Unit filename="proxtopus/botan.cpp" />
 		<Unit filename="proxtopus/cipher_ss.cpp" />
@@ -173,10 +195,14 @@
 		<Unit filename="proxtopus/engine.h" />
 		<Unit filename="proxtopus/fsys.cpp" />
 		<Unit filename="proxtopus/fsys.h" />
+		<Unit filename="proxtopus/handler_http.cpp" />
 		<Unit filename="proxtopus/handler_ss.cpp" />
 		<Unit filename="proxtopus/handler_ss.h" />
 		<Unit filename="proxtopus/handlers.cpp" />
 		<Unit filename="proxtopus/handlers.h" />
+		<Unit filename="proxtopus/http_api.cpp" />
+		<Unit filename="proxtopus/icpt.cpp" />
+		<Unit filename="proxtopus/json.cpp" />
 		<Unit filename="proxtopus/list.h" />
 		<Unit filename="proxtopus/listener.cpp" />
 		<Unit filename="proxtopus/listener.h" />
@@ -184,6 +210,8 @@
 		<Unit filename="proxtopus/loader.h" />
 		<Unit filename="proxtopus/logger.cpp" />
 		<Unit filename="proxtopus/logger.h" />
+		<Unit filename="proxtopus/macro.cpp" />
+		<Unit filename="proxtopus/macro.h" />
 		<Unit filename="proxtopus/main.cpp" />
 		<Unit filename="proxtopus/mem.cpp" />
 		<Unit filename="proxtopus/netkit.cpp" />
@@ -209,22 +237,7 @@
 			<Option link="1" />
 			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
 		</Unit>
-		<Unit filename="res/help_handler.txt">
-			<Option compile="1" />
-			<Option link="1" />
-			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
-		</Unit>
-		<Unit filename="res/help_listener.txt">
-			<Option compile="1" />
-			<Option link="1" />
-			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
-		</Unit>
 		<Unit filename="res/help_nix.txt">
-			<Option compile="1" />
-			<Option link="1" />
-			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />
-		</Unit>
-		<Unit filename="res/help_proxy.txt">
 			<Option compile="1" />
 			<Option link="1" />
 			<Option compiler="gcc" use="1" buildCommand="objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/$file_name.txt $object" />

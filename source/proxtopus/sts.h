@@ -32,13 +32,10 @@ template <typename CH=char> class sts_t
 
 	int get_current_line(const CH *s);
 
-	template<typename T> void _to_string(str::astr& v, T t)
+	template<typename S, typename T> void _to_string(S& v, T t)
 	{
-		v = std::to_string(t);
-	}
-	template<typename T> void _to_string(str::wstr& v, T t)
-	{
-		v = std::to_wstring(t);
+		v.clear();
+		str::append_num(v,t,0);
 	}
 
 public:
@@ -166,7 +163,7 @@ public:
 			if (it->second) return it->second;
 
 			//WARNING("duplicate block get attempt");
-			__debugbreak();
+			DEBUGBREAK();
 
 			for (element *e=first_element; e; e=e->next)
 				if (*e->name == name) return &e->sts;

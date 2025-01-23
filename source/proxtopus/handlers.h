@@ -25,7 +25,23 @@ public:
 };
 #endif
 
-class handler
+
+class apiobj
+{
+	friend class engine;
+    signed_t id = 0;
+public:
+	signed_t get_id() const { return id; }
+    virtual ~apiobj() {}
+	virtual void api(json_saver& j) const
+	{
+		if (id != 0)
+			j.field(ASTR("id"), id);
+	}
+};
+
+
+class handler : public apiobj
 {
 	friend class listener;
 protected:
@@ -102,6 +118,16 @@ protected:
 		}
 
 	public:
+
+        tcp_processing_thread()
+        {
+            spinlock::increment(glb.numtcp);
+        }
+        ~tcp_processing_thread()
+        {
+            spinlock::decrement(glb.numtcp);
+        }
+
 		void signal()
 		{
 			waiter.signal();
@@ -224,8 +250,14 @@ protected:
 
 		udp_processing_thread(handler *h, netkit::thread_storage &&hs, const netkit::ipap & k):h(h), handler_state(std::move(hs)), hashkey(k)
 		{
+			spinlock::increment(glb.numudp);
 			update_cutoff_time();
 		}
+        ~udp_processing_thread()
+        {
+            spinlock::decrement(glb.numudp);
+        }
+
 		const netkit::ipap& key() const
 		{
 			return hashkey;
@@ -257,7 +289,8 @@ protected:
 
 	};
 
-	spinlock::syncvar<std::unique_ptr<tcp_processing_thread>> tcp_pth; // list of tcp threads
+	RWLOCK lock_tcp_list = 0;
+	std::unique_ptr<tcp_processing_thread> tcps; // list of tcp threads
 	std::unordered_map<netkit::ipap, ptr::shared_ptr<udp_processing_thread>> udp_pth; // only accept thread can modify this map
 	spinlock::syncvar<std::vector<netkit::ipap>> finished; // keys of finished threads
 
@@ -319,21 +352,26 @@ public:
 	void stop();
 	netkit::pipe_ptr connect(netkit::endpoint& addr, bool direct); // just connect to remote host using current handler's proxy settings
 
+	using mbresult = std::function< void(bool connection_established) >;
+	void make_bridge(const str::astr& epa, netkit::pipe* clientpipe, mbresult res);
+
+	/*virtual*/ void api(json_saver&) const override;
+
 	virtual str::astr desc() const = 0;
 	virtual bool compatible(netkit::socket_type_e /*st*/) const
 	{
 		return false;
 	}
 
-	virtual void on_pipe(netkit::pipe* pipe)  // called from listener thread, execute as fast as possible
+	virtual void handle_pipe(netkit::pipe* pipe)  // will be called in new thread, so can work as long as need
 	{
-		// so, this func is owner of pipe now
+		// this func is owner of pipe now
 		// delete it
 		// (override this to handle pipe)
 		delete pipe;
 	}
 
-    virtual void on_udp(netkit::socket&, netkit::udp_packet&);
+    void udp_dispatch(netkit::socket&, netkit::udp_packet&);
     virtual void on_listen_port(signed_t /*port*/) {} // callback on listen port
 
 	static handler* build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st);
@@ -345,7 +383,6 @@ class handler_direct : public handler // just port mapper
 	str::astr to_addr; // in format like: tcp://domain_or_ip:port
 	netkit::endpoint ep; // only accessed from listener thread
 
-	void tcp_worker(netkit::pipe* pipe); // sends all from pipe to out connection
 	signed_t udp_timeout_ms = 10000;
 
 protected:
@@ -367,7 +404,7 @@ public:
 		return true; // compatible with both tcp and udp
 	}
 
-	/*virtual*/ void on_pipe(netkit::pipe* pipe) override;
+	/*virtual*/ void handle_pipe(netkit::pipe* pipe) override;
 };
 
 class handler_socks : public handler // socks4 and socks5
@@ -388,11 +425,10 @@ class handler_socks : public handler // socks4 and socks5
 	bool allow_4 = true;
 	bool allow_5 = true;
 	bool allow_udp_assoc = true;
+	bool allow_private = false;
 
 	void handshake4(netkit::pipe* pipe);
 	void handshake5(netkit::pipe* pipe);
-
-	void handshake(netkit::pipe* pipe);
 
 	using sendanswer = std::function< void(netkit::pipe* pipe, rslt ecode) >;
 
@@ -408,7 +444,11 @@ public:
 		return st == netkit::ST_TCP;
 	}
 
-	/*virtual*/ void on_pipe(netkit::pipe* pipe) override;
+	/*virtual*/ void handle_pipe(netkit::pipe* pipe) override;
 };
 
 #include "handler_ss.h"
+#include "handler_http.h"
+#ifdef _DEBUG
+#include "debug/handler_dbg.h"
+#endif // _DEBUG

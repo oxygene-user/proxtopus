@@ -57,6 +57,12 @@ namespace str
         return str::astr_view(reinterpret_cast<const char*>(s.data()), s.size());
     }
 
+    template<typename STR> struct chartype;
+    template<> struct chartype<astr> { using type = char; };
+    template<> struct chartype<buffer> { using type = char; };
+    template<> struct chartype<std::span<char>> { using type = char; };
+    template<> struct chartype<wstr> { using type = wchar; };
+
 
 	template <typename TCH> TCH get_last_char(const xstr<TCH>& s)
 	{
@@ -103,21 +109,6 @@ namespace str
 
 			s.replace(f, s1.size(), s2);
 			break;
-		}
-		return s;
-	}
-
-
-	template <typename TCH> xstr<TCH>& replace_all(xstr<TCH>& s, const xstr_view<TCH>& s1, const xstr_view<TCH>& s2)
-	{
-		for (size_t f = 0;;)
-		{
-			f = s.find(s1, f);
-			if (f == s.npos)
-				break;
-
-			s.replace(f, s1.size(), s2);
-			f += s2.size();
 		}
 		return s;
 	}
@@ -276,35 +267,6 @@ namespace str
 		return build_string_d(fn, ln, "---");
 	}
 
-	inline void append_char(str::astr& s, char c)
-	{
-		s.push_back(c);
-	}
-	inline void append_char(std::span<char>& s, char c)
-	{
-		s.data()[s.size()] = c;
-		s = std::span(s.data(), s.size()+1);
-	}
-
-	template<typename SS, typename V, bool skipzeros = true> inline void append_hex(SS& s, V v) {
-
-		char cc[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-
-		const unsigned N = 2 * sizeof(v);
-		bool skipz = skipzeros;
-		for (unsigned i = 0; i < N; ++i)
-		{
-			unsigned shiftr = 4 * (N - i - 1);
-			V hex = (v >> shiftr) & 0xf;
-			if (skipz && hex == 0)
-				continue;
-			append_char(s, cc[hex]);
-			skipz = false;
-		}
-		if (skipz)
-			append_char(s, cc[0]);
-	}
-
 
 	enum class codepage_e
 	{
@@ -403,9 +365,18 @@ namespace str
 	template<typename CH> struct sep_base
 	{
 		xstr_view<CH> s;
+		signed_t pos = -1;
 		sep_base(xstr_view<CH> s) :s(s) {}
-		operator bool() const { return !s.empty(); }
+		operator bool() const
+		{
+			bool working = pos <= slen();
+			return working;
+		}
 		const xstr_view<CH>& operator* () const { return s; }
+		signed_t slen() const
+		{
+			return s.length();
+		}
 	};
 
 	template<typename CH, CH ch> struct sep_onechar : public sep_base<CH>
@@ -413,15 +384,34 @@ namespace str
 		sep_onechar(xstr_view<CH> s) :sep_base<CH>(s) {}
 		xstr_view<CH> operator()()
 		{
-			size_t x = this->s.find(ch);
+			if (this->pos < 0)
+			{
+				size_t x = this->s.find(ch);
+                if (x == this->s.npos)
+                {
+                    this->pos = this->s.length();
+                    return this->s;
+                }
+                xstr_view<CH> r = this->s.substr(0, x);
+                this->pos = x;
+                return r;
+			}
+
+			if (this->pos >= this->slen())
+			{
+				++this->pos;
+				return this->s.substr(0, 0);
+			}
+
+			size_t x = this->s.find(ch, this->pos + 1);
 			if (x == this->s.npos)
 			{
-				xstr_view<CH> r = this->s;
-				this->s = this->s.substr(0, 0);
+				xstr_view<CH> r = this->s.substr(this->pos + 1, this->s.length() - this->pos - 1);
+				this->pos = this->s.length();
 				return r;
 			}
-			xstr_view<CH> r = this->s.substr(0, x);
-			this->s = this->s.substr(x + 1);
+			xstr_view<CH> r = this->s.substr(this->pos + 1, x- this->pos - 1);
+			this->pos = x;
 			return r;
 		}
 	};
@@ -430,35 +420,83 @@ namespace str
 		sep_onechar_rev(xstr_view<CH> s) :sep_base<CH>(s) {}
 		xstr_view<CH> operator()()
 		{
-			size_t x = this->s.rfind(ch);
-			if (x == this->s.npos)
-			{
-				xstr_view<CH> r = this->s;
-				this->s = this->s.substr(0, 0);
-				return r;
-			}
-			xstr_view<CH> r = this->s.substr(x+1);
-			this->s = this->s.substr(0, x);
-			return r;
+            if (this->pos < 0)
+            {
+                size_t x = this->s.rfind(ch);
+                if (x == this->s.npos)
+                {
+                    this->pos = this->s.length();
+                    return this->s;
+                }
+                xstr_view<CH> r = this->s.substr(x+1);
+                this->pos = x;
+                return r;
+            }
+
+            if (this->pos >= this->slen())
+            {
+                ++this->pos;
+                return this->s.substr(0, 0);
+            }
+
+            size_t x = this->s.substr(0,this->pos).rfind(ch);
+            if (x == this->s.npos)
+            {
+                xstr_view<CH> r = this->s.substr(0, this->pos);
+                this->pos = this->s.length();
+                return r;
+            }
+            xstr_view<CH> r = this->s.substr(x+1, this->pos - x - 1);
+            this->pos = x;
+            return r;
 		}
 	};
 	template<typename CH> struct sep_line : public sep_base<CH>
 	{
+		xstr_view<CH> crlf = XSTR(CH, "\r\n");
 		sep_line(xstr_view<CH> s) :sep_base<CH>(s) {}
 		xstr_view<CH> operator()()
 		{
-			size_t x = this->s.find_first_of(XSTR(CH,"\r\n"));
-			if (x == this->s.npos)
-			{
-				xstr_view<CH> r = this->s;
-				this->s = this->s.substr(0, 0);
-				return r;
-			}
-			xstr_view<CH> r = this->s.substr(0, x);
-			this->s = this->s.substr(x + 1);
-			for (; this->s.size() > 0 && (this->s[0] == '\r' || this->s[0] == '\n'); )
-				this->s = this->s.substr(1);
-			return r;
+            if (this->pos < 0)
+            {
+                size_t x = this->s.find_first_of(crlf);
+                if (x == this->s.npos)
+                {
+                    this->pos = this->s.length();
+                    return this->s;
+                }
+                xstr_view<CH> r = this->s.substr(0, x);
+
+				if (this->s[x + 1] == crlf[1])
+				{
+					// keep crlf
+				}
+				else
+				{
+					crlf = this->s.substr(x, 1); // use found character (cr or lf)
+				}
+
+                this->pos = x + crlf.length() - 1;
+                return r;
+            }
+
+            if (this->pos >= this->slen())
+            {
+                ++this->pos;
+                return this->s.substr(0, 0);
+            }
+
+            size_t x = this->s.find(crlf, this->pos + 1);
+            if (x == this->s.npos)
+            {
+                xstr_view<CH> r = this->s.substr(this->pos + 1, this->s.length() - this->pos - 1);
+                this->pos = this->s.length();
+                return r;
+            }
+            xstr_view<CH> r = this->s.substr(this->pos + 1, x - this->pos - 1);
+            this->pos = x + crlf.length() - 1;
+            return r;
+
 		}
 	};
 
@@ -467,18 +505,38 @@ namespace str
 		sep_hollow(xstr_view<CH> s) :sep_base<CH>(trim(s)) {}
 		xstr_view<CH> operator()()
 		{
-			size_t x = this->s.find_first_of(XSTR(CH, " \t\r\n"));
-			if (x == this->s.npos)
-			{
-				xstr_view<CH> r = this->s;
-				this->s = this->s.substr(0, 0);
-				return r;
-			}
-			xstr_view<CH> r = this->s.substr(0, x);
-			this->s = this->s.substr(x + 1);
-			for (; this->s.size() > 0 && is_hollow(this->s[0]); )
-				this->s = this->s.substr(1);
-			return r;
+            if (this->pos < 0)
+            {
+                size_t x = this->s.find_first_of(XSTR(CH, " \t\r\n"));
+                if (x == this->s.npos)
+                {
+                    this->pos = this->s.length();
+                    return this->s;
+                }
+                xstr_view<CH> r = this->s.substr(0, x);
+                this->pos = x;
+				for (; this->pos + 1 < this->slen() && is_hollow(this->s[this->pos + 1]); ++this->pos);
+                return r;
+            }
+
+            if (this->pos >= this->slen())
+            {
+                ++this->pos;
+                return this->s.substr(0, 0);
+            }
+
+            size_t x = this->s.find_first_of(XSTR(CH, " \t\r\n"), this->pos + 1);
+            if (x == this->s.npos)
+            {
+                xstr_view<CH> r = this->s.substr(this->pos + 1, this->s.length() - this->pos - 1);
+                this->pos = this->s.length();
+                return r;
+            }
+            xstr_view<CH> r = this->s.substr(this->pos + 1, x - this->pos - 1);
+            this->pos = x;
+			for (; this->pos + 1 < this->slen() && is_hollow(this->s[this->pos + 1]); ++this->pos);
+            return r;
+
 		}
 	};
 
@@ -510,7 +568,7 @@ namespace str
 			return *te;
 		}
 
-		operator bool() const { return !!te || !tkn.empty(); }
+		operator bool() const { return !!te; }
 
 		const xstr_view<CH>& operator* () const { return  tkn; }
 		const xstr_view<CH>* operator->() const { return &tkn; }
@@ -541,6 +599,169 @@ namespace str
 
 namespace str
 {
+    template<typename T> struct is_signed
+    {
+        static const bool value = (((T)-1) < 0);
+    };
+
+    template<typename T, bool s = is_signed<T>::value, bool too_huge = (sizeof(T) > sizeof(size_t)) > struct as_native_1
+    {
+        typedef T type;
+    };
+
+    template<typename T, bool sgn = is_signed<T>::value > struct invert
+    {
+        void operator()(T&) { UNREACHABLE(); }
+    };
+    template<typename T> struct invert<T, true>
+    {
+        void operator()(T& t) { t = -t; }
+    };
+
+	inline void operator += (std::span<char>& s, char c)
+	{
+        s.data()[s.size()] = c;
+        s = std::span(s.data(), s.size() + 1);
+	}
+
+    inline void operator += (buffer& s, const astr_view& a)
+    {
+        s += span(a);
+    }
+
+    template <class CH, typename I> __inline CH* make_str_unsigned(CH* buf, signed_t& szbyte, I i)
+    {
+		signed_t idx = (sizeof(I) * 4 - 1);
+        buf[idx--] = 0;
+        while (i >= 10)
+        {
+            I d = i / 10;
+            buf[idx--] = (CH)(i - ((d << 3) + (d << 1)) + 48);
+            i = d;
+        }
+        buf[idx] = (CH)((CH)i + 48);
+        szbyte = static_cast<signed_t>(((sizeof(I) * 4) - idx) * sizeof(CH));
+        return buf + idx;
+    }
+
+	template<typename SS> struct strop
+    {
+		using CH = typename chartype<SS>::type;
+
+        static void append_chars(SS& s, signed_t n, CH filler)
+        {
+            signed_t l = s.size(), nl = l + n;
+            s.resize(nl);
+            for (signed_t i = l; i < nl; ++i)
+                s.data()[i] = filler;
+        }
+        static void append_char(SS& s, char cha)
+        {
+            s += cha;
+        }
+        static void append(SS& s, const xstr_view<CH>& a)
+        {
+			s += a;
+        }
+	};
+
+	template<typename SS, typename N> struct strap
+	{
+		static void append_num(SS& s, N n, signed_t minimum_digits)
+		{
+            using CH = typename chartype<SS>::type;
+            CH buf[sizeof(N) * 4];
+
+            if constexpr (is_signed<N>::value)
+            {
+				if (n < 0)
+				{
+					strop<SS>::append_char(s, '-');
+					invert<N>()(n);
+				}
+            }
+
+            signed_t szbyte;
+            CH* tcalced = make_str_unsigned(buf, szbyte, n);
+            signed_t digits = szbyte / sizeof(CH)-1;
+            if (digits < minimum_digits)
+                strop<SS>::append_chars(s, minimum_digits - digits, '0');
+            strop<SS>::append(s, xstr_view<CH>(tcalced, digits));
+
+		}
+	};
+	template<> struct strap<astr, float> { static void append_num(astr& s, float n, signed_t) { s.append( std::to_string(n) ); } };
+	template<> struct strap<astr, double> { static void append_num(astr& s, double n, signed_t) { s.append(std::to_string(n)); } };
+    //template<> struct strap<wstr, float> { static void append_num(wstr& s, float n, signed_t) { s.append(std::to_wstring(n)); } };
+    //template<> struct strap<wstr, double> { static void append_num(wstr& s, double n, signed_t) { s.append(std::to_wstring(n)); } };
+
+    template<typename SS, typename V, bool skipzeros = true> inline void append_hex(SS& s, V v) {
+
+        static char cc[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+        const unsigned N = 2 * sizeof(v);
+        bool skipz = skipzeros;
+        for (unsigned i = 0; i < N; ++i)
+        {
+            unsigned shiftr = 4 * (N - i - 1);
+            V hex = (v >> shiftr) & 0xf;
+            if (skipz && hex == 0)
+                continue;
+            strop<SS>::append_char(s, cc[hex]);
+            skipz = false;
+        }
+        if (skipz)
+            strop<SS>::append_char(s, cc[0]);
+    }
+
+    template <class SS, typename N> void append_num(SS& s, N n, signed_t minimum_digits)
+    {
+		strap<SS, N>::append_num(s,n,minimum_digits);
+    }
+
+	template <typename SS> inline size_t __find(const SS& s, const xstr_view<typename chartype<SS>::type>& ss, size_t offs)
+	{
+		return s.find(ss, offs);
+	}
+    template <> inline size_t __find<buffer>(const buffer& s, const xstr_view<char>& ss, size_t offs)
+    {
+		return view(s).find(ss, offs);
+    }
+
+	template<typename SS> inline size_t __npos(const SS &s)
+	{
+		return s.npos;
+	}
+    template<> inline size_t __npos(const buffer&)
+    {
+        return astr_view::npos;
+    }
+
+    template <typename SS> inline void __replace(SS& s, size_t off, size_t cnt, const xstr_view<typename chartype<SS>::type>& ss)
+    {
+        s.replace(off, cnt, ss);
+    }
+    template <> inline void __replace(buffer& s, size_t off, size_t cnt, const astr_view& ss)
+    {
+        s.replace(off, cnt, std::span((const u8 *)ss.data(), ss.length()));
+    }
+
+    template <typename SS> SS& replace_all(SS& s, const xstr_view<typename chartype<SS>::type>& s1, const xstr_view<typename chartype<SS>::type>& s2)
+    {
+        for (size_t f = 0;;)
+        {
+            f = __find(s, s1, f);
+            if (f == __npos(s))
+                break;
+
+            __replace(s, f, s1.size(), s2);
+            f += s2.size();
+        }
+        return s;
+    }
+
+
+
 	const char* printable(const str::astr& name, str::astr_view disabled_chars = ASTR("{}[]`\"\'\\/?&"));
 
 	inline char base64(signed_t index)
@@ -664,6 +885,18 @@ namespace str
 		}
 		return v;
 	}
+    inline signed_t parse_int(const astr_view& x, signed_t if_failed)
+    {
+        signed_t v = 0;
+        for (char c : x)
+        {
+            size_t y = c - 48;
+            if (y >= 10)
+                return if_failed;
+            v = v * 10 + y;
+        }
+        return v;
+    }
 
 
 	template<typename CH> signed_t find_pos_t(const xstr_view<CH>& in, signed_t idx, const xstr_view<CH>& subs, CH c = '?') // find substring. c is any char // find_pos_t("abc5abc",0,"c?a",'?') == 2
@@ -703,16 +936,19 @@ namespace str
 			return true;
 
 		signed_t index = 0;
-		token<CH> mp(mask, '*');
 		bool left = true;
-		for (; mp; ++mp)
+		bool last_e = false;
+		for (str::token<char, str::sep_onechar<char, '*'>> mp(mask); mp; mp())
 		{
-			signed_t i = mp->length() == 0 ? index : find_pos_t(s, index, *mp);
+			last_e = mp->length() == 0;
+			signed_t i = last_e ? index : find_pos_t(s, index, *mp);
 			if (i < 0) return false;
 			if (left && i != 0) return false;
 			left = false;
 			index = i + mp->length();
 		}
+		if (last_e)
+			return true;
 
 		return index == (signed_t)s.length();
 	}

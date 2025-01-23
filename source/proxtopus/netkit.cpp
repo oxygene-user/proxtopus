@@ -271,6 +271,70 @@ namespace netkit
 		return SOCKET_ERROR != ::sendto(s, (const char *)p.data(), (int)p.size(), 0, (const sockaddr*)&addr, sizeof(addr));
 	}
 
+    str::astr endpoint::desc() const
+    {
+        str::astr d(domain_);
+        if (!d.empty())
+        {
+            d.push_back(':');
+            str::append_num(d, ip.port, 0);
+        }
+        switch (state_)
+        {
+        case netkit::EPS_DOMAIN:
+            break;
+        case netkit::EPS_RESLOVED:
+            if (d.empty())
+            {
+                d = ip.to_string(true);
+            }
+            else
+            {
+                str::astr ipa = ip.to_string(false);
+                if (d.find(ipa) == d.npos)
+                {
+                    d.append(ASTR(" ("));
+                    d.append(ipa);
+                    d.push_back(')');
+                }
+            }
+            break;
+        default:
+            if (!d.empty()) d.push_back(' ');
+            d.append(ASTR("(unresolved)"));
+            break;
+        }
+        return d;
+    }
+
+    str::astr endpoint::to_string(endpoint_string eps) const
+    {
+        str::astr d;
+        switch (state_)
+        {
+        case netkit::EPS_RESLOVED:
+            if (d.empty())
+            {
+                d = ip.to_string(true);
+				break;
+            }
+            else if (eps == EPS_GET_IP_IF_RESOLVED)
+            {
+                d = ip.to_string(true);
+				break;
+			}
+			// no break here
+        case netkit::EPS_DOMAIN:
+            d = domain_;
+            d.push_back(':');
+            str::append_num(d, ip.port, 0);
+            break;
+        default:
+            break;
+        }
+        return d;
+    }
+
 	void waitable_socket::close(bool flush_before_close)
 	{
 #ifdef _WIN32
@@ -432,6 +496,15 @@ namespace netkit
             return nullptr;
         }
 
+        // non-blocking mode
+#ifdef _WIN32
+        u_long one(1);
+        ioctlsocket(s, FIONBIO, (u_long*)&one);
+#endif
+#ifdef _NIX
+        fcntl(s, F_SETFL, O_NONBLOCK | fcntl(s, F_GETFL));
+#endif
+
 		return NEW tcp_pipe(s, ipap(&aaaa, addrlen));
 	}
 
@@ -535,14 +608,46 @@ namespace netkit
 	/*virtual*/ bool tcp_pipe::alive()
 	{
 		if (connected())
-			return wait(get_waitable(), 0) != WR_CLOSED;
+			//return wait(get_waitable(), 0) != WR_CLOSED;
+			return connection_still_alive();
 		return false;
+	}
+
+	pipe::sendrslt tcp_pipe::trysend()
+	{
+		if (outbuf.is_empty())
+			return SEND_OK;
+
+        auto d2s = outbuf.get_1st_chunk();
+
+        signed_t sendrv = ::send(sock(), (const char*)d2s.data(), int(d2s.size()), NIXONLY(MSG_NOSIGNAL) WINONLY(0));
+        if (sendrv == SOCKET_ERROR)
+        {
+            if (CHECK_IF_NOT_NOW)
+                return SEND_BUFFERFULL;
+            return SEND_FAIL;
+        }
+		outbuf.skip(sendrv);
+
+        if (outbuf.is_empty())
+        {
+
+#ifdef _WIN32
+            WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ | FD_CLOSE);
+#endif
+#ifdef _NIX
+            get_waitable()->bufferfull = 0;
+#endif // _NIX
+			return SEND_OK;
+        }
+
+		return SEND_BUFFERFULL;
 	}
 
 	pipe::sendrslt tcp_pipe::send(const u8* data, signed_t datasize)
 	{
 		if (data == nullptr)
-			return outbuf.is_empty() ? SEND_OK : SEND_BUFFERFULL;
+			return trysend();
 
 		if (!outbuf.is_empty())
 		{
@@ -551,47 +656,25 @@ namespace netkit
 				auto d = std::span<const u8>(data, datasize);
 				outbuf.append(d);
 			}
-			auto d2s = outbuf.get_1st_chunk();
 
-			int iRetVal = ::send(sock(), (const char*)d2s.data(), int(d2s.size()), 0);
-			if (iRetVal == SOCKET_ERROR)
-			{
-				if (CHECK_IF_NOT_NOW)
-					return SEND_BUFFERFULL;
-				return SEND_FAIL;
-			}
-
-			outbuf.skip(iRetVal);
-			if (outbuf.is_empty())
-			{
-
-#ifdef _WIN32
-				WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ|FD_CLOSE);
-#endif
-#ifdef _NIX
-                get_waitable()->bufferfull = 0;
-#endif // _NIX
-				return SEND_OK;
-			}
-
-			return SEND_BUFFERFULL;
+			return trysend();
 		}
 
 		if (datasize == 0)
 			return SEND_OK;
 
-		int iRetVal = ::send(sock(), (const char*)data, int(datasize), 0);
+		signed_t sendrv = ::send(sock(), (const char*)data, int(datasize), NIXONLY(MSG_NOSIGNAL) WINONLY(0));
 
-		if (iRetVal == SOCKET_ERROR)
+		if (sendrv == SOCKET_ERROR)
 		{
 			if (!CHECK_IF_NOT_NOW)
 			{
 				return SEND_FAIL;
 			}
-			iRetVal = 0;
+			sendrv = 0;
 		}
 
-		if (iRetVal < datasize)
+		if (sendrv < datasize)
 		{
 #ifdef _WIN32
 			WSAEventSelect(sock(), get_waitable()->wsaevent, FD_READ|FD_WRITE|FD_CLOSE);
@@ -600,7 +683,7 @@ namespace netkit
             // mark this pipe as bufferfull
             get_waitable()->bufferfull = 1;
 #endif // _NIX
-			auto d = std::span<const u8>(data+iRetVal, datasize-iRetVal);
+			auto d = std::span<const u8>(data + sendrv, datasize - sendrv);
 			outbuf.append(d);
 			return SEND_BUFFERFULL;
 		}
@@ -642,9 +725,53 @@ namespace netkit
 		return 0;
 	}
 
+	/*virtual*/ bool tcp_pipe::unrecv(const u8* data, signed_t sz)
+	{
+		return rcvbuf.insert(data, sz);
+	}
+
 	/*virtual*/ WAITABLE tcp_pipe::get_waitable()
 	{
 		return waitable_socket::get_waitable();
+	}
+
+	bool tcp_pipe::connection_still_alive()
+	{
+		if (lastcheckalive == 0)
+		{
+			// do not check for now
+			lastcheckalive = chrono::ms();
+			return true;
+		}
+
+		signed_t ct = chrono::ms();
+		if ((ct - lastcheckalive) > 1000)
+		{
+			// check no more than once per second
+			lastcheckalive = ct;
+
+            // check connections still alive
+            char temp;
+            int result = ::recv(sock(), &temp, 1, MSG_PEEK);
+            if (result == 0)
+            {
+                close(false);
+                return false;
+            }
+            if (result == SOCKET_ERROR)
+            {
+                if (CHECK_IF_NOT_NOW)
+                {
+                }
+                else {
+                    close(false);
+                    return false;
+                }
+            }
+
+		}
+
+		return true;
 	}
 
 	bool tcp_pipe::rcv_all()
@@ -668,7 +795,12 @@ namespace netkit
 			}
 
 			if (rb == 0 && is_ready(get_waitable())) // check ready bit for complex pipes (like crypto pipe)
+			{
+				if (!connection_still_alive())
+					return false;
+
 				rb = 1;
+			}
 
 			if (rb > 0)
 			{
@@ -701,7 +833,11 @@ namespace netkit
 					continue;
 				}
 			}
-
+			else
+			{
+                if (!connection_still_alive())
+                    return false;
+			}
 			break;
 		}
 		return true;
@@ -1024,6 +1160,60 @@ namespace netkit
 #endif
 	}
 
+    wrslt wait_write(WAITABLE s, long microsec)
+    {
+#ifdef _WIN32
+        if (microsec == 0)
+        {
+            WSANETWORKEVENTS e;
+            WSAEnumNetworkEvents(s->s, s->wsaevent, &e);
+            if (0 != (e.lNetworkEvents & FD_CLOSE))
+                return WR_CLOSED;
+
+            if (0 != (e.lNetworkEvents & FD_WRITE))
+            {
+                return WR_READY4WRITE;
+            }
+
+            return WR_TIMEOUT;
+        }
+
+        u32 rslt = WSAWaitForMultipleEvents(1, &s->wsaevent, TRUE, microsec < 0 ? WSA_INFINITE : (microsec / 1000), FALSE);
+        if (WSA_WAIT_TIMEOUT == rslt)
+            return WR_TIMEOUT;
+
+        if (rslt == WSA_WAIT_EVENT_0)
+        {
+            WSANETWORKEVENTS e;
+            WSAEnumNetworkEvents(s->s, s->wsaevent, &e);
+            if (0 != (e.lNetworkEvents & FD_CLOSE))
+                return WR_CLOSED;
+
+            if (0 != (e.lNetworkEvents & FD_WRITE))
+            {
+                return WR_READY4WRITE;
+            }
+
+        }
+        return WR_TIMEOUT;
+#endif
+#ifdef _NIX
+
+        pollfd p = { s->s, POLLOUT };
+        int pr = poll(&p, 1, microsec * 1000);
+        if (pr == 0)
+            return WR_TIMEOUT;
+        if (pr < 0)
+            return WR_CLOSED;
+        if (p.revents & POLLOUT)
+        {
+            return WR_READY4WRITE;
+        }
+
+        return WR_TIMEOUT;
+#endif
+    }
+
 	u64 pipe_waiter::reg(pipe* p)
 	{
 		u64 mask = 1ull << numw;
@@ -1158,7 +1348,7 @@ namespace netkit
 			WSAResetEvent(sig);
 			readymask = 0;
 			numw = 0;
-			return mask();
+			return mask(true);
 		}
 
 		if (rslt >= WSA_WAIT_EVENT_0 && (rslt-WSA_WAIT_EVENT_0) < numw)
@@ -1226,7 +1416,6 @@ namespace netkit
         mask m;
         for (signed_t i = 0; i < numw; ++i)
         {
-            ;
             if (0 != (polls[i].revents & (POLLHUP|POLLERR|POLLNVAL)))
             {
                 m.add_close(1ull << i);
@@ -1246,6 +1435,7 @@ namespace netkit
         {
             u8 temp[64];
             ::recv(evt[0], temp, sizeof(temp), 0); // just clear buf of socketpair
+			m.set_by_signal();
         }
 
         readymask = 0;
@@ -1347,6 +1537,47 @@ namespace netkit
 		return ior_timeout;
 
 	}
+
+    netkit::pipe::sendrslt pipe_tools::send(const std::span<const u8>& d)
+    {
+		for (const u8* data = d.data();; data = nullptr)
+		{
+			auto r = pp->send(data, d.size());
+			if (r != pipe::SEND_BUFFERFULL)
+				return r;
+			wait_write(pp->get_waitable(), 1000);
+		}
+
+		UNREACHABLE();
+    }
+
+
+    bool pipe_tools::read_line(str::astr* s)
+    {
+        for (; tempbuf.cap < 65536;)
+        {
+            if (tempbuf.sz > 0)
+            {
+                str::astr_view rs(tempbuf.view());
+                size_t nlp = rs.find(ASTR("\r\n"));
+                if (nlp != rs.npos)
+                {
+                    if (s) *s = rs.substr(0, nlp);
+                    tempbuf.cut_head(nlp + 2);
+                    return true;
+                }
+            }
+
+            tempbuf.reserve_space(512);
+            signed_t rcv = pp->recv(tempbuf.free_space_ptr(), tempbuf.free_space());
+            if (rcv < 0)
+                return false;
+            if (rcv > 0)
+                tempbuf.add_size(rcv);
+        }
+        return false;
+    }
+
 
 } // netkit
 

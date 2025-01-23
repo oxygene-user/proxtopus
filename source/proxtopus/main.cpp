@@ -32,6 +32,9 @@ static BOOL WINAPI consoleHandler(DWORD signal)
 #include <signal.h>
 #include <termios.h>
 
+#ifdef _DEBUG
+#endif
+
 static void handle_signal(int sig) {
     switch(sig)
     {
@@ -50,20 +53,13 @@ static void handle_signal(int sig) {
 }
 #endif // _NIX
 
-static void shapka()
+void shapka()
 {
-
-#ifdef _NIX
-    struct termios t;
-    tcgetattr(STDIN_FILENO,&t);
-    t.c_lflag &= ~ECHO;
-    tcsetattr(STDIN_FILENO, TCSANOW, &t);
-#endif
-
 	auto numcores = Botan::OS::get_cpu_available();
 
-	Print("proxtopus v0.5 (build " __DATE__ " " __TIME__ ")\n");
+	Print("proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ ")\n");
 	Print("cores count: %u\n", numcores);
+	LOG_D("debug mode");
 	Print();
 }
 
@@ -88,6 +84,7 @@ int run_engine(bool as_service)
 	}
 #endif
 #ifdef _NIX
+
     struct sigaction sa = { 0 };
 
     sa.sa_handler = handle_signal;
@@ -98,9 +95,10 @@ int run_engine(bool as_service)
         LOG_E("could not set control handler");
         return EXIT_FAIL_CTLHANDLE;
     }
+
 #endif // _NIX
 
-#ifdef _DEBUG
+#if defined _DEBUG && !defined _NIX
 	do_tests();
 #endif
 
@@ -353,7 +351,6 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 		SERVICE_STATUS ss = {};
 		ControlService(sch, SERVICE_CONTROL_STOP, &ss);
 
-
 		return EXIT_OK_EXIT;
 	}
 	if (cmdl.start())
@@ -384,6 +381,11 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 	}
 #endif
 
+#ifdef _NIX
+	if (!cmdl.unmute())
+        logger::mute(); // mute by default on nix
+#endif
+
 	return EXIT_OK;
 }
 
@@ -405,8 +407,18 @@ int main(NIXONLY(int argc, char* argv[]))
 	set_unhandled_exception_filter();
 #endif
 #ifdef _NIX
+#ifdef _DEBUG
+#endif
+
     struct on_shutdown
-    {
+	{
+		on_shutdown()
+		{
+            struct termios t;
+            tcgetattr(STDIN_FILENO, &t);
+            t.c_lflag &= ~ECHO;
+            tcsetattr(STDIN_FILENO, TCSANOW, &t);
+		}
         ~on_shutdown()
         {
             struct termios t;
