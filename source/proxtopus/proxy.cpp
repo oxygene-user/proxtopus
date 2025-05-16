@@ -3,11 +3,11 @@
 proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 {
 
-	str::astr t = bb.get_string(ASTR("type"), glb.emptys);
+	const str::astr &t = bb.get_string(ASTR("type"), glb.emptys);
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for proxy [%s]; type {proxtopus help proxy} for more information", str::printable(name));
+		LOG_E("{type} not defined for proxy [$]^", str::clean(name));
 		return nullptr;
 	}
 
@@ -56,7 +56,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
     }
 
 
-	LOG_E("unknown {type} [%s] for proxy [%s]; type {proxtopus help proxy} for more information", str::printable(t), str::printable(name));
+	LOG_E("unknown {type} [$] for proxy [$]^", t, str::clean(name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 
 	return nullptr;
@@ -67,13 +67,13 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 
 proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required):name(name)
 {
-	str::astr a = bb.get_string(ASTR("addr"), glb.emptys);
+	const str::astr &a = bb.get_string(ASTR("addr"), glb.emptys);
 	if (a.empty())
 	{
 		if (addr_required)
 		{
 			ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-			LOG_E("addr not defined for proxy [%s]", str::printable(name));
+			LOG_E("addr not defined for proxy [$]", str::clean(name));
 			return;
 		}
 	} else
@@ -107,8 +107,8 @@ namespace {
 	{
 		u8 vn = 4;
 		u8 cd = 1;
-		u16 destport;
-		u32 destip;
+		u16be destport;
+		u32be destip;
 	};
 	struct connect_answr_socks4
 	{
@@ -137,7 +137,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 	signed_t dsz = sizeof(connect_packet_socks4) + 1 + userid.length();
 	connect_packet_socks4* pd = (connect_packet_socks4 *)ALLOCA(dsz);
 	pd->vn = 4; pd->cd = 1;
-	pd->destport = netkit::to_ne((u16)addr2.port());
+	pd->destport = addr2.port();
 	pd->destip = addr2.get_ip();
 	memcpy(pd + 1, userid.c_str(), userid.length());
 	((u8*)pd)[dsz - 1] = 0;
@@ -160,15 +160,16 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
 {
 
-	str::astr pwd, user = bb.get_string(ASTR("auth"), glb.emptys);
-	if (size_t dv = user.find(':'); dv != user.npos)
+	str::astr_view pwd, user;
+	const str::astr& auth = bb.get_string(ASTR("auth"), glb.emptys);
+	if (size_t dv = auth.find(':'); dv != auth.npos)
 	{
-		pwd = user.substr(dv + 1);
-		user.resize(dv);
+		pwd = str::view(auth).substr(dv + 1);
+		user = str::view(auth).substr(0, dv);
 	}
 
 	if (user.length() > 254 || pwd.length() > 254)
-		user.clear();
+		user = str::view(glb.emptys);
 
 	if (!user.empty())
 	{
@@ -226,32 +227,32 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 		if (addr2domain)
 		{
             str::astr ers;
-            auto proxyfail = [&](signed_t code) -> const char*
+            auto proxyfail = [&](signed_t code) -> str::astr_view
                 {
                     switch (code)
                     {
-                    case 1: return "general SOCKS server failure";
-                    case 2: return "connection not allowed by ruleset";
-                    case 3: return "Network unreachable";
+                    case 1: return ASTR("general SOCKS server failure");
+                    case 2: return ASTR("connection not allowed by ruleset");
+                    case 3: return ASTR("Network unreachable");
                     case 4:
                         ers = ASTR("host unreachable (");
                         ers.append(*addr2domain);
                         ers.push_back(')');
-                        return ers.c_str();
-                    case 5: return "connection refused";
-                    case 6: return "TTL expired";
-                    case 7: return "command not supported";
-                    case 8: return "address type not supported";
+						return str::view(ers);
+                    case 5: return ASTR("connection refused");
+                    case 6: return ASTR("TTL expired");
+                    case 7: return ASTR("command not supported");
+                    case 8: return ASTR("address type not supported");
                     }
 
                     ers = ASTR("unknown error code (");
-                    ers.append(std::to_string(code));
+					str::append_num(ers, code, 0);
                     ers.push_back(')');
-                    return ers.c_str();
+                    return str::view(ers);
 
                 };
 
-            LOG_N("proxy [%s] fail: %s", str::printable(name), proxyfail(packet[1]));
+            LOG_N("proxy [$] fail: $", str::clean(name), proxyfail(packet[1]));
 
 		}
 		return false;
@@ -360,7 +361,7 @@ namespace
 				};
 
 #ifdef _DEBUG
-			LOG_I("udp via proxy request (%s)", toaddr.desc().c_str());
+			LOG_I("udp via proxy request ($)", toaddr.desc());
 #endif
 			signed_t presize = proxy_socks5::atyp_size(toaddr) + 3 /* 3 octets is: RSV and FRAG (see prepare_header) */;
 			if (presize <= pg.extra)
@@ -476,7 +477,7 @@ signed_t proxy_socks5::atyp_size(const netkit::endpoint& addr)
 bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pipe_ptr& pip_out, bool log_fails) const
 {
 #ifdef _DEBUG
-	LOG_I("udp assoc prepare to %s", addr.desc().c_str());
+	LOG_I("udp assoc prepare to $", addr.desc());
 #endif
 	netkit::endpoint addrr(addr);
 	netkit::pipe* pip = conn::connect(addrr);
@@ -484,7 +485,7 @@ bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pip
 	{
 	not_success:
 		if (log_fails)
-			LOG_W("not connected to proxy (%s)", desc().c_str());
+			LOG_W("not connected to proxy ($)", desc());
 		return false;
 	}
 	netkit::pipe_ptr p2p(pip);
@@ -546,29 +547,29 @@ netkit::pipe_ptr proxy_http::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::end
 
     buffer b;
     str::astr eps = addr2.to_string();
-    str::strop<buffer>::append(b, ASTR("CONNECT "));
-	str::strop<buffer>::append(b, eps);
-	str::strop<buffer>::append(b, ASTR(" HTTP/1.1\r\nHost: "));
+    str::__append(b, ASTR("CONNECT "));
+	str::__append(b, eps);
+	str::__append(b, ASTR(" HTTP/1.1\r\nHost: "));
 
 	macro_context mc(eps);
 	eps = host;
 	macro_expand(&mc, eps);
 
-	str::strop<buffer>::append(b, eps);
+	str::__append(b, eps);
 
 	for (const auto& f : fields)
 	{
-        str::strop<buffer>::append(b, ASTR("\r\n"));
-		str::strop<buffer>::append(b, f.first);
-		str::strop<buffer>::append(b, ASTR(": "));
+		str::__append(b, ASTR("\r\n"));
+		str::__append(b, f.first);
+		str::__append(b, ASTR(": "));
 
         eps = f.second;
         macro_expand(&mc, eps);
-		str::strop<buffer>::append(b, eps);
+		str::__append(b, eps);
 
 	}
 
-	str::strop<buffer>::append(b, ASTR("\r\n\r\n"));
+	str::__append(b, ASTR("\r\n\r\n"));
 
     if (pt.send(b) == netkit::pipe::SEND_FAIL)
     {

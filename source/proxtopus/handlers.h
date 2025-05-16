@@ -374,7 +374,7 @@ public:
     void udp_dispatch(netkit::socket&, netkit::udp_packet&);
     virtual void on_listen_port(signed_t /*port*/) {} // callback on listen port
 
-	static handler* build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st);
+	static handler* new_handler(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st);
 };
 
 

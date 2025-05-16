@@ -25,28 +25,12 @@ class BOTAN_PUBLIC_API(2, 0) HashFunction : public Buffered_Computation {
       * algo/provider combination cannot be found. If provider is
       * empty then best available is chosen.
       */
-      static std::unique_ptr<HashFunction> create(std::string_view algo_spec, std::string_view provider = "");
+      static std::unique_ptr<HashFunction> create(Hash_Algo hasht);
 
-      /**
-      * Create an instance based on a name
-      * If provider is empty then best available is chosen.
-      * @param algo_spec algorithm name
-      * @param provider provider implementation to use
-      * Throws Lookup_Error if not found.
-      */
-      static std::unique_ptr<HashFunction> create_or_throw(std::string_view algo_spec, std::string_view provider = "");
+      /// PROXTOPUS : avoid use of strings
+      static std::unique_ptr<HashFunction> create_or_throw(Hash_Algo hasht);
 
-      /**
-      * @return list of available providers for this algorithm, empty if not available
-      * @param algo_spec algorithm name
-      */
-      static std::vector<std::string> providers(std::string_view algo_spec);
-
-      /**
-      * @return provider information about this implementation. Default is "base",
-      * might also return "sse2", "avx2", "openssl", or some other arbitrary string.
-      */
-      virtual std::string provider() const { return "base"; }
+      /// PROXTOPUS : provider removed
 
       ~HashFunction() override = default;
 
@@ -55,10 +39,7 @@ class BOTAN_PUBLIC_API(2, 0) HashFunction : public Buffered_Computation {
       */
       virtual void clear() = 0;
 
-      /**
-      * @return the hash function name
-      */
-      virtual std::string name() const = 0;
+      virtual Hash_Algo alg() const = 0;
 
       /**
       * @return hash block size as defined for this algorithm

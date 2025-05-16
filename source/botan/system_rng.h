@@ -24,7 +24,7 @@ BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator& system_rng();
 */
 class BOTAN_PUBLIC_API(2, 0) System_RNG final : public RandomNumberGenerator {
    public:
-      std::string name() const override { return system_rng().name(); }
+      /// PROXTOPUS : name removed
 
       bool is_seeded() const override { return system_rng().is_seeded(); }
 

@@ -9,21 +9,16 @@ namespace
 	class tools_init
 	{
 	public:
-		RWLOCK lockp = 0;
-		std::unique_ptr<std::map<str::astr, str::astr>> printables;
 		tools_init()
 		{
+			// TODO : init tools here
 		}
 		~tools_init()
 		{
-			spinlock::auto_lock_write alw(lockp);
-			printables.reset(nullptr);
 		}
 	};
 
 	static tools_init ti;
-
-
 
 	struct console_buffer
 	{
@@ -198,86 +193,92 @@ static void cprintf(console_buffer *cb, const char* s, signed_t sl)
 	}
 }
 
+/*
 void GetPrint(printfunc pf)
 {
-	glb.prints.lock_read([&](const std::vector<str::astr>& cp) {
-        for (auto s : cp)
+	glb.prints.lock_read([&](const std::vector<global_data::print_line>& cp) {
+        for (auto &s : cp)
         {
-            pf(s.c_str(), s.length());
+            pf(s.data, s.data_len);
         }
 	});
 
 }
+*/
 
 void Print()
 {
-	std::vector<str::astr> cp;
+	std::vector<global_data::print_line> cp;
 	cp = std::move(glb.prints.lock_write()());
 	
 	static volatile spinlock::long3264 lock = 0;
 	SIMPLELOCK(lock);
 
-	for(auto s : cp)
+	for(auto &s : cp)
 	{
-		if (s.size() > 4 && *(u16*)s.c_str() == 0)
+        if (!glb.cfg.log_file.empty())
+            logger::log2file(glb.cfg.log_file, s.view());
+
+		if (glb.log_muted)
+			continue;
+
+#ifdef _WIN32
+        if (s.oem_convert)
+        {
+            s.oem_convert = 0;
+            CharToOemBuffA(s.data, s.data, tools::as_dword(s.data_len));
+        }
+#endif
+
+		if (s.use_color)
 		{
-			u16 color = *(u16*)(s.c_str() + 2);
-			set_console_color cc(color);
-			cprintf(&cc, s.c_str() + 4, s.length() - 4);
+			set_console_color cc(s.color);
+			cprintf(&cc, s.data, s.data_len);
 		}
 		else
 		{
 			set_console_color cc(FOREGROUND_WHITE);
-			cprintf(&cc, s.c_str(), s.length());
+            cprintf(&cc, s.data, s.data_len);
 		}
 	}
 
 }
 
-void Print(signed_t color, const char* format, ...)
+void Print(signed_t color, const std::string_view& stroke)
 {
-	char buf[1024];
-
-	*(u32 *)buf = tools::as_dword(Endian::little ? (color << 16) : (color)); // make 1st and 2nd bytes zero
-
-	va_list arglist;
-	va_start(arglist, format);
-	signed_t sl = vsnprintf(buf + 4, sizeof(buf) - 4, format, arglist);
 #ifdef _WIN32
-	CharToOemBuffA(buf + 4, buf + 4, tools::as_dword(sl));
-#endif
-	glb.prints.lock_write()().emplace_back(buf, sl + 4);
-}
-
-void Print(const char* format, ...)
-{
-	char buf[1024];
-	va_list arglist;
-	va_start(arglist, format);
-	signed_t sl = vsnprintf(buf, sizeof(buf), format, arglist);
-#ifdef _WIN32
-	CharToOemBuffA(buf, buf, tools::as_dword(sl));
+    bool oem_convert = false;
+	for(auto c : stroke)
+		if (c > 127)
+		{
+			oem_convert = true;
+			break;
+		}
 #endif
 
-	glb.prints.lock_write()().emplace_back(buf, sl);
+	auto wr = glb.prints.lock_write();
+	auto &ln = wr().emplace_back(stroke.data(), stroke.length());
+	ln.use_color = 1;
+	ln.color = tools::as_word(color);
+#ifdef _WIN32
+	ln.oem_convert = oem_convert;
+#endif
+
 }
 
-inline str::astr sln(const char* s, signed_t slen)
+void Print(const std::string_view& stroke)
 {
-	str::astr x(s, slen);
-	x.push_back('\n');
-	return x;
+	glb.prints.lock_write()().emplace_back(stroke.data(), stroke.length());
 }
 
 void Println(const char* s, signed_t slen)
 {
-	glb.prints.lock_write()().push_back(sln(s,slen));
+	glb.prints.lock_write()().emplace_back(s, slen, true);
 }
 
 void Print(const buffer &txt)
 {
-	str::token<char, str::sep_onechar<char, '\n'>> t( str::view(txt) );
-	for (; t; t())
+	enum_tokens_a(t, txt, '\n')
 	{
 		Println( t->data(), t->size() );
 	}
@@ -290,36 +291,6 @@ namespace tools
 
 namespace str
 {
-	const char* printable(const str::astr& s, str::astr_view disabled_chars)
-	{
-		for(char c : s)
-			if (disabled_chars.find(c) != disabled_chars.npos)
-			{
-				{
-					spinlock::auto_lock_read alr(ti.lockp);
-					if (ti.printables)
-					{
-						auto it = ti.printables->find(s);
-						if (it != ti.printables->end())
-							return it->second.c_str();
-					}
-				}
-
-				str::astr corrs;
-				for (char cc : s)
-					if (disabled_chars.find(cc) != disabled_chars.npos)
-						corrs.push_back('?');
-					else
-						corrs.push_back(cc);
-
-				spinlock::auto_lock_write alr(ti.lockp);
-				if (!ti.printables)
-					ti.printables = std::make_unique<std::map<str::astr, str::astr>>();
-				(*ti.printables)[s] = corrs;
-				return (*ti.printables)[s].c_str();
-			}
-		return s.c_str();
-	}
 
 #ifdef _NIX
 	struct inconv_stuff_s
@@ -480,13 +451,13 @@ bool messagebox(const char* /*s1*/, const char* /*s2*/, int /*options*/)
 
 namespace stats
 {
-	tick_collector::tick_collector(const char* tag):tag(tag)
+	tick_collector::tick_collector(str::astr_view tag):tag(tag)
 	{
-		DL(DLCH_THREADS, "start collector %s", tag);
+		DL(DLCH_THREADS, "start collector $", tag);
 	}
     tick_collector::~tick_collector()
     {
-        DL(DLCH_THREADS, "stop collector %s", tag);
+        DL(DLCH_THREADS, "stop collector $", tag);
     }
 
 	void tick_collector::collect()
@@ -531,16 +502,16 @@ namespace stats
 			{
 				if (!mssc.empty())
 					mssc.push_back(',');
-				mssc.append(std::to_string(x.first));
+				str::append_num(mssc, x.first, 0);
 				if (x.second > 1)
 				{
 					mssc.push_back('(');
-					mssc.append(std::to_string(x.second));
+					str::append_num(mssc, x.second, 0);
 					mssc.push_back(')');
 				}
 			}
 			mss.clear();
-			DL(DLCH_THREADS, "collected for %s : %s", tag, mssc.c_str());
+			DL(DLCH_THREADS, "collected for $ : $", tag, mssc);
 		}
 	}
 }

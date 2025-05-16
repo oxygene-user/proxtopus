@@ -7,6 +7,42 @@
 #include <linux/sockios.h> // SIOCOUTQ
 #endif
 
+namespace {
+
+	str::astr_view err2str(signed_t error_code)
+	{
+		switch (error_code) {
+#ifdef _WIN32
+			// Windows error messages
+		case WSAEACCES: return ASTR("Permission denied");
+		case WSAEADDRINUSE: return ASTR("Address already in use");
+		case WSAEADDRNOTAVAIL: return ASTR("Cannot assign requested address");
+		case WSAEFAULT: return ASTR("Invalid pointer address");
+		case WSAEINVAL: return ASTR("Socket already bound to an address or invalid family");
+		case WSAENOBUFS: return ASTR("No buffer space available");
+		case WSAENOTSOCK: return ASTR("Descriptor is not a socket");
+		default: return ASTR("Unknown Windows socket error");
+#else
+			// Linux/Unix error messages
+		case EACCES: return ASTR("Permission denied");
+		case EADDRINUSE: return ASTR("Address already in use");
+		case EBADF: return ASTR("Invalid socket descriptor");
+		case EINVAL: return ASTR("Socket already bound to an address");
+		case ENOTSOCK: return ASTR("Descriptor is not a socket");
+		case EADDRNOTAVAIL: return ASTR("Cannot assign requested address");
+		case EFAULT: return ASTR("Invalid pointer address");
+		case ELOOP: return ASTR("Too many symbolic links encountered");
+		case ENAMETOOLONG: return ASTR("Path name too long");
+		case ENOENT: return ASTR("Path name does not exist");
+		case ENOMEM: return ASTR("Insufficient kernel memory");
+		case ENOTDIR: return ASTR("Component of path not a directory");
+		case EROFS: return ASTR("Socket inode would reside on read-only filesystem");
+		default: return ASTR("Unknown Unix socket error");
+#endif
+		}
+	}
+}
+
 namespace netkit
 {
     static signed_t send_buffer_size = 128 * 1024; // 128k
@@ -28,8 +64,8 @@ namespace netkit
 		signed_t somedigits = 0;
 
 		signed_t cntl = 0, cntr = 0;
-		std::array<u16, 8> left;
-		std::array<u16, 8> rite;
+		std::array<u16be, 8> left;
+		std::array<u16be, 8> rite;
 
 		u16 current = 0;
 
@@ -37,12 +73,12 @@ namespace netkit
 		{
 			if (fillright)
 			{
-				rite[cntr++] = netkit::to_ne(current);
+				rite[cntr++] = current;
 				if (cntl + cntr == 7)
 					return true;
 			}
 			else {
-				left[cntl++] = netkit::to_ne(current);
+				left[cntl++] = current;
 				if (cntl == 8)
 					return true;
 			}
@@ -112,7 +148,7 @@ namespace netkit
 			pushdig();
 
 		ipap rv(false);
-		u16 *w = rv.words();
+		u16be *w = rv.words();
 		signed_t i = 0;
 		for (; i < cntl; ++i)
 			w[i] = left[i];
@@ -152,7 +188,7 @@ namespace netkit
 
 		ipap rv;
 
-		u8* dst = rv.octets();
+		u8* dst = reinterpret_cast<u8 *>(&rv.ipv4.s_addr); // from low to high on little endian cpu because ipv4.s_addr is in big endian
 		signed_t index = 0;
 		for (str::token<char, str::sep_onechar<char, '.'>> tkn(s); tkn; tkn(), ++index, ++dst)
 		{
@@ -186,7 +222,7 @@ namespace netkit
 		return rv;
 	}
 
-	signed_t ipap::bind(SOCKET s) const
+	signed_t ipap::bind_once(SOCKET s) const
 	{
 		if (v4)
 		{
@@ -194,7 +230,7 @@ namespace netkit
 
 			addr.sin_family = AF_INET;
 			addr.sin_addr = ipv4;
-			addr.sin_port = netkit::to_ne((u16)port);
+			ref_cast<u16be&>(addr.sin_port) = port;
 
 			bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
 			if (!ok)
@@ -206,7 +242,7 @@ namespace netkit
 //#ifdef _WIN32
 				socklen_t x = sizeof(addr);
 				getsockname(s, (sockaddr*)&addr, &x);
-				rp = netkit::to_ne(addr.sin_port);
+				rp = u16be::from_be(addr.sin_port);
 //#endif
 
 			}
@@ -217,7 +253,7 @@ namespace netkit
 
 		addr.sin6_family = AF_INET6;
 		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
-		addr.sin6_port = netkit::to_ne((u16)port);
+		ref_cast<u16be&>(addr.sin6_port) = port;
 
 		bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
 
@@ -229,9 +265,22 @@ namespace netkit
         {
             socklen_t x = sizeof(addr);
             getsockname(s, (sockaddr*)&addr, &x);
-            rp = netkit::to_ne(addr.sin6_port);
+            rp = u16be::from_be(addr.sin6_port);
         }
         return rp;
+	}
+
+	signed_t ipap::bind(SOCKET s) const
+    {
+        for(signed_t btc = glb.bind_try_count;btc > 0; --btc)
+        {
+            //LOG_D("try bind ($/$): $", glb.bind_try_count-btc+1, glb.bind_try_count, this->to_string(true));
+            signed_t x = bind_once(s);
+            if (x >= 0)
+                return x;
+            if (btc > 1) spinlock::sleep(1000);
+        }
+        return -1;
 	}
 
 	bool ipap::connect(SOCKET s) const
@@ -241,14 +290,14 @@ namespace netkit
 			sockaddr_in addr = {};
 			addr.sin_family = AF_INET;
 			addr.sin_addr = ipv4;
-			addr.sin_port = netkit::to_ne((u16)port);
+			ref_cast<u16be&>(addr.sin_port) = port;
 			return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
 		}
 
 		sockaddr_in6 addr = {};
 		addr.sin6_family = AF_INET6;
 		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
-		addr.sin6_port = netkit::to_ne((u16)port);
+		ref_cast<u16be&>(addr.sin6_port) = port;
 		return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
 
 	}
@@ -260,14 +309,14 @@ namespace netkit
 			sockaddr_in addr = {};
 			addr.sin_family = AF_INET;
 			addr.sin_addr = ipv4;
-			addr.sin_port = netkit::to_ne((u16)port);
+			ref_cast<u16be&>(addr.sin_port) = port;
 			return SOCKET_ERROR != ::sendto(s, (const char*)p.data(), (int)p.size(), 0, (const sockaddr*)&addr, sizeof(addr));
 		}
 
 		sockaddr_in6 addr = {};
 		addr.sin6_family = AF_INET6;
 		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
-		addr.sin6_port = netkit::to_ne((u16)port);
+		ref_cast<u16be&>(addr.sin6_port) = port;
 		return SOCKET_ERROR != ::sendto(s, (const char *)p.data(), (int)p.size(), 0, (const sockaddr*)&addr, sizeof(addr));
 	}
 
@@ -323,7 +372,7 @@ namespace netkit
                 d = ip.to_string(true);
 				break;
 			}
-			// no break here
+			[[fallthrough]];
         case netkit::EPS_DOMAIN:
             d = domain_;
             d.push_back(':');
@@ -357,12 +406,12 @@ namespace netkit
 	{
 		if (glb.cfg.ipstack == conf::gip_only6 && bind2.v4)
 		{
-			LOG_W("bind failed for listener [%s] due ipv4 addresses are disabled in config", str::printable(name));
+			LOG_W("bind failed for listener [$] due ipv4 addresses are disabled in config", str::clean(name));
 			return false;
 		}
 		if (glb.cfg.ipstack == conf::gip_only4 && !bind2.v4)
 		{
-			LOG_W("bind failed for listener [%s] due ipv6 addresses are disabled in config", str::printable(name));
+			LOG_W("bind failed for listener [$] due ipv6 addresses are disabled in config", str::clean(name));
 			return false;
 		}
 
@@ -370,16 +419,30 @@ namespace netkit
 		if (INVALID_SOCKET == sock())
 			return false;
 
+#ifdef _NIX
+        int yes = 1;
+        setsockopt(sock(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+        int flags = fcntl(sock(), F_GETFD);
+        fcntl(sock(), F_SETFD, flags | FD_CLOEXEC);
+#endif
+
 		if (bind2.bind(sock()) < 0)
 		{
-			LOG_W("bind failed for listener [%s]; check binding (%s)", str::printable(name), bind2.to_string(true).c_str());
+#ifdef _WIN32
+            signed_t error_code = WSAGetLastError();
+#else
+			signed_t error_code = errno;
+#endif
+
+			LOG_W("bind failed for listener [$]; reason: $", str::clean(name), err2str(error_code));
 			close(false);
 			return false;
 		}
 
 		if (SOCKET_ERROR == ::listen(sock(), SOMAXCONN))
 		{
-			LOG_W("listen failed for listener [%s]", str::printable(name));
+			LOG_W("listen failed for listener [$]", str::clean(name));
 			close(false);
 			return false;
 		}
@@ -416,13 +479,20 @@ namespace netkit
 		if (INVALID_SOCKET == s)
 			return false;
 
+#ifdef _NIX
+        int yes = 1;
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+        int flags = fcntl(s, F_GETFD);
+        fcntl(s, F_SETFD, flags | FD_CLOEXEC);
+#endif
+
 		if (timeout > 0)
 		{
 #ifdef _WIN32
 			DWORD ms = tools::as_dword(timeout);
 			setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *) & ms, sizeof(ms));
-#endif
-#ifdef _NIX
+#else
 			struct timeval to = { timeout / 1000, 0 }; // seconds, microseconds
 			setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&to, sizeof(to));
 #endif
@@ -435,12 +505,12 @@ namespace netkit
 	{
 		if (glb.cfg.ipstack == conf::gip_only6 && bind2.v4)
 		{
-			LOG_W("bind failed for listener [%s] due ipv4 addresses are disabled in config", str::printable(name));
+			LOG_W("bind failed for listener [$] due ipv4 addresses are disabled in config", str::clean(name));
 			return -1;
 		}
 		if (glb.cfg.ipstack == conf::gip_only4 && !bind2.v4)
 		{
-			LOG_W("bind failed for listener [%s] due ipv6 addresses are disabled in config", str::printable(name));
+			LOG_W("bind failed for listener [$] due ipv6 addresses are disabled in config", str::clean(name));
 			return -1;
 		}
 
@@ -448,10 +518,18 @@ namespace netkit
 		if (INVALID_SOCKET == s)
 			return -1;
 
+#ifdef _NIX
+        int yes = 1;
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+        int flags = fcntl(s, F_GETFD);
+        fcntl(s, F_SETFD, flags | FD_CLOEXEC);
+#endif
+
 		signed_t bport = bind2.bind(s);
 		if (bport < 0)
 		{
-			LOG_W("bind failed for listener [%s]; check binding (%s)", str::printable(name), bind2.to_string(true).c_str());
+			LOG_W("bind failed for listener [$]; check binding ($)", str::clean(name), bind2.to_string(true));
 			close(false);
 			return -1;
 		}
@@ -491,7 +569,7 @@ namespace netkit
 		if (glb.is_stop())
         {
             closesocket(s);
-            LOG_I("listener %s has been terminated", name.c_str());
+            LOG_I("listener $ has been terminated", name);
             Print();
             return nullptr;
         }
@@ -541,6 +619,14 @@ namespace netkit
 		_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == sock())
 			return false;
+
+#ifdef _NIX
+        int yes = 1;
+        setsockopt(sock(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+        int flags = fcntl(sock(), F_GETFD);
+        fcntl(sock(), F_SETFD, flags | FD_CLOEXEC);
+#endif
 
 		// LOG socket created
 
@@ -988,7 +1074,7 @@ namespace netkit
 
 		if (log_it)
 		{
-			LOG_E("dns: name resolve failed: [%s]", host.c_str());
+			LOG_E("dns: name resolve failed: [$]", host);
 		}
 
 		return false;

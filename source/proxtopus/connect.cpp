@@ -29,7 +29,7 @@ namespace conn
 			{
 				// check it ip address
 				signed_t cnt = 0;
-				TFORa(tkn, dm, '.')
+				enum_tokens_a(tkn, dm, '.')
 				{
 					signed_t x = -1;
 					auto res = std::from_chars(tkn->data(), tkn->data() + tkn->length(), x);

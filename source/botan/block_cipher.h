@@ -8,7 +8,6 @@
 #ifndef BOTAN_BLOCK_CIPHER_H_
 #define BOTAN_BLOCK_CIPHER_H_
 
-#include <botan/mem_ops.h>
 #include <botan/sym_algo.h>
 #include <memory>
 #include <string>
@@ -29,20 +28,24 @@ class BOTAN_PUBLIC_API(2, 0) BlockCipher : public SymmetricAlgorithm {
       * @param provider provider implementation to choose
       * @return a null pointer if the algo/provider combination cannot be found
       */
-      static std::unique_ptr<BlockCipher> create(std::string_view algo_spec, std::string_view provider = "");
+      static std::unique_ptr<BlockCipher> create(Cipher_Algo alg);
 
       /**
       * Create an instance based on a name, or throw if the
       * algo/provider combination cannot be found. If provider is
       * empty then best available is chosen.
       */
-      static std::unique_ptr<BlockCipher> create_or_throw(std::string_view algo_spec, std::string_view provider = "");
+      static std::unique_ptr<BlockCipher> create_or_throw(Cipher_Algo alg);
+
+      /// PROXTOPUS : provider removed
 
       /**
-      * @return list of available providers for this algorithm, empty if not available
-      * @param algo_spec algorithm name
+      * Multiplier on a block cipher's native parallelism
+      *
+      * Usually notable performance gains come from further loop blocking,
+      * at least for 2 or 4x
       */
-      static std::vector<std::string> providers(std::string_view algo_spec);
+      static constexpr size_t ParallelismMult = 4;
 
       /**
       * @return block size of this algorithm
@@ -57,13 +60,9 @@ class BOTAN_PUBLIC_API(2, 0) BlockCipher : public SymmetricAlgorithm {
       /**
       * @return prefererred parallelism of this cipher in bytes
       */
-      size_t parallel_bytes() const { return parallelism() * block_size() * BOTAN_BLOCK_CIPHER_PAR_MULT; }
+      size_t parallel_bytes() const { return parallelism() * block_size() * BlockCipher::ParallelismMult; }
 
-      /**
-      * @return provider information about this implementation. Default is "base",
-      * might also return "sse2", "avx2", "openssl", or some other arbitrary string.
-      */
-      virtual std::string provider() const { return "base"; }
+      /// PROXTOPUS : provider removed
 
       /**
       * Encrypt a block.
@@ -149,18 +148,28 @@ class BOTAN_PUBLIC_API(2, 0) BlockCipher : public SymmetricAlgorithm {
       */
       virtual void decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const = 0;
 
-      virtual void encrypt_n_xex(uint8_t data[], const uint8_t mask[], size_t blocks) const {
+      BOTAN_DEPRECATED("Deprecated no replacement")
+      void encrypt_n_xex(uint8_t data[], const uint8_t mask[], size_t blocks) const {
          const size_t BS = block_size();
-         xor_buf(data, mask, blocks * BS);
+         for(size_t i = 0; i != blocks * BS; ++i) {
+            data[i] ^= mask[i];
+         }
          encrypt_n(data, data, blocks);
-         xor_buf(data, mask, blocks * BS);
+         for(size_t i = 0; i != blocks * BS; ++i) {
+            data[i] ^= mask[i];
+         }
       }
 
-      virtual void decrypt_n_xex(uint8_t data[], const uint8_t mask[], size_t blocks) const {
+      BOTAN_DEPRECATED("Deprecated no replacement")
+      void decrypt_n_xex(uint8_t data[], const uint8_t mask[], size_t blocks) const {
          const size_t BS = block_size();
-         xor_buf(data, mask, blocks * BS);
+         for(size_t i = 0; i != blocks * BS; ++i) {
+            data[i] ^= mask[i];
+         }
          decrypt_n(data, data, blocks);
-         xor_buf(data, mask, blocks * BS);
+         for(size_t i = 0; i != blocks * BS; ++i) {
+            data[i] ^= mask[i];
+         }
       }
 
       /**
@@ -197,19 +206,6 @@ class Block_Cipher_Fixed_Params : public BaseClass {
       enum { BLOCK_SIZE = BS };
 
       size_t block_size() const final { return BS; }
-
-      // override to take advantage of compile time constant block size
-      void encrypt_n_xex(uint8_t data[], const uint8_t mask[], size_t blocks) const final {
-         xor_buf(data, mask, blocks * BS);
-         this->encrypt_n(data, data, blocks);
-         xor_buf(data, mask, blocks * BS);
-      }
-
-      void decrypt_n_xex(uint8_t data[], const uint8_t mask[], size_t blocks) const final {
-         xor_buf(data, mask, blocks * BS);
-         this->decrypt_n(data, data, blocks);
-         xor_buf(data, mask, blocks * BS);
-      }
 
       Key_Length_Specification key_spec() const final { return Key_Length_Specification(KMIN, KMAX, KMOD); }
 };

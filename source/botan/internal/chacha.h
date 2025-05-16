@@ -24,7 +24,7 @@ class ChaCha final : public StreamCipher {
       */
       explicit ChaCha(size_t rounds = 20);
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
       /*
       * ChaCha accepts 0, 8, 12 or 24 byte IVs.
@@ -42,7 +42,7 @@ class ChaCha final : public StreamCipher {
 
       std::unique_ptr<StreamCipher> new_object() const override;
 
-      std::string name() const override;
+      /// PROXTOPUS : name removed
 
       void seek(uint64_t offset) override;
 

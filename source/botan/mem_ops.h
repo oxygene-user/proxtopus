@@ -8,6 +8,7 @@
 #ifndef BOTAN_MEMORY_OPS_H_
 #define BOTAN_MEMORY_OPS_H_
 
+#include <botan/assert.h>
 #include <botan/concepts.h>
 #include <botan/types.h>
 #include <array>
@@ -16,6 +17,8 @@
 #include <span>
 #include <type_traits>
 #include <vector>
+
+BOTAN_FUTURE_INTERNAL_HEADER(mem_ops.h)
 
 /*
 The header mem_ops.h previously included the contents of allocator.h
@@ -263,9 +266,7 @@ inline constexpr To typecast_copy(const uint8_t src[]) noexcept {
 * @param n the number of Ts pointed to by ptr
 * @param val the value to set each byte to
 */
-BOTAN_DEPRECATED("This function is deprecated")
-
-inline constexpr void set_mem(uint8_t* ptr, size_t n, uint8_t val) {
+BOTAN_DEPRECATED("This function is deprecated") inline constexpr void set_mem(uint8_t* ptr, size_t n, uint8_t val) {
    if(n > 0) {
       std::memset(ptr, val, n);
    }
@@ -344,8 +345,8 @@ inline constexpr void xor_buf(ranges::contiguous_output_range<uint8_t> auto&& ou
                               ranges::contiguous_range<uint8_t> auto&& in) {
    ranges::assert_equal_byte_lengths(out, in);
 
-   std::span o{out};
-   std::span i{in};
+   std::span<uint8_t> o(out);
+   std::span<const uint8_t> i(in);
 
    for(; o.size_bytes() >= 32; o = o.subspan(32), i = i.subspan(32)) {
       auto x = typecast_copy<std::array<uint64_t, 4>>(o.template first<32>());
@@ -451,6 +452,16 @@ std::vector<uint8_t, Alloc>& operator^=(std::vector<uint8_t, Alloc>& out, const 
 
    xor_buf(std::span{out}.first(in.size()), in);
    return out;
+}
+
+
+inline secure_vector<uint8_t>& operator^=(secure_vector<uint8_t>& out, const secure_vector<uint8_t>& in) {
+    if (out.size() < in.size()) {
+        out.resize(in.size());
+    }
+
+    xor_buf(std::span{ out }.first(in.size()), in);
+    return out;
 }
 
 }  // namespace Botan

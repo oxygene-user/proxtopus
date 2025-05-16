@@ -26,7 +26,7 @@ bool messagebox(const char* s1, const char* s2, int options);
 
 //#define MESSAGE(...) messagebox("#", str::build_string(__VA_ARGS__).c_str(), MB_OK|MB_ICONINFORMATION)
 #define WARNING(...) messagebox("!?", str::build_string(__VA_ARGS__).c_str(), MB_OK|MB_ICONWARNING)
-template <typename T> inline T* BREAK_ON_NULL(T* ptr, const char* file, int line) { if (ptr == nullptr) { WARNING("nullptr pointer conversion: %s:%i", file, line); } return ptr; }
+template <typename T> inline T* BREAK_ON_NULL(T* ptr, const char* file, int line) { if (ptr == nullptr) { WARNING("nullptr pointer conversion: $:$", file, line); } return ptr; }
 #define NOT_NULL( x ) BREAK_ON_NULL(x, __FILE__, __LINE__)
 template<typename PTRT, typename TF> inline PTRT ptr_cast(TF* p) { if (!p) return nullptr; return NOT_NULL(dynamic_cast<PTRT>(p)); }
 template<typename T> const T* makeptr(const T& t) { return &t; }
@@ -241,12 +241,6 @@ namespace math
         return helpers::clamper<RT, IT, is_signed<IT>::value>::dojob(b);
     }
 
-}
-
-
-namespace math
-{
-
     template < typename T1 > inline T1 abs(const T1 &x)
     {
         return x >= 0 ? x : (-x);
@@ -291,14 +285,6 @@ namespace math
         if((last)==(el)) last=(el)->prev;\
     if((first)==(el)) (first)=(el)->next;}
 
-
-#ifdef _RELEASE
-#define USELIB(ln) comment(lib, #ln LIBSUFFIX)
-#else
-#define USELIB(ln) comment(lib, #ln "d" LIBSUFFIX)
-#endif
-
-
 template<typename CH> inline bool is_letter(CH c)
 {
 	return (c >= L'a' && c <= 'z') || (c >= L'A' && c <= 'Z');
@@ -336,6 +322,73 @@ namespace str
 
 namespace tools
 {
+
+	template<typename T> class deferred_init
+	{
+		u8 data[sizeof(T)];
+
+	public:
+
+        deferred_init() {}
+        ~deferred_init() {
+			get()->~T();
+        }
+
+        template <class... _Valty> void init(_Valty&&... _Val)
+        {
+			new(get())T(std::forward<_Valty>(_Val)...);
+        }
+
+		T* get() { return reinterpret_cast<T*>(&data); }
+		const T* get() const { return reinterpret_cast<const T*>(&data); }
+
+		T& operator *()
+		{
+			return ref_cast<T>(data);
+		}
+        const T& operator *() const
+        {
+            return ref_cast<T>(data);
+        }
+        T* operator->() {
+            return get();
+        }
+        const T* operator->() const {
+            return get();
+        }
+
+	};
+
+
+    struct skip_buf : public buffer
+    {
+        size_t skip = 0;
+        u8* data() { return buffer::data() + skip; }
+        const u8* data() const { return buffer::data() + skip; }
+        size_t size() const { return buffer::size() - skip; }
+        void clear() {
+            buffer::clear();
+            skip = 0;
+        }
+        void erase(size_t szerase)
+        {
+            skip += szerase;
+        }
+
+        skip_buf& operator+=(const std::span<const u8>& d)
+        {
+            if (skip > 500 * 1024 && sz + d.size() > cap)
+            {
+                memcpy(buffer::data(), data(), size());
+                sz = size();
+                skip = 0;
+            }
+            buffer::operator+=(d);
+            return *this;
+        }
+    };
+
+
 	template<signed_t size> class chunk_buffer
 	{
 	public:
@@ -377,6 +430,24 @@ namespace tools
 		}
 
 	public:
+		chunk_buffer() {}
+		chunk_buffer(chunk_buffer&& ab):first(std::move(ab.first)), last(ab.last), first_skip(ab.first_skip), last_size(ab.last_size)
+		{
+			ab.last = nullptr;
+			ab.first_skip = 0;
+			ab.last_size = 0;
+		}
+
+		void operator=(chunk_buffer&& ab)
+		{
+			first = std::move(ab.first);
+			last = ab.last;
+			first_skip = ab.first_skip;
+			last_size = ab.last_size;
+            ab.last = nullptr;
+            ab.first_skip = 0;
+            ab.last_size = 0;
+		}
 
 		void clear()
 		{
@@ -781,6 +852,146 @@ namespace tools
 		arr.resize(arr.size()-1);
 	}
 
+    template <typename T> struct array_element_type {
+        using type = typename std::remove_extent<T>::type;
+    };
+    template <typename T, typename Alloc> struct array_element_type<std::vector<T, Alloc>> {
+        using type = T;
+    };
+    template <typename T> using element_type_t = typename array_element_type<T>::type;
+    template <typename T, size_t N> struct array_element_type<std::array<T, N>> {
+        using type = T;
+    };
+
+    template<typename ARR, typename KEY> bool find_sorted(const ARR &arr, signed_t& index, const KEY& key, signed_t maxcount = -1)
+    {
+        if (maxcount < 0) maxcount = std::size(arr);
+
+        if (maxcount == 0)
+        {
+            index = 0;
+            return false;
+        }
+        if (maxcount == 1)
+        {
+            auto cmp = arr[0] <=> key;
+            index = cmp == std::strong_ordering::less ? 1 : 0;
+            return cmp == std::strong_ordering::equal;
+        }
+
+
+		signed_t left = 0;
+		signed_t rite = maxcount;
+
+		signed_t test;
+        do
+        {
+            test = (rite + left) >> 1;
+
+            auto cmp = arr[test] <=> key;
+            if (cmp == std::strong_ordering::equal)
+            {
+                index = test;
+                return true;
+            }
+            if (cmp == std::strong_ordering::greater)
+            {
+                // do left
+                rite = test;
+            }
+            else
+            {
+                // do rite
+                left = test + 1;
+            }
+        } while (left < (rite - 1));
+
+        if (left >= maxcount)
+        {
+            index = left;
+            return false;
+        }
+
+        auto cmp = arr[left] <=> key;
+        index = cmp == std::strong_ordering::less ? left + 1 : left;
+        return cmp == std::strong_ordering::equal;
+    }
+
+	template<bool is_const> struct octets;
+	template<> struct octets<true>
+	{
+		const u8* p;
+		template <typename T> octets(T& t) :p(reinterpret_cast<const u8*>(&t)) {}
+	};
+	template<> struct octets<false>
+	{
+		u8* p;
+		template <typename T> octets(T& t) :p(reinterpret_cast<u8*>(&t)) {}
+	};
+
+	template<typename T, bool is_little_endian = Endian::little> struct from_low_to_high
+	{
+		octets< std::is_const_v<T> > octet; // point to low byte if num
+
+		from_low_to_high(T& num):octet(num) {
+            if constexpr (!is_little_endian)
+            {
+				octet.p += sizeof(T)-1;
+            }
+		}
+
+		u8 operator[](size_t index) const
+		{
+            if constexpr (is_little_endian)
+            {
+                return octet.p[index];
+            }
+            else
+            {
+				return octet.p[-index];
+            }
+		}
+        u8& operator[](size_t index)
+        {
+			if constexpr (std::is_const_v<T>)
+			{
+				UNREACHABLE();
+			}
+			else
+			{
+                if constexpr (is_little_endian)
+                {
+                    return octet.p[index];
+                }
+                else
+                {
+                    return octet.p[-(signed_t)index];
+                }
+			}
+
+        }
+
+		from_low_to_high& operator++() {
+            if constexpr (is_little_endian)
+            {
+                ++octet.p;
+            }
+            else
+            {
+                --octet.p;
+            }
+            return *this;
+        }
+		u8 operator *() const
+		{
+			return *octet.p;
+		}
+        u8 &operator *()
+        {
+            return *octet.p;
+        }
+	};
+
 
 } // namespace tools
 
@@ -826,19 +1037,23 @@ namespace str
 #pragma pack(pop)
 	static_assert(sizeof(shared_str) == 3);
 
+	inline void __append(str::astr& sout, const str::shared_str::ptr& p)
+	{
+		sout.append(p->cstr());
+	}
 }
 
 namespace stats
 {
     struct tick_collector
     {
-		const char* tag;
+		str::astr_view tag;
         signed_t start_ms = 0;
         signed_t collect_start_ms = 0;
 
         std::vector<std::pair<u16, u16>> mss;
 
-		tick_collector(const char* tag);
+		tick_collector(str::astr_view tag);
 		~tick_collector();
 
 		void collect();

@@ -17,15 +17,15 @@
 namespace Botan {
 
 ChaCha20Poly1305_Mode::ChaCha20Poly1305_Mode() :
-      //m_chacha(StreamCipher::create("ChaCha")), m_poly1305(MessageAuthenticationCode::create("Poly1305")) {
-        m_chacha(std::make_unique<ChaCha>(20)), m_poly1305(std::make_unique<Poly1305>()) { /// PROXTOPUS
-    /// PROXTOPUS
-    /*
+    m_chacha(std::make_unique<ChaCha>(20)), m_poly1305(std::make_unique<Poly1305>()) {} /// PROXTOPUS
+
+#if 0 /// PROXTOPUS
+      m_chacha(StreamCipher::create("ChaCha")), m_poly1305(MessageAuthenticationCode::create("Poly1305")) {
    if(!m_chacha || !m_poly1305) {
       throw Algorithm_Not_Found("ChaCha20Poly1305");
    }
-   */
 }
+#endif /// PROXTOPUS
 
 bool ChaCha20Poly1305_Mode::valid_nonce_length(size_t n) const {
    return (n == 8 || n == 12 || n == 24);
@@ -75,7 +75,7 @@ void ChaCha20Poly1305_Mode::update_len(size_t len) {
 
 void ChaCha20Poly1305_Mode::start_msg(const uint8_t nonce[], size_t nonce_len) {
    if(!valid_nonce_length(nonce_len)) {
-      throw Invalid_IV_Length(name(), nonce_len);
+      throw Invalid_IV_Length("", nonce_len);
    }
 
    m_ctext_len = 0;

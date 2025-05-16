@@ -7,9 +7,10 @@
 
 #include <botan/internal/ghash.h>
 
-#include <botan/internal/simd_32.h>
+#include <botan/internal/simd_4x32.h>
+#include <bit>
 
-#if defined(BOTAN_SIMD_USE_SSE2)
+#if defined(BOTAN_SIMD_USE_SSSE3)
    #include <immintrin.h>
    #include <wmmintrin.h>
 #endif
@@ -18,8 +19,8 @@ namespace Botan {
 
 namespace {
 
-BOTAN_FUNC_ISA_INLINE(BOTAN_VPERM_ISA) SIMD_4x32 reverse_vector(const SIMD_4x32& in) {
-#if defined(BOTAN_SIMD_USE_SSE2)
+BOTAN_FUNC_ISA_INLINE(BOTAN_SIMD_ISA) SIMD_4x32 reverse_vector(const SIMD_4x32& in) {
+#if defined(BOTAN_SIMD_USE_SSSE3)
    const __m128i BSWAP_MASK = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
    return SIMD_4x32(_mm_shuffle_epi8(in.raw(), BSWAP_MASK));
 #elif defined(BOTAN_SIMD_USE_NEON)
@@ -36,26 +37,39 @@ template <int M>
 BOTAN_FORCE_INLINE SIMD_4x32 BOTAN_FUNC_ISA(BOTAN_CLMUL_ISA) clmul(const SIMD_4x32& H, const SIMD_4x32& x) {
    static_assert(M == 0x00 || M == 0x01 || M == 0x10 || M == 0x11, "Valid clmul mode");
 
-#if defined(BOTAN_SIMD_USE_SSE2)
+#if defined(BOTAN_SIMD_USE_SSSE3)
    return SIMD_4x32(_mm_clmulepi64_si128(x.raw(), H.raw(), M));
 #elif defined(BOTAN_SIMD_USE_NEON)
    const uint64_t a = vgetq_lane_u64(vreinterpretq_u64_u32(x.raw()), M & 0x01);
    const uint64_t b = vgetq_lane_u64(vreinterpretq_u64_u32(H.raw()), (M & 0x10) >> 4);
+
+   #if defined(BOTAN_BUILD_COMPILER_IS_MSVC)
+   __n64 a1 = {a}, b1 = {b};
+   return SIMD_4x32(vmull_p64(a1, b1));
+   #else
    return SIMD_4x32(reinterpret_cast<uint32x4_t>(vmull_p64(a, b)));
+   #endif
+
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
    const SIMD_4x32 mask_lo = SIMD_4x32(0, 0, 0xFFFFFFFF, 0xFFFFFFFF);
+   constexpr uint8_t flip = (std::endian::native == std::endian::big) ? 0x11 : 0x00;
 
    SIMD_4x32 i1 = x;
    SIMD_4x32 i2 = H;
 
-   if(M == 0x11) {
+   if constexpr(std::endian::native == std::endian::big) {
+      i1 = reverse_vector(i1).bswap();
+      i2 = reverse_vector(i2).bswap();
+   }
+
+   if constexpr(M == (0x11 ^ flip)) {
       i1 &= mask_lo;
       i2 &= mask_lo;
-   } else if(M == 0x10) {
+   } else if constexpr(M == (0x10 ^ flip)) {
       i1 = i1.shift_elems_left<2>();
-   } else if(M == 0x01) {
+   } else if constexpr(M == (0x01 ^ flip)) {
       i2 = i2.shift_elems_left<2>();
-   } else if(M == 0x00) {
+   } else if constexpr(M == (0x00 ^ flip)) {
       i1 = mask_lo.andc(i1);
       i2 = mask_lo.andc(i2);
    }
@@ -69,7 +83,13 @@ BOTAN_FORCE_INLINE SIMD_4x32 BOTAN_FUNC_ISA(BOTAN_CLMUL_ISA) clmul(const SIMD_4x
    auto rv = __builtin_altivec_crypto_vpmsumd(i1v, i2v);
    #endif
 
-   return SIMD_4x32(reinterpret_cast<__vector unsigned int>(rv));
+   auto z = SIMD_4x32(reinterpret_cast<__vector unsigned int>(rv));
+
+   if constexpr(std::endian::native == std::endian::big) {
+      z = reverse_vector(z).bswap();
+   }
+
+   return z;
 #endif
 }
 
@@ -136,7 +156,7 @@ inline SIMD_4x32 BOTAN_FUNC_ISA(BOTAN_CLMUL_ISA) gcm_multiply_x4(const SIMD_4x32
 
 }  // namespace
 
-BOTAN_FUNC_ISA(BOTAN_VPERM_ISA) void GHASH::ghash_precompute_cpu(const uint8_t H_bytes[16], uint64_t H_pow[4 * 2]) {
+BOTAN_FUNC_ISA(BOTAN_SIMD_ISA) void GHASH::ghash_precompute_cpu(const uint8_t H_bytes[16], uint64_t H_pow[4 * 2]) {
    const SIMD_4x32 H1 = reverse_vector(SIMD_4x32::load_le(H_bytes));
    const SIMD_4x32 H2 = gcm_multiply(H1, H1);
    const SIMD_4x32 H3 = gcm_multiply(H1, H2);
@@ -148,7 +168,7 @@ BOTAN_FUNC_ISA(BOTAN_VPERM_ISA) void GHASH::ghash_precompute_cpu(const uint8_t H
    H4.store_le(H_pow + 6);
 }
 
-BOTAN_FUNC_ISA(BOTAN_VPERM_ISA)
+BOTAN_FUNC_ISA(BOTAN_SIMD_ISA)
 void GHASH::ghash_multiply_cpu(uint8_t x[16], const uint64_t H_pow[8], const uint8_t input[], size_t blocks) {
    /*
    * Algorithms 1 and 5 from Intel's CLMUL guide

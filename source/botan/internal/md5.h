@@ -17,7 +17,8 @@ namespace Botan {
 */
 class MD5 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint32_t>;
+       
+      using digest_type = hash_digest<uint32_t, 4>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Little;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -29,7 +30,8 @@ class MD5 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "MD5"; }
+       /// PROXTOPUS : name removed
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::MD5); }
 
       size_t output_length() const override { return output_bytes; }
 

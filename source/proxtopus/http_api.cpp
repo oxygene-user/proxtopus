@@ -1,6 +1,6 @@
 #include "pch.h"
 
-/*virtual*/ bool host_mode_api::load(const asts& b)
+/*virtual*/ bool host_mode_api::load(const asts& )
 {
 
     return true;

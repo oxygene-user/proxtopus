@@ -189,7 +189,7 @@ void Salsa20::set_iv_bytes(const uint8_t iv[], size_t length) {
    assert_key_material_set();
 
    if(!valid_iv_length(length)) {
-      throw Invalid_IV_Length(name(), length);
+      throw Invalid_IV_Length("", length);
    }
 
    initialize_state();
@@ -250,9 +250,7 @@ std::unique_ptr<StreamCipher> Salsa20::new_object() const {
    return std::make_unique<Salsa20>();
 }
 
-std::string Salsa20::name() const {
-   return "Salsa20";
-}
+/// PROXTOPUS : name removed
 
 /*
 * Clear memory of sensitive data

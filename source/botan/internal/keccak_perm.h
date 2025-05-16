@@ -10,7 +10,7 @@
 #ifndef BOTAN_KECCAK_PERM_H_
 #define BOTAN_KECCAK_PERM_H_
 
-#include <botan/secmem.h>
+#include <botan/api.h>
 #include <span>
 #include <string>
 
@@ -55,7 +55,7 @@ class Keccak_Permutation final {
       size_t byte_rate() const { return m_byterate; }
 
       void clear();
-      std::string provider() const;
+      /// PROXTOPUS : provider removed
 
       /**
       * @brief Absorb input data into the Keccak sponge

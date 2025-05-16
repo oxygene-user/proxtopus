@@ -11,10 +11,10 @@ class logger
 
 public:
 
-	static void mute();
-	static void newline(int color_, const str::astr& s);
-    static void dstr(const char* s);
-
+    static void mute();
+    static void unmute();
+	static void newline(int color_, const str::astr_view& s);
+    static void log2file(const FN& logfn, const str::astr_view &s);
 };
 
 enum severity_e
@@ -32,20 +32,22 @@ enum dlchnl_e
 	DLCH_THREADS,
 };
 
-#define DL(chnl, ...) if (0 != (glb.cfg.debug_log_mask & (1ull << (chnl)))) logger::dstr(str::build_string(__VA_ARGS__).c_str())
+#define DL(chnl, ...) if (0 != (glb.cfg.debug_log_mask & (1ull << (chnl)))) logger::log2file(glb.cfg.debug_log_file, str::build_string(__VA_ARGS__).c_str())
 
 #define LOG_N(...) logger::newline(SEV_NOTE, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
 #define LOG_I(...) logger::newline(SEV_IMPORTANT, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
-#define LOG_W(...) logger::newline(SEV_WARNING, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
-#define LOG_E(...) logger::newline(SEV_ERROR, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
+#define LOG_W(...) logger::newline(SEV_WARNING, str::build_string(__VA_ARGS__))
+#define LOG_E(...) logger::newline(SEV_ERROR, str::build_string(__VA_ARGS__))
 #ifdef _DEBUG
-#define LOG_D(...) logger::newline(SEV_DEBUG, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
+#define LOG_D(...) logger::newline(SEV_DEBUG, str::build_string(__VA_ARGS__))
 #else
 #define LOG_D(...) do {} while(false)
 #endif
 
 #else
 #if LOGGER == 1
+// simple logging
+// not yet supported
 #define LOG_N(...) Print(__VA_ARGS__)
 #define LOG_I(...) Print(FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY, __VA_ARGS__)
 #define LOG_W(...) Print(FOREGROUND_RED | FOREGROUND_GREEN, __VA_ARGS__)
@@ -60,3 +62,5 @@ enum dlchnl_e
 #endif
 
 #endif
+
+void debug_print(str::astr_view s);

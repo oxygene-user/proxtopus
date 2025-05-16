@@ -7,13 +7,28 @@
 #define BOTAN_TARGET_OS_HAS_THREAD_LOCAL
 #define BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK
 #define BOTAN_TARGET_OS_HAS_RTLGENRANDOM
+#define BOTAN_TARGET_OS_HAS_RTLSECUREZEROMEMORY
 #else
 #define _NIX
 #define BOTAN_USE_GCC_INLINE_ASM
 #define BOTAN_TARGET_OS_IS_LINUX
 #define BOTAN_TARGET_OS_HAS_GETRANDOM
 #define BOTAN_TARGET_OS_HAS_POSIX1
+#define BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO
 #endif
+
+#define BOTAN_TARGET_OS_HAS_SYSTEM_CLOCK
+#define BOTAN_TARGET_OS_HAS_THREADS
+
+/*
+* Define BOTAN_COMPILER_HAS_BUILTIN
+*/
+#if defined(__has_builtin)
+#define BOTAN_COMPILER_HAS_BUILTIN(x) __has_builtin(x)
+#else
+#define BOTAN_COMPILER_HAS_BUILTIN(x) 0
+#endif
+
 
 #if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
 #define BOTAN_MP_WORD_BITS 64
@@ -21,24 +36,24 @@
 #define BOTAN_MP_WORD_BITS 32
 #endif
 
-#define BOTAN_TARGET_OS_HAS_THREADS
+#define BOTAN_SIMD_USE_SSSE3
 
-
+#define BOTAN_HAS_CPUID
+#define BOTAN_HAS_CPUID_DETECTION
 #define BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN
 #define BOTAN_TARGET_CPU_IS_X86_FAMILY
-#define BOTAN_TARGET_SUPPORTS_SSE2
-#define BOTAN_TARGET_SUPPORTS_SSSE3
-#define BOTAN_TARGET_SUPPORTS_SSE41
-#define BOTAN_TARGET_SUPPORTS_SSE42
-#define BOTAN_TARGET_SUPPORTS_AVX512
-#define BOTAN_TARGET_SUPPORTS_AVX2
-#define BOTAN_HAS_SHA1_X86_SHA_NI
+#define BOTAN_TARGET_CPU_SUPPORTS_SSSE3
+#define BOTAN_TARGET_CPU_SUPPORTS_AVX2
 #define BOTAN_HAS_GHASH_CLMUL_CPU
 #define BOTAN_HAS_GHASH_CLMUL_VPERM
+
+#define BOTAN_HAS_ENTROPY_SOURCE
+#define BOTAN_HAS_PSS
 
 #define BOTAN_HAS_AES
 #define BOTAN_HAS_AES_VPERM
 #define BOTAN_HAS_AES_NI
+#define BOTAN_HAS_AES_VAES
 
 #define BOTAN_HAS_HMAC
 #define BOTAN_HAS_KECCAK_PERM_BMI2
@@ -60,6 +75,37 @@
 #define BOTAN_HAS_AEAD_GCM
 #define BOTAN_HAS_AEAD_MODES
 
+#define BOTAN_HAS_DL_GROUP
+#define BOTAN_HAS_DIFFIE_HELLMAN
+#define BOTAN_HAS_ECDSA
+#define BOTAN_HAS_RSA
+#define BOTAN_HAS_ECDH
+#define BOTAN_HAS_X25519
+#define BOTAN_HAS_X448
+#define BOTAN_HAS_ED25519
+//#define BOTAN_HAS_DSA //do not support
+//#define BOTAN_HAS_ED448 //do not support
+
+#define BOTAN_BLINDING_REINIT_INTERVAL 64
+
+#define BOTAN_HAS_TLS_CBC
+#define BOTAN_HAS_TLS
+#define BOTAN_HAS_TLS_12
+//#define BOTAN_HAS_TLS_13 // TODO enable later
+#define BOTAN_HAS_TLS_V12_PRF
+#define BOTAN_HAS_ASN1
+#define BOTAN_HAS_EMSA_PKCS1
+#define BOTAN_HAS_EMSA_PSSR
+#define BOTAN_HAS_EME_PKCS1
+//#define BOTAN_HAS_EME_OAEP
+
+#define BOTAN_HAS_PCURVES_SECP224R1
+#define BOTAN_HAS_PCURVES_SECP256R1
+#define BOTAN_HAS_PCURVES_SECP384R1
+#define BOTAN_HAS_PCURVES_SECP521R1
+#define BOTAN_HAS_XMD
+#define BOTAN_HAS_PCURVES_GENERIC
+
 #define BOTAN_DEFAULT_BUFFER_SIZE 4096
 #define BOTAN_BLOCK_CIPHER_PAR_MULT 4
 
@@ -79,338 +125,807 @@
 
 
 #define BOTAN_HAS_MD5
+#define BOTAN_HAS_BLAKE2B
 #define BOTAN_HAS_SALSA20
-#define BOTAN_HAS_SHA1_SSE2
-#define BOTAN_HAS_SHA2_32_X86
-#define BOTAN_HAS_SHA2_32_X86_BMI2
-#define BOTAN_HAS_SHA2_64_BMI2
 #define BOTAN_HAS_SHA3_BMI2
-#define BOTAN_HAS_TLS
 
 #define BOTAN_HAS_SHA1
-#define BOTAN_HAS_SHA2_64
+#define BOTAN_HAS_SHA1_X86_SHA_NI
+#define BOTAN_HAS_SHA1_SIMD_4X32
+#define BOTAN_HAS_SHA1_SSE2
 #define BOTAN_HAS_SHA2_32
+#define BOTAN_HAS_SHA2_32_SIMD
+#define BOTAN_HAS_SHA2_32_X86_AVX2
+#define BOTAN_HAS_SHA2_32_X86
+#define BOTAN_HAS_SHA2_32_X86_BMI2
+#define BOTAN_HAS_SHA2_64
+#define BOTAN_HAS_SHA2_64_X86
+#define BOTAN_HAS_SHA2_64_X86_AVX2
+#define BOTAN_HAS_SHA2_64_BMI2
 #define BOTAN_HAS_SHA3
+#define BOTAN_HAS_SHA_256
+#define BOTAN_HAS_RIPEMD_160
+#define BOTAN_HAS_SM3
 
 #define BOTAN_TARGET_CPU_HAS_NATIVE_64BIT
 #define BOTAN_TARGET_ARCH_IS_X86_64
 
-/**
-* Controls how AutoSeeded_RNG is instantiated
-*/
-#if !defined(BOTAN_AUTO_RNG_HMAC)
-
-  #if defined(BOTAN_HAS_SHA2_64)
-    #define BOTAN_AUTO_RNG_HMAC "HMAC(SHA-384)"
-  #elif defined(BOTAN_HAS_SHA2_32)
-    #define BOTAN_AUTO_RNG_HMAC "HMAC(SHA-256)"
-  #elif defined(BOTAN_HAS_SHA3)
-    #define BOTAN_AUTO_RNG_HMAC "HMAC(SHA-3(256))"
-  #elif defined(BOTAN_HAS_SHA1)
-    #define BOTAN_AUTO_RNG_HMAC "HMAC(SHA-1)"
-  #endif
-  /* Otherwise, no hash found: leave BOTAN_AUTO_RNG_HMAC undefined */
-
-#endif
-
-
 #define BOTAN_DLL
 #define BOTAN_IS_BEING_BUILT
 
-#include <vector>
-#include <span>
+#undef min
+#undef max
+struct IUnknown;
 
 #ifdef _NIX
-#include <stdint.h>
-#include <memory.h>
-#endif
+#include <cstring>
+#include <utility>
+#endif // _NIX
 
-#include "../proxtopus/mem.h"
+#if defined(__GNUC__) && (__GNUC__ <= 14)
+// looks like gcc does not support sha512 intrinsics
+#undef BOTAN_HAS_SHA2_64_X86
+#endif // defined
+
+#include <optional>
+#include <numbers>
+#include <string>
+#include <stdexcept>
+#include <cmath>
+#include <sstream>
+#include <proxtopus/secure_vector.h>
 
 namespace Botan {
 
-//template <typename T> using secure_vector = std::vector<T>;
-	template <typename T> struct secure_vector;
-    template<> struct secure_vector<uint32_t> : public std::vector<uint32_t> {
-        template <typename T2, typename T3> secure_vector(const T2 &t, const T3 &t2) : std::vector<uint32_t>(t,t2) {}
-        secure_vector() {}
-        secure_vector(size_t fill_cnt):std::vector<uint32_t>(fill_cnt) {}
-    };
-	template<> struct secure_vector<uint64_t> : public std::vector<uint64_t> {
-		template <typename T2, typename T3> secure_vector(const T2& t, const T3& t2) : std::vector<uint64_t>(t, t2) {}
-		secure_vector() {}
-		secure_vector(size_t fill_cnt) :std::vector<uint64_t>(fill_cnt) {}
-	};
-	/*
-	template<> struct secure_vector<uint8_t> : public std::vector<uint8_t> {
-		template <typename T2, typename T3> secure_vector(const T2& t, const T3& t2) : std::vector<uint8_t>(t, t2) {}
-		secure_vector() {}
-		secure_vector(size_t fill_cnt) :std::vector<uint8_t>(fill_cnt) {}
-		void zeroise()
+    /// PROXTOPUS : hash type to avoid use of strings
+	struct ALG
+	{
+		enum alg : uint8_t
 		{
-			memset(data(), 0, size());
-		}
-	};
-	*/
-	template<> struct secure_vector<uint8_t> {
-		secure_vector():buf((uint8_t*)MA(32)), cap(32) {}
-		~secure_vector() {
-			ma::mf(buf);
-		}
-		secure_vector(const secure_vector& ov) = delete;
-		secure_vector(secure_vector&& ov)
-		{
-			buf = ov.buf;
-			cap = ov.cap;
-			sz = ov.sz;
+            Undefined,
+			_Unknown,
+            _Pure,
+			_Raw,
+			_Randomized,
+			_Ed25519ph,
 
-			ov.buf = nullptr;
-			ov.cap = 0;
-			ov.sz = 0;
-		}
+			_mac_start,
+            AEAD,
 
-		static size_t capsize(size_t sz)
-		{
-			return (sz + 31) & (~31);
-		}
+            hash_start,
 
-		secure_vector(size_t fill_cnt) {
-			sz = fill_cnt;
-			cap = capsize(sz);
-			buf = (uint8_t*)MA(cap);
-		}
+            // hash
+            SHA_1,
+            SHA_256,
+            SHA_384,
 
-        secure_vector(size_t sz, size_t cap) {
-            sz = sz;
-            cap = cap;
-            buf = (uint8_t*)MA(cap);
+			_mac_end,
+
+            BLAKE2B,
+            SHA_224,
+
+            SHA_512,
+            SHA_512_256,
+            SHA_3_224,
+            SHA_3_256,
+            SHA_3_384,
+			SHA_3_512,
+            MD5,
+			RIPEMD_160,
+			SM3,
+
+			hash_end,
+
+			kex_start,
+
+            STATIC_RSA,
+            DH,
+            ECDH,
+            PSK,
+            ECDHE_PSK,
+            DHE_PSK,
+            KEM,
+            KEM_PSK,
+            HYBRID,
+            HYBRID_PSK,
+
+            X25519,
+            X448,
+
+			ffdhe_ietf_2048,
+			ffdhe_ietf_3072,
+			ffdhe_ietf_4096,
+			ffdhe_ietf_6144,
+			ffdhe_ietf_8192,
+
+			modp_ietf_1024,
+			modp_ietf_1536,
+			modp_ietf_2048,
+			modp_ietf_3072,
+			modp_ietf_4096,
+			modp_ietf_6144,
+			modp_ietf_8192,
+
+			modp_srp_1024,
+            modp_srp_1536,
+            modp_srp_2048,
+            modp_srp_3072,
+            modp_srp_4096,
+            modp_srp_6144,
+            modp_srp_8192,
+
+			dsa_botan_2048,
+
+            // To support TLS 1.3 ciphersuites, which do not determine the kex algo
+            KEX_UNDEFINED,
+
+			kex_end,
+
+			auth_start,
+            DSA,
+            RSA,
+            ECDSA,
+            ECGDSA,
+            ECKCDSA,
+            // To support TLS 1.3 ciphersuites, which do not determine the auth method
+            AUTH_UNDEFINED,
+            IMPLICIT,
+			ML_DSA,
+			SLH_DSA,
+			auth_end,
+
+			dilithium_start,
+			DILITHIUM_4X4_AES_R3,
+			DILITHIUM_6X5_AES_R3,
+			DILITHIUM_8X7_AES_R3,
+            DILITHIUM_4X4_R3,
+            DILITHIUM_6X5_R3,
+            DILITHIUM_8X7_R3,
+			dilithium_end,
+
+			HSS_LMS,
+			XMSS,
+			GOST_3410,
+			GOST_3410_2012_256,
+			GOST_3410_2012_512,
+			EMSA1,
+			EMSA3,
+            EMSA4,
+            EMSA_PKCS1,
+			TLS_12_PRF,
+
+			sign_start,
+
+			Ed25519,
+            //Ed448, // do not support for now
+
+			sign_end,
+
+			cipher_start,
+
+			CHACHA20_POLY1305,
+            AES_128_GCM,
+            AES_256_GCM,
+            AES_256_OCB,
+
+            CAMELLIA_128_GCM,
+            CAMELLIA_256_GCM,
+
+            ARIA_128_GCM,
+            ARIA_256_GCM,
+
+            AES_128_CCM,
+            AES_256_CCM,
+            AES_128_CCM_8,
+            AES_256_CCM_8,
+
+			AES_128_CBC,
+			AES_256_CBC,
+            //AES_128_CBC_HMAC_SHA1,
+            //AES_128_CBC_HMAC_SHA256,
+            //AES_256_CBC_HMAC_SHA1,
+            //AES_256_CBC_HMAC_SHA256,
+            //AES_256_CBC_HMAC_SHA384,
+
+            DES_DES_DES,
+
+			cipher_end,
+
+			curv_start,
+			secp256r1,
+			secp224r1,
+			secp384r1,
+			secp521r1,
+			curv_end,
+
+			PSSR,
+			MGF1,
+			PKCS1v15,
+			HMAC,
+
+			na_start,
+			id_prime_Field,
+
+			X509v3_BasicConstraints,
+			X509v3_KeyUsage,
+			X509v3_SubjectKeyIdentifier,
+			X509v3_AuthorityKeyIdentifier,
+			X509v3_SubjectAlternativeName,
+			X509v3_IssuerAlternativeName,
+			X509v3_ExtendedKeyUsage,
+			X509v3_NameConstraints,
+			X509v3_CertificatePolicies,
+            X509v3_CRLNumber,
+			X509v3_ReasonCode,
+			X509v3_CRLDistributionPoints,
+			X509v3_CRLIssuingDistributionPoint,
+			PKIX_AuthorityInformationAccess,
+			PKIX_OCSP_NoCheck,
+			PKIX_TNAuthList,
+            PKIX_ServerAuth,
+			PKIX_ClientAuth,
+			PKIX_OCSPSigning,
+			PKIX_OCSP,
+			PKIX_OCSP_BasicResponse,
+			PKIX_CertificateAuthorityIssuers,
+            PKCS9_EmailAddress,
+
+			X520_CommonName,
+			X520_SerialNumber,
+			X520_Country,
+			X520_Organization,
+			X520_OrganizationalUnit,
+			X520_Locality,
+			X520_State,
+
+			na_end,
+		};
+
+		alg a = Undefined;
+
+		ALG() {}
+
+        bool is_dilithium() const
+        {
+            return a > dilithium_start && a < dilithium_end;
         }
 
+		std::string to_string() const;
 
-		secure_vector(const uint8_t *ds, const uint8_t* de)
+	protected:
+        ALG(alg aa) :a(aa) {}
+	};
+
+    inline std::ostream& operator <<(std::ostream& oss, ALG format) {
+        oss << format.to_string();
+		return oss;
+    }
+
+	struct Any_Algo;
+    struct Auth_Method : public ALG {
+
+        explicit Auth_Method(alg a = Undefined) :ALG(a) {
+            if (a < auth_start || a > auth_end)
+                a = Undefined;
+        }
+		Auth_Method(Any_Algo aa);
+		bool operator<(Auth_Method am) const
 		{
-			sz = de - ds;
-			cap = capsize(sz);
-			buf = (uint8_t  *)MA(cap);
-			memcpy(buf, ds, sz);
+			return a < am.a;
 		}
-		template<typename Iter> secure_vector(const Iter&bgn, const Iter& end)
+        bool operator!=(Auth_Method am) const
+        {
+            return a != am.a;
+        }
+        bool operator!=(alg am) const
+        {
+            return a != am;
+        }
+        bool operator==(alg am) const
+        {
+            return a == am;
+        }
+    };
+
+	struct Any_Algo : public ALG
+	{
+		Any_Algo():ALG(Undefined) {}
+		explicit Any_Algo(alg aa) :ALG(aa) {}
+
+        bool operator == (Auth_Method am) const
+        {
+            return a == am.a;
+        }
+        bool operator == (Any_Algo aa) const
+        {
+            return a == aa.a;
+        }
+        bool operator != (Any_Algo aa) const
+        {
+            return a != aa.a;
+        }
+        bool operator == (alg aa) const
+        {
+            return a == aa;
+        }
+	};
+
+	struct Non_Algo : public ALG
+	{
+		Non_Algo() :ALG(Undefined) {}
+		Non_Algo(alg a) :ALG(a)
+        {
+            if (a < na_start || a > na_end)
+                a = Undefined;
+        }
+        bool operator == (alg aa) const
+        {
+            return a == aa;
+        }
+		bool empty() const { return a == Undefined; }
+	};
+
+
+    struct Cipher_Algo : public ALG {
+        explicit Cipher_Algo(alg a = Undefined) :ALG(a) {
+            if (a < cipher_start || a > cipher_end)
+                a = Undefined;
+        }
+        bool operator==(alg am) const
+        {
+            return a == am;
+        }
+        bool operator!=(Cipher_Algo am) const
+        {
+            return a != am.a;
+        }
+        bool operator==(Cipher_Algo am) const
+        {
+            return a == am.a;
+        }
+        bool operator==(Any_Algo am) const
+        {
+            return a == am.a;
+        }
+
+    };
+
+	inline Auth_Method::Auth_Method(Any_Algo aa) :ALG(aa.a) {
+        if (a < auth_start || a > auth_end)
+            a = Undefined;
+    }
+
+    struct KDF_Algo : public ALG {
+
+        KDF_Algo(alg a) :ALG(a)
+        {
+            if (a != SHA_1 && a != SHA_256 && a != SHA_384)
+                a = Undefined;
+        }
+		bool operator == (alg aa) const
 		{
-			sz = end - bgn;
-			cap = capsize(sz);
-			buf = (uint8_t*)MA(cap);
-			memcpy(buf, &*bgn, sz);
+			return a == aa;
 		}
+	};
 
-		template<typename Iter> void assign(const Iter& bgn, const Iter& end)
+	struct Hash_Algo : public ALG
+	{
+		Hash_Algo(alg aa) :ALG(aa) {
+			if (a < hash_start || a > hash_end)
+				a = Undefined;
+		}
+        Hash_Algo(Any_Algo aa) :ALG(aa.a) {
+            if (a < hash_start || a > hash_end)
+                a = Undefined;
+        }
+		Hash_Algo(KDF_Algo aa) :ALG(aa.a) {}
+
+        static Hash_Algo Pure() {
+			return Hash_Algo(_Pure, false);
+        }
+        static Hash_Algo Unknown() {
+            return Hash_Algo(_Unknown, false);
+        }
+		bool empty() const
 		{
-			sz = end - bgn;
-			if (sz <= cap)
-			{
-				memcpy(buf, &*bgn, sz);
-			}
-			else
-			{
-				cap = capsize(sz);
-				buf = (uint8_t*)MRS( buf, cap );
-				memcpy(buf, &*bgn, sz);
-			}
+			return a < hash_start || a > hash_end;
 		}
+        bool operator == (Hash_Algo h) const
+        {
+            return a == h.a;
+        }
+        bool operator != (Hash_Algo h) const
+        {
+            return a != h.a;
+        }
+        bool operator < (Hash_Algo h) const
+        {
+            return a < h.a;
+        }
 
-		secure_vector& operator=(const secure_vector& ov)
+	private:
+		Hash_Algo(alg aa, bool) :ALG(aa) {}
+	};
+
+    struct Mac_Algo : public ALG {
+		Mac_Algo(alg a) :ALG(a)
+        {
+            if (a < _mac_start || a > _mac_end)
+                a = Undefined;
+        }
+        bool operator != (Mac_Algo h) const
+        {
+            return a != h.a;
+        }
+        bool operator == (Any_Algo h) const
+        {
+            return a == h.a;
+        }
+        bool operator == (alg h) const
+        {
+            return a == h;
+        }
+
+    };
+
+    struct Kex_Algo : public ALG {
+
+        explicit Kex_Algo(alg a = Undefined) :ALG(a)
+        {
+            if (a < kex_start || a > kex_end)
+                a = Undefined;
+        }
+        bool operator != (Kex_Algo h) const
+        {
+            return a != h.a;
+        }
+        bool operator == (Any_Algo h) const
+        {
+            return a == h.a;
+        }
+        bool operator == (alg aa) const
+        {
+            return a == aa;
+        }
+
+    };
+
+	class OID;
+	struct PrimeOrderCurveId : public ALG
+	{
+		explicit PrimeOrderCurveId(alg a = Undefined) :ALG(a)
 		{
-			if (cap >= ov.sz)
-			{
-				memcpy( buf, ov.buf, ov.sz );
-				sz = ov.sz;
-				return *this;
-			}
-
-			sz = ov.sz;
-			cap = capsize(ov.sz);
-			buf = (uint8_t*)MRS(buf, cap);
-			memcpy(buf, ov.buf, ov.sz);
-
-			return *this;
+			if (a < curv_start || a > curv_end)
+				a = Undefined;
 		}
-		secure_vector& operator=(secure_vector&& ov)
+
+		enum cod
 		{
-			ma::mf(buf);
+			secp224r1 = ALG::secp224r1,
+			secp256r1 = ALG::secp256r1,
+			secp384r1 = ALG::secp384r1,
+			secp521r1 = ALG::secp521r1,
+		};
 
-			buf = ov.buf;
-			cap = ov.cap;
-			sz = ov.sz;
+		cod code() const { return static_cast<cod>(a); }
+		static std::optional<PrimeOrderCurveId> from_oid(const OID& oid);
 
-			ov.buf = nullptr;
-			ov.cap = 0;
-			ov.sz = 0;
+	};
 
-			return *this;
+	struct Algo_Group_Iterator
+	{
+		Any_Algo a[7] = {};
+		uint8_t index = 0;
+		Algo_Group_Iterator(const Any_Algo *aa, uint8_t ii) :index(ii) {
+			for (size_t i = 0; i < std::size(a); ++i)
+				a[i] = aa[i];
 		}
-
-
-		using pointer = uint8_t*;
-		using const_pointer = const uint8_t*;
-		using size_type = size_t;
-		using iterator = uint8_t*;
-		using const_iterator = const uint8_t*;
-		using value_type = uint8_t;
-
-		uint8_t * begin() const { return buf; }
-		uint8_t* end() const { return buf + sz; }
-		const uint8_t* cbegin() const { return buf; }
-		const uint8_t* cend() const { return buf + sz; }
-
-		uint8_t* data() { return buf; }
-		const uint8_t* data() const { return buf; }
-		size_t size() const { return sz; }
-
-		uint8_t& operator[](size_t index) { return buf[index]; }
-		uint8_t operator[](size_t index) const { return buf[index]; }
-
-		std::span<const uint8_t> span() const { return std::span(data(), size()); }
-
-		void replace(size_t off, size_t cnt, const std::span<const uint8_t>& d)
+		bool operator != (const Algo_Group_Iterator& oi) const
 		{
-			if (cnt == d.size())
-			{
-				// no need shift
-				memcpy(buf + off, d.data(), cnt);
-				return;
-			}
-            if (cnt > d.size())
-            {
-                // no need allocate
-				memcpy(buf + off, d.data(), d.size());
-				size_t shrink_size = cnt - d.size();
-				memcpy(buf + off + d.size(), buf + off + cnt, sz - off - cnt);
-				sz -= shrink_size;
-				return;
-            }
-
-			// d.size greater then cnt
-			// may be need to reallocate
-
-			size_t grow_size = d.size() - cnt;
-			if (sz + grow_size > cap)
-			{
-				cap = capsize(sz + grow_size);
-				uint8_t* nb = (uint8_t*)MA(cap);
-				memcpy(nb, buf, off);
-				memcpy(nb + off, d.data(), d.size());
-				memcpy(nb + off + d.size(), buf + off + cnt, sz - off - cnt);
-				ma::mf(buf);
-				buf = nb;
-			}
-			else
-			{
-				memmove(buf + off + d.size(), buf + off + cnt, sz - off - cnt);
-				memcpy(buf + off, d.data(), d.size());
-			}
-            sz += grow_size;
-
+			static_assert(sizeof(*this) == sizeof(uint64_t));
+			return *reinterpret_cast<const uint64_t*>(this) != *reinterpret_cast<const uint64_t*>(&oi);
 		}
 
-        secure_vector& operator+=(uint8_t c) {
-
-            if (1 + sz <= cap)
-            {
-                buf[sz] = c;
-                ++sz;
-                return *this;
-            }
-
-            cap = capsize(sz + 1);
-            buf = (uint8_t*)MRS(buf, cap);
-            buf[sz] = c;
-            ++sz;
+		Algo_Group_Iterator& operator++() {
+            ++index;
             return *this;
         }
-		secure_vector& operator+=(char c) { *this += (uint8_t)c; return *this; }
 
-		secure_vector& operator+=(const std::span<const uint8_t> &in) {
+		Algo_Group_Iterator operator++(int) {
+			Algo_Group_Iterator _Ans = *this;
+            ++index;
+            return _Ans;
+        }
 
-			if (in.size() + sz <= cap)
-			{
-				memcpy(buf + sz, in.data(), in.size());
-				sz += in.size();
-				return *this;
-			}
+		Any_Algo operator *() const
+		{
+			return a[index];
+		}
+	};
 
-			size_t nsz = sz + in.size();
-			cap = capsize(nsz);
-			buf = (uint8_t*)MRS(buf, cap);
-			memcpy(buf + sz, in.data(), in.size());
-			sz += in.size();
 
+	struct Algo_Group
+	{
+		Any_Algo a[7];
+		uint8_t saltl = 0xff; // salt length
+        Algo_Group(Algo_Group ag, ALG::alg a2) {
+
+			*this = ag;
+			for(size_t i=0;i<std::size(a);++i)
+				if (a[i] == Any_Algo::Undefined)
+				{
+					a[i].a = a2;
+					return;
+				}
+#ifdef WIN32
+			__debugbreak();
+#endif
+        }
+        Algo_Group(Algo_Group ag1, Algo_Group ag2) {
+
+            *this = ag1;
+            for (size_t i = 0; i < std::size(a); ++i)
+                if (a[i] == Any_Algo::Undefined)
+                {
+					size_t j = 0;
+					for (; j < std::size(a);)
+					{
+						a[i++].a = ag2.a[j++].a;
+#ifdef WIN32
+						if (i == std::size(a))
+							__debugbreak();
+#endif
+					}
+					saltl = ag2.saltl;
+                    return;
+                }
+#ifdef WIN32
+            __debugbreak();
+#endif
+        }
+        //Algo_Group(ALG::alg a1, Hash_Algo a2) {
+          //  a[0].a = a1; a[1].a = a2.a; a[2] = Any_Algo(); a[3] = Any_Algo();
+        //}
+		explicit Algo_Group(ALG::alg a1 = ALG::Undefined, ALG::alg a2 = ALG::Undefined, ALG::alg a3 = ALG::Undefined, ALG::alg a4 = ALG::Undefined,
+			ALG::alg a5 = ALG::Undefined, ALG::alg a6 = ALG::Undefined, ALG::alg a7 = ALG::Undefined) {
+			a[0].a = a1; a[1].a = a2; a[2].a = a3; a[3].a = a4;
+			a[4].a = a5; a[5].a = a6; a[6].a = a7;;
+        }
+        explicit Algo_Group(Any_Algo h) {
+            a[0] = h; a[1] = Any_Algo(); a[2] = Any_Algo(); a[3] = Any_Algo();
+			a[4] = Any_Algo(); a[5] = Any_Algo(); a[6] = Any_Algo();
+        }
+        explicit Algo_Group(Hash_Algo h) {
+            a[0].a = h.a; a[1] = Any_Algo(); a[2] = Any_Algo(); a[3] = Any_Algo();
+			a[4] = Any_Algo(); a[5] = Any_Algo(); a[6] = Any_Algo();
+        }
+        explicit Algo_Group(Auth_Method am) {
+            a[0].a = am.a; a[1] = Any_Algo(); a[2] = Any_Algo(); a[3] = Any_Algo();
+			a[4] = Any_Algo(); a[5] = Any_Algo(); a[6] = Any_Algo();
+        }
+
+		bool is_raw() const
+		{
+			return a[0].a == ALG::_Raw;
+		}
+
+		size_t size() const
+		{
+			for (size_t i = 0; i < std::size(a); ++i)
+				if (a[i].a == ALG::Undefined)
+					return i;
+			return std::size(a);
+		}
+
+		Hash_Algo hash() const
+		{
+			return a[0].a > ALG::hash_start && a[0].a < ALG::hash_end ? Hash_Algo(a[0]) : Hash_Algo(ALG::Undefined);
+		}
+        Hash_Algo hashif(ALG::alg aa) const
+        {
+			if (a[0].a == aa)
+				return a[1].a > ALG::hash_start && a[1].a < ALG::hash_end ? Hash_Algo(a[1]) : Hash_Algo(ALG::Undefined);
+			return Hash_Algo(ALG::Undefined);
+        }
+
+		Any_Algo first() const
+		{
+			return a[0];
+		}
+        Any_Algo second() const
+        {
+            return a[1];
+        }
+        Any_Algo third() const
+        {
+            return a[2];
+        }
+		Algo_Group skip_first() const
+		{
+			return Algo_Group(a[1].a, a[2].a, a[3].a, a[4].a, a[5].a, a[6].a);
+		}
+
+		Algo_Group& operator += (ALG::alg aa)
+		{
+			a[size()].a = aa;
 			return *this;
 		}
 
-		secure_vector& operator+=(const std::pair<const uint8_t*, size_t>& in) {
-
-			return *this += std::span<const uint8_t>(in.first, in.second);
-		}
-
-
-		void clear()
+		bool present(ALG aa) const
 		{
-			sz = 0;
+			if (a[0].a == aa.a) return true;
+			if (a[1].a == aa.a) return true;
+			if (a[2].a == aa.a) return true;
+			if (a[3].a == aa.a) return true;
+			if (a[4].a == aa.a) return true;
+			if (a[5].a == aa.a) return true;
+			return a[6].a == aa.a;
 		}
+        bool empty() const
+        {
+            return a[0] == ALG::Undefined;
+        }
+
+		Algo_Group& salt(uint8_t ss)
+		{
+			saltl = ss;
+			return *this;
+		}
+
+		std::string to_string() const;
+        bool operator == (ALG::alg aa) const
+        {
+            return a[0] == aa;
+        }
+
+		Algo_Group_Iterator begin() const
+		{
+			return Algo_Group_Iterator(a, 0);
+		}
+        Algo_Group_Iterator end() const
+        {
+            return Algo_Group_Iterator(a, 7);
+        }
+
+	};
+    inline Algo_Group operator+(Algo_Group ag1, Algo_Group ag2)
+    {
+        return Algo_Group(ag1, ag2);
+    }
+
+	inline Algo_Group operator+(Algo_Group ag, ALG::alg a)
+	{
+		return Algo_Group(ag, a);
+	}
+    inline Algo_Group operator+(Algo_Group ag, Hash_Algo a)
+    {
+        return Algo_Group(ag, a.a);
+    }
+
+	inline bool value_exists(Algo_Group ag, ALG val) {
+		return ag.present(val);
+    }
+
+    inline std::ostream& operator<<(std::ostream& oss, Algo_Group format) {
+        oss << format.to_string();
+        return oss;
+    }
+
+    inline std::ostream& operator<<(std::ostream& oss, Any_Algo format) {
+        oss << format.to_string();
+		return oss;
+    }
+    inline std::ostream& operator<<(std::ostream& oss, Auth_Method format) {
+        oss << format.to_string();
+        return oss;
+    }
+
+    inline std::ostream& operator<<(std::ostream& oss, ALG::alg format) {
+        oss << Any_Algo(format).to_string();
+        return oss;
+    }
+
+	inline std::string operator+(const char* oss, Non_Algo format) {
+        return oss + format.to_string();
+    }
+
+    inline std::string operator+(const char *oss, Any_Algo format) {
+        return oss + format.to_string();
+    }
+    inline std::string operator+(const char* oss, Kex_Algo format) {
+        return oss + format.to_string();
+    }
+	inline std::string operator+(Any_Algo format, const char* oss) {
+		return format.to_string().append(oss);
+	}
+
+	inline std::string operator+(const char* oss, Algo_Group format) {
+        return oss + format.to_string();
+    }
+    inline std::string operator+(Any_Algo format, const std::string_view &oss) {
+        return format.to_string().append(oss);
+    }
+    inline std::string operator+(Any_Algo format, const std::string& oss) {
+        return format.to_string().append(oss);
+    }
+
+    inline std::string operator+(const std::string& oss, Any_Algo format) {
+        return oss + format.to_string();
+    }
+    inline std::string operator+(const std::string& oss, Hash_Algo format) {
+        return oss + format.to_string();
+    }
+
+    inline std::string operator+(const std::string& oss, Algo_Group format) {
+        return oss + format.to_string();
+    }
+
+
+	class RandomNumberGenerator;
+	class OctetString : private secure_vector<uint8_t>
+	{
+		using parent = secure_vector<uint8_t>;
+
+    public:
+
+        size_t length() const { return parent::size(); }
+        const uint8_t* begin() const { return parent::data(); }
+        const uint8_t* end() const { return begin() + parent::size(); }
+        bool empty() const { return parent::empty(); }
+        const secure_vector<uint8_t>& bits_of() const { return *this; }
+
+		OctetString() {}
+		OctetString(secure_vector<uint8_t>&& sv):secure_vector(std::move(sv))
+		{
+		}
+		OctetString(RandomNumberGenerator& rng, size_t len);
 
 		/*
-		void erase(size_t szerase) // erase from begin
-		{
-			memcpy( buf, buf + szerase, sz - szerase );
-			sz -= szerase;
-		}
+		OctetString& operator+=(const std::span<const uint8_t>& in) {
+
+			secure_vector& me = (secure_vector&)*this;
+			me += in;
+            return *this;
+        }
 		*/
-
-		bool empty() const { return sz == 0; }
-
-		void resize(size_t nsz)
-		{
-			if (nsz <= cap)
-			{
-				sz = nsz;
-				return;
-			}
-
-			cap = capsize(nsz);
-			buf = (uint8_t *)MRS(buf, cap);
-			//memset(buf + sz, 0, nsz - sz);
-			sz = nsz;
-		}
-
-		void reserve(size_t size)
-		{
-			if (size > cap)
-			{
-				cap = capsize(size);
-				buf = (uint8_t*)MRS(buf, cap);
-			}
-		}
-
-		void zeroise()
-		{
-			memset(buf, 0, sz);
-		}
-
-		uint8_t* buf;
-		size_t sz = 0, cap;
 	};
 
-	struct OctetString //= std::vector<uint8_t>;
+	template<typename W, size_t n> class hash_digest
 	{
+		W bits[n];
+	public:
+		W* data() { return bits; }
+		const W* data() const { return bits; }
 
+		const W* begin() const { return bits; }
+		W* begin() { return bits; }
+        const W* end() const { return bits + n; }
+        W* end() { return bits + n; }
+
+        const W* cbegin() const { return bits; }
+        W* cbegin() { return bits; }
+        const W* cend() const { return bits + n; }
+        W* cend() { return bits + n; }
+
+		size_t size() { return n; }
+
+		W operator[](size_t index) const { return bits[index]; }
+		W &operator[](size_t index) { return bits[index]; }
+
+		using iterator = W*;
+		using const_iterator = const W*;
+        using pointer = W*;
+        using const_pointer = const W*;
+		using size_type = size_t;
+		using value_type = W;
+
+		void assign(const std::array<W, n>& d)
+		{
+			memcpy(bits, d.data(), sizeof(bits));
+		}
 	};
 
-    struct SymmetricKey //: public std::vector<uint8_t>
-	{
-        //size_t length() const { return size(); }
-		const uint8_t* begin() const { return nullptr; }
-		size_t length() const { return 0; }
-    };
-
+	using SymmetricKey = OctetString;
 	using InitializationVector = SymmetricKey;
 
 	template <typename T, typename Alloc> void zeroise(std::vector<T, Alloc>& vec) {
@@ -430,13 +945,19 @@ namespace Botan {
 		vec.clear();
 	}
 
-	/*
 	template <typename T, typename Alloc, typename Alloc2>
 	std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out, const std::vector<T, Alloc2>& in) {
 		out.insert(out.end(), in.begin(), in.end());
 		return out;
 	}
 
+    template <typename T, typename Alloc>
+    std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out, const secure_vector<T>& in) {
+        out.insert(out.end(), in.begin(), in.end());
+        return out;
+    }
+
+    /*
 	template <typename T, typename Alloc>
 	std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out, T in) {
 		out.push_back(in);
@@ -456,6 +977,296 @@ namespace Botan {
 		out.insert(out.end(), in.first, in.first + in.second);
 		return out;
 	}
-}
 
-using buffer = Botan::secure_vector<uint8_t>;
+    template <typename T> std::vector<T> unlock(const secure_vector<T>& in) {
+        return std::vector<T>(in.begin(), in.end());
+    }
+
+    inline uint32_t to_u32bit(std::string_view str) {
+        size_t v = 0;
+
+        for (char c : str)
+        {
+            size_t y = c - 48;
+            if (y >= 10)
+                throw std::runtime_error("to_u32bit invalid decimal string");
+            v = v * 10 + y;
+        }
+
+        if (v & 0xffffffff00000000ull)
+            throw std::runtime_error("to_u32bit exceeds 32 bit range");
+
+        return v & 0xffffffffull;
+
+    }
+
+	template<typename N> inline constexpr uint8_t as_byte(N n)
+	{
+		return static_cast<uint8_t>(n & 0xff);
+	}
+    template<typename N> inline constexpr uint16_t as_u16(N n)
+    {
+        return static_cast<uint16_t>(n & 0xffff);
+    }
+    template<typename N> inline constexpr uint32_t as_u32(N n)
+    {
+        return static_cast<uint32_t>(n & 0xffffffff);
+    }
+	namespace hidden
+	{
+        inline size_t nfs_workfactor(size_t bits, double log2_k) {
+            // approximates natural logarithm of an integer of given bitsize
+            const double log_p = bits / std::numbers::log2e;
+
+            const double log_log_p = std::log(log_p);
+
+            // RFC 3766: k * e^((1.92 + o(1)) * cubrt(ln(n) * (ln(ln(n)))^2))
+            const double est = 1.92 * std::pow(log_p * log_log_p * log_log_p, 1.0 / 3.0);
+
+            // return log2 of the workfactor
+            return static_cast<size_t>(log2_k + std::numbers::log2e * est);
+        }
+	}
+
+    inline size_t ecp_work_factor(size_t bits) {
+        return bits / 2;
+    }
+
+    inline size_t dl_exponent_size(size_t bits) {
+        if (bits == 0) {
+            return 0;
+        }
+        if (bits <= 256) {
+            return bits - 1;
+        }
+        if (bits <= 1024) {
+            return 192;
+        }
+        if (bits <= 1536) {
+            return 224;
+        }
+        if (bits <= 2048) {
+            return 256;
+        }
+        if (bits <= 4096) {
+            return 384;
+        }
+        return 512;
+    }
+
+    inline size_t if_work_factor(size_t bits) {
+        if (bits < 512) {
+            return 0;
+        }
+
+        // RFC 3766 estimates k at .02 and o(1) to be effectively zero for sizes of interest
+
+        const double log2_k = -5.6438;  // log2(.02)
+        return hidden::nfs_workfactor(bits, log2_k);
+    }
+
+	inline size_t dl_work_factor(size_t bits) {
+        // Lacking better estimates...
+        return if_work_factor(bits);
+    }
+
+
+
+    inline std::string string_join(const std::vector<std::string>& strs, char delim) {
+		std::string out;
+
+        for (size_t i = 0; i != strs.size(); ++i) {
+            if (i != 0) {
+                out.push_back(delim);
+            }
+            out.append(strs[i]);
+        }
+
+        return out;
+    }
+
+	std::optional<uint32_t> string_to_ipv4(std::string_view str); // returns in native endian!!! ex: "127.0.0.1" -> 127 is high octet of uint32_t value
+    std::string ipv4_to_string(uint32_t ip); // accepts uint32_t value in native endian!!! ex: "127.0.0.1" -> 127 is high octet of uint32_t value
+    std::string check_and_canonicalize_dns_name(std::string_view name);
+
+    inline std::string tolower_string(std::string_view in) {
+        std::string s(in);
+        for (size_t i = 0; i != s.size(); ++i) {
+            const int cu = static_cast<unsigned char>(s[i]);
+            if (std::isalpha(cu)) {
+                s[i] = static_cast<char>(std::tolower(cu));
+            }
+        }
+        return s;
+    }
+
+	bool host_wildcard_match(std::string_view issued_, std::string_view host_);
+
+	secure_vector<uint8_t> base64_decode(const char* s, size_t sl);
+
+	void DER_encode(secure_vector<uint8_t>& outb, const uint32_t* data, size_t size);
+
+	enum class oid_index
+	{
+		_empty,
+
+        _1_0_14888_3_0_5,
+        _1_2_156_10197_1_401,
+        _1_2_156_10197_1_504,
+        _1_2_410_200004_1_100_4_3,
+        _1_2_410_200004_1_100_4_4,
+        _1_2_410_200004_1_100_4_5,
+        _1_2_840_113549_1_1_1,
+        _1_2_840_113549_1_1_5,
+        _1_2_840_113549_1_1_8,
+        _1_2_840_113549_1_1_10,
+        _1_2_840_113549_1_1_11,
+        _1_2_840_113549_1_1_12,
+        _1_2_840_113549_1_1_13,
+        _1_2_840_113549_1_1_14,
+        _1_2_840_113549_1_1_16,
+        _1_2_840_113549_1_9_1,
+        _1_2_840_113549_1_9_16_3_18,
+        _1_2_840_113549_2_7,
+        _1_2_840_113549_2_8,
+        _1_2_840_113549_2_9,
+        _1_2_840_113549_2_10,
+        _1_2_840_113549_2_11,
+        _1_2_840_113549_2_13,
+        _1_2_840_10040_4_1,
+        _1_2_840_10040_4_3,
+        _1_2_840_10045_1_1,
+        _1_2_840_10045_2_1,
+        _1_2_840_10045_3_1_7,
+        _1_2_840_10045_4_1,
+        _1_2_840_10045_4_3_1,
+        _1_2_840_10045_4_3_2,
+        _1_2_840_10045_4_3_3,
+        _1_2_840_10045_4_3_4,
+        _1_2_840_10046_2_1,
+        _1_3_6_1_5_5_7_1_1,
+        _1_3_6_1_5_5_7_1_26,
+        _1_3_6_1_5_5_7_3_1,
+        _1_3_6_1_5_5_7_3_2,
+        _1_3_6_1_5_5_7_3_9,
+        _1_3_6_1_5_5_7_48_1,
+        _1_3_6_1_5_5_7_48_1_1,
+        _1_3_6_1_5_5_7_48_1_5,
+        _1_3_6_1_5_5_7_48_2,
+        _1_3_14_3_2_26,
+        _1_3_36_3_2_1,
+        _1_3_36_3_3_1_2,
+        _1_3_36_3_3_2_5_2_1,
+        _1_3_36_3_3_2_5_4_1,
+        _1_3_36_3_3_2_5_4_2,
+        _1_3_36_3_3_2_5_4_3,
+        _1_3_36_3_3_2_5_4_4,
+        _1_3_36_3_3_2_5_4_5,
+        _1_3_36_3_3_2_5_4_6,
+        _1_3_101_110,
+        _1_3_101_111,
+        _1_3_101_112,
+        _1_3_132_0_33,
+        _1_3_132_0_34,
+        _1_3_132_0_35,
+        _1_3_132_1_12,
+        _2_5_4_3,
+        _2_5_4_5,
+        _2_5_4_6,
+        _2_5_4_7,
+        _2_5_4_8,
+        _2_5_4_10,
+        _2_5_4_11,
+        _2_5_29_14,
+        _2_5_29_15,
+        _2_5_29_17,
+        _2_5_29_18,
+        _2_5_29_19,
+        _2_5_29_20,
+        _2_5_29_21,
+        _2_5_29_28,
+        _2_5_29_30,
+        _2_5_29_31,
+        _2_5_29_32,
+        _2_5_29_35,
+        _2_5_29_37,
+        _2_16_840_1_101_3_4_1_2,
+        _2_16_840_1_101_3_4_1_6,
+        _2_16_840_1_101_3_4_1_42,
+        _2_16_840_1_101_3_4_1_46,
+        _2_16_840_1_101_3_4_2_1,
+        _2_16_840_1_101_3_4_2_2,
+        _2_16_840_1_101_3_4_2_3,
+        _2_16_840_1_101_3_4_2_4,
+        _2_16_840_1_101_3_4_2_6,
+        _2_16_840_1_101_3_4_2_7,
+        _2_16_840_1_101_3_4_2_8,
+        _2_16_840_1_101_3_4_2_9,
+        _2_16_840_1_101_3_4_2_10,
+        _2_16_840_1_101_3_4_3_1,
+        _2_16_840_1_101_3_4_3_2,
+        _2_16_840_1_101_3_4_3_3,
+        _2_16_840_1_101_3_4_3_4,
+        _2_16_840_1_101_3_4_3_5,
+        _2_16_840_1_101_3_4_3_6,
+        _2_16_840_1_101_3_4_3_7,
+        _2_16_840_1_101_3_4_3_8,
+        _2_16_840_1_101_3_4_3_9,
+        _2_16_840_1_101_3_4_3_10,
+        _2_16_840_1_101_3_4_3_11,
+        _2_16_840_1_101_3_4_3_12,
+        _2_16_840_1_101_3_4_3_13,
+        _2_16_840_1_101_3_4_3_14,
+        _2_16_840_1_101_3_4_3_15,
+        _2_16_840_1_101_3_4_3_16,
+
+		_count,
+	};
+
+    inline std::strong_ordering int2so(int cmp)
+    {
+        if (cmp < 0)
+            return std::strong_ordering::less;
+        else if (cmp > 0)
+            return std::strong_ordering::greater;
+        return std::strong_ordering::equal;
+    }
+	inline std::strong_ordering gr(std::strong_ordering cmp)
+	{
+		if (std::strong_ordering::equal == cmp)
+			return std::strong_ordering::greater;
+		return cmp;
+	}
+
+	inline std::strong_ordering compare_spans(std::span<const uint8_t> lhs, std::span<const uint8_t> rhs) noexcept {
+
+        if (lhs.size() > rhs.size())
+			return gr(int2so(memcmp(lhs.data(), rhs.data(), rhs.size())));
+
+        auto cmp = int2so(memcmp(lhs.data(), rhs.data(), lhs.size()));
+		if (lhs.size() < rhs.size() && cmp == std::strong_ordering::equal)
+			return std::strong_ordering::less;
+		return cmp;
+    }
+
+	struct OID_core
+	{
+		std::span<const uint8_t> id;
+		Algo_Group alg;
+
+		std::strong_ordering operator <=>(std::span<const uint8_t> id2) const
+		{
+			return compare_spans(id, id2);
+		}
+	};
+
+	static_assert(static_cast<int>(oid_index::_count) < 256);
+
+	extern OID_core g_oids[];
+	extern uint8_t g_oids_by_algs[];
+	inline const OID_core& oid_core(oid_index i) { return g_oids[static_cast<int>(i)]; }
+	oid_index oid_find_index(std::span<const uint8_t> id);
+} // namespace Botan
+
+#define BOTAN_PUBLIC_API(...)
+#include <botan/exceptn.h>

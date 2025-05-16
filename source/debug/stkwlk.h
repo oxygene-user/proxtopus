@@ -170,15 +170,6 @@ DWORD64
 #define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
 #endif  
 
-
-// secure-CRT_functions are only available starting with VC8
-#if _MSC_VER < 1400
-#define strncpy_s strcpy
-#define strncat_s(dst, len, src) strcat(dst, src)
-#define _snprintf_s _snprintf
-#define _tcscat_s _tcscat
-#endif
-
 //////////////////////////////////////////////////////////////////////////////////
 
 class StackWalkerInternal;  // forward
@@ -272,12 +263,22 @@ public:
 
   virtual void OnSymInit(LPCSTR szSearchPath, DWORD symOptions, LPCSTR szUserName);
   virtual void OnLoadModule(LPCSTR img, LPCSTR mod, DWORD64 baseAddr, DWORD size, DWORD result, LPCSTR symType, LPCSTR pdbName, ULONGLONG fileVersion);
-  virtual void OnDbgHelpErr(LPCSTR szFuncName, DWORD gle, DWORD64 addr);
+  virtual void OnDbgHelpErr(str::astr_view szFuncName, DWORD gle, DWORD64 addr);
   
   virtual void OnOSVersion(DWORD dwMajorVersion, DWORD dwMinorVersion, DWORD dwBuildNumber, LPCSTR szCSDVersion, WORD wServicePackMajor, WORD wServicePackMinor, WORD wSuiteMask, BYTE  wProductType)const;
   virtual void OnCallstackEntry(CallstackEntryType eType, CallstackEntry &entry, STACKFRAME64 &stackInfo)const;  
-  virtual void OnOutput(const char* szText, size_t len)const;
-  void OnOutput1(LPCSTR szText)const { OnOutput(szText, strlen(szText)); }
+
+  struct flusher
+  {
+      file_appender* m_fa = nullptr;
+	  template<typename T> bool operator()(const T*s, size_t l) const {
+		  if (m_fa)
+			  (*m_fa) << str::astr_view(s,l);
+		  return true;
+	  }
+  };
+  flusher flush;
+  mutable str::xsstr<char, 2048, flusher> m_buf;
 
   StackWalkerInternal *m_sw;
   HANDLE m_hProcess;
@@ -294,6 +295,6 @@ public:
   HMODULE DBGDLL()const;
 };
 
-extern CHAR outBuffer[StackWalker::STACKWALK_MAX_NAMELEN];
+extern str::asstr<StackWalker::STACKWALK_MAX_NAMELEN> outBuffer;
 
 #endif //#ifndef _STACKWALKER_

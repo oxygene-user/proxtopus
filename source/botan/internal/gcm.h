@@ -10,6 +10,8 @@
 #define BOTAN_AEAD_GCM_H_
 
 #include <botan/aead.h>
+
+#include <botan/assert.h>
 #include <botan/block_cipher.h>
 #include <botan/sym_algo.h>
 
@@ -25,7 +27,7 @@ class GCM_Mode : public AEAD_Mode {
    public:
       void set_associated_data_n(size_t idx, std::span<const uint8_t> ad) override final;
 
-      std::string name() const override final;
+      /// PROXTOPUS : name removed
 
       size_t update_granularity() const override final;
 
@@ -41,7 +43,7 @@ class GCM_Mode : public AEAD_Mode {
 
       void reset() override final;
 
-      std::string provider() const override final;
+      /// PROXTOPUS : provider removed
 
       bool has_keying_material() const override final;
 
@@ -53,7 +55,7 @@ class GCM_Mode : public AEAD_Mode {
       static const size_t GCM_BS = 16;
 
       const size_t m_tag_size;
-      const std::string m_cipher_name;
+      /// PROXTOPUS : name removed
 
       std::unique_ptr<StreamCipher> m_ctr;
       std::unique_ptr<GHASH> m_ghash;

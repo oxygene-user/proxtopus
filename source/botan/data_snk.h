@@ -52,7 +52,7 @@ class BOTAN_PUBLIC_API(2, 0) DataSink_Stream final : public DataSink {
       DataSink_Stream(std::string_view pathname, bool use_binary = false);
 #endif
 
-      std::string name() const override { return m_identifier; }
+      /// PROXTOPUS : name removed
 
       void write(const uint8_t[], size_t) override;
 

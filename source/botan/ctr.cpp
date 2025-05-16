@@ -73,13 +73,7 @@ void CTR_BE::key_schedule(std::span<const uint8_t> key) {
    set_iv(nullptr, 0);
 }
 
-std::string CTR_BE::name() const {
-   if(m_ctr_size == m_block_size) {
-      return fmt("CTR-BE({})", m_cipher->name());
-   } else {
-      return fmt("CTR-BE({},{})", m_cipher->name(), m_ctr_size);
-   }
-}
+/// PROXTOPUS : name removed
 
 void CTR_BE::cipher_bytes(const uint8_t in[], uint8_t out[], size_t length) {
    assert_key_material_set();
@@ -148,7 +142,7 @@ void CTR_BE::generate_keystream(uint8_t out[], size_t length) {
 
 void CTR_BE::set_iv_bytes(const uint8_t iv[], size_t iv_len) {
    if(!valid_iv_length(iv_len)) {
-      throw Invalid_IV_Length(name(), iv_len);
+      throw Invalid_IV_Length("", iv_len);
    }
 
    m_iv.resize(m_block_size);

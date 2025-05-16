@@ -1,68 +1,295 @@
 #pragma once
 
+#include <string>
+
 #ifdef _MSC_VER
 typedef wchar_t wchar;
 #elif defined __GNUC__
 typedef char16_t wchar;
 #endif
 
-#define BUILD_ASTRVIEW(x,y) str::astr_view(x,y)
+template <size_t _Size> consteval inline size_t strsize(const char(&)[_Size]) noexcept {
+    return _Size - 1;
+}
+template <size_t _Size> consteval inline size_t strsize(const wchar(&)[_Size]) noexcept {
+    return _Size - 1;
+}
+
+#define ASTR( s ) str::astr_view(s,strsize(s))
 
 #if defined _MSC_VER
-#define BUILD_WSTRVIEW(x,y) str::wstr_view(L##x,y)
-#define XSTR( tc, s ) str::_const_str_build<tc>::get( s, L##s, sizeof(s)-1 )
+#define WSTR( s ) str::wstr_view(L##s,strsize(s))
+#define XSTR( tc, s ) str::_const_str_build<tc, strsize(s)>::get( s, L##s )
 #define WIDE2(s) L##s
 #elif defined __GNUC__
-#define BUILD_WSTRVIEW(x,y) str::wstr_view(u##x,y)
-#define XSTR( tc, s ) str::_const_str_build<tc>::get( s, u##s, sizeof(s)-1 )
+#define WSTR( s ) str::wstr_view(u##s,strsize(s))
+#define XSTR( tc, s ) str::_const_str_build<tc, strsize(s)>::get( s, u##s )
 #define WIDE2(s) u##s
 #endif
 
+#define DEC(d,n) dec<d, std::decay_t<decltype(n)>>(n)
+#define HEX(d,n) hex<d, std::decay_t<decltype(n)>>(n)
+
 namespace str
 {
-	template <typename TCH> using xstr = std::basic_string<TCH>;
-	template <typename TCH> using xstr_view = std::basic_string_view<TCH>;
-	using astr = xstr<char>;
-	using wstr = xstr<wchar>;
-	using astr_view = xstr_view<char>;
-	using wstr_view = xstr_view<wchar>;
+    template <size_t sz> struct sztype;
+    template <> struct sztype<1> { using type = u8; };
+    template <> struct sztype<2> { using type = u16; };
+    template <> struct sztype<4> { using type = u32; };
+    template <> struct sztype<8> { using type = u64; };
+}
 
-	template<typename T> struct _const_str_build
+struct PTR
+{
+	uintptr_t val;
+	PTR(const void* p) :val(reinterpret_cast<uintptr_t>(p)) {}
+};
+
+template<int min_digits, typename N> struct dec
+{
+    N n;
+    dec(N n) :n(n) {}
+};
+
+template<int min_digits, typename N> struct hex
+{
+	N n;
+	hex(N n) :n(n) {}
+};
+
+struct filename {
+	const char* fn; size_t csz; filename(const char* s, size_t ss) :fn(s), csz(ss) {}
+};
+
+template <typename S> struct crlf
+{
+    const S& s;
+    crlf(const S& s) :s(s) {}
+};
+
+
+namespace str
+{
+	consteval size_t min_integral_size_for_value(size_t val, size_t minsize)
 	{
-	};
-	template<> struct _const_str_build<char>
+		if (val < 256)
+			return minsize > 1 ? minsize : 1;
+		if (val < 65536)
+			return minsize > 2 ? minsize : 2;
+        if (val < (0xffffffffull + 1ull))
+            return minsize > 4 ? minsize : 4;
+		return 8;
+	}
+
+    template <typename CC> using xstr = std::basic_string<CC>;
+    template <typename CC> using xstr_view = std::basic_string_view<CC>;
+    using astr = xstr<char>;
+    using wstr = xstr<wchar>;
+    using astr_view = xstr_view<char>;
+    using wstr_view = xstr_view<wchar>;
+
+    struct hollow_flusher
+    {
+        template<typename T> bool operator()(const T*, size_t) const { return false; }
+    };
+
+    namespace xsstr_core
+    {
+        template<typename CC, size_t maxchars, typename flusher> struct core
+        {
+            using sizetype = sztype<min_integral_size_for_value(maxchars, sizeof(CC))>::type;
+            enum {
+			    maxsize = maxchars - 1 // keep one char for zero end
+		    };
+
+			core() { buf[0] = 0; }
+			core(flusher&& f) :fl(std::move(f)) { buf[0] = 0; }
+			~core()
+			{
+				flush();
+			}
+			[[no_unique_address]] flusher fl;
+            sizetype len = 0;
+            CC buf[maxchars];
+			bool flush_if()
+            {
+				if (len == maxsize && fl(buf, len))
+                {
+                    len = 0;
+                    buf[0] = 0;
+                    return true;
+                }
+				return false;
+			}
+			void flush()
+			{
+				if (len > 0)
+					fl(buf, len);
+			}
+			static constexpr bool will_flush() { return true; }
+			flusher* get_flusher() {
+				if constexpr (sizeof(flusher) > 0)
+					return &fl;
+				else
+					return nullptr;
+			}
+		};
+		template <typename CC, size_t maxchars> struct core<CC, maxchars, hollow_flusher> {
+            using sizetype = sztype<min_integral_size_for_value(maxchars, sizeof(CC))>::type;
+            enum {
+			    maxsize = maxchars - 1 // keep one char for zero end
+		    };
+
+			template<typename... Args> core(Args&&...) { buf[0] = 0; buf[maxsize] = 0; }
+			sizetype len = 0;
+			CC buf[maxchars];
+			bool flush_if()
+			{
+				return false;
+			}
+			static constexpr bool will_flush() { return false; }
+			hollow_flusher* get_flusher() { return nullptr; }
+		};
+
+    }
+
+	template<typename CC, size_t maxchars, typename flusher = hollow_flusher> class xsstr
 	{
-		constexpr static str::astr_view get(const char* sa, const wchar*, signed_t len) { return str::astr_view(sa, len); }
-	};
-	template<> struct _const_str_build<wchar>
-	{
-		constexpr static str::wstr_view get(const char*, const wchar* sw, signed_t len) { return str::wstr_view(sw, len); }
+	public:
+		using sizetype = sztype<min_integral_size_for_value(maxchars, sizeof(CC))>::type;
+		enum {
+			maxsize = maxchars - 1 // keep one char for zero end
+		};
+	private:
+
+		xsstr_core::core<CC, maxchars, flusher> cor;
+
+	public:
+		xsstr() {}
+		template<typename Ts> xsstr(Ts&& arg) :cor(std::move(arg)) {}
+		sizetype length() const { return cor.len; };
+
+		flusher* get_flusher() { return cor.get_flusher(); }
+
+		const CC* data() const { return cor.buf; }
+		CC* data() { return cor.buf; }
+		void clear() { cor.len = 0; cor.buf[0] = 0; }
+        void push_back(CC c) {
+			if (cor.len < maxsize)
+			{
+				cor.buf[cor.len] = c;
+				cor.buf[cor.len+1] = 0;
+				++cor.len;
+			}
+			cor.flush_if();
+        }
+		xsstr& append(const xstr_view<CC>& s)
+		{
+			size_t len = s.length();
+			const char* data = s.data();
+
+			if constexpr (cor.will_flush())
+            {
+                if (cor.len > maxsize / 2 && len > maxsize / 2)
+                {
+					// so, just do two flushes
+					cor.flush();
+					cor.fl(data,len);
+					clear();
+					return *this;
+                }
+			}
+
+            for(;len > 0;)
+			{
+				size_t free_space = maxsize - cor.len;
+                size_t copychars = len <= free_space ? len : free_space;
+                memcpy(cor.buf + cor.len, data, copychars * sizeof(CC));
+                cor.len = static_cast<sizetype>(cor.len + copychars);
+
+				if (cor.flush_if())
+				{
+					len -= copychars;
+					data += copychars;
+					continue;
+				}
+				else
+				{
+					break;
+				}
+			}
+            cor.buf[cor.len] = 0;
+
+			return *this;
+		}
+		xsstr& operator += (CC c)
+		{
+			push_back(c);
+			return *this;
+		}
+        xsstr& operator += (const xstr_view<CC> &s)
+        {
+			return append(s);
+        }
+		void resize(size_t sz)
+		{
+			cor.len = static_cast<sizetype>(sz <= maxsize ? sz : maxsize);
+			cor.buf[cor.len] = 0;
+		}
 	};
 
-	inline astr_view view(const str::astr& s)
+	template <size_t maxchars> using asstr = xsstr<char, maxchars, hollow_flusher>;
+	template <size_t maxchars> using wsstr = xsstr<wchar, maxchars, hollow_flusher>;
+
+	template<typename T, size_t sz> struct _const_str_build
+	{
+	};
+	template<size_t sz> struct _const_str_build<char, sz>
+	{
+		consteval static astr_view get(const char* sa, const wchar*) { return str::astr_view(sa, sz); }
+	};
+	template<size_t sz> struct _const_str_build<wchar, sz>
+	{
+		consteval static wstr_view get(const char*, const wchar* sw) { return wstr_view(sw, sz); }
+	};
+
+    inline const astr_view& view(const astr_view& s)
+    {
+        return s;
+    }
+    template<size_t ssz> astr_view view(const asstr<ssz>& s)
+    {
+        return astr_view(s.data(), s.length());
+    }
+	inline astr_view view(const astr& s)
 	{
 		return astr_view(s.c_str(), s.length());
 	}
-	inline wstr_view view(const str::wstr& s)
+    inline astr_view view(const astr& s, signed_t skip_chars)
+    {
+        return astr_view(s.c_str() + skip_chars, s.length() - skip_chars);
+    }
+	inline wstr_view view(const wstr& s)
 	{
 		return wstr_view(s.c_str(), s.length());
 	}
 
-    inline str::astr_view view(const buffer& s)
+    inline astr_view view(const buffer& s)
     {
-        return std::string_view(reinterpret_cast<const char*>(s.data()), s.size());
+        return astr_view(reinterpret_cast<const char*>(s.data()), s.size());
     }
-    inline str::astr_view view(const std::span<const u8>& s)
+    inline astr_view view(const std::span<const u8>& s)
     {
-        return str::astr_view(reinterpret_cast<const char*>(s.data()), s.size());
+        return astr_view(reinterpret_cast<const char*>(s.data()), s.size());
     }
 
     template<typename STR> struct chartype;
     template<> struct chartype<astr> { using type = char; };
     template<> struct chartype<buffer> { using type = char; };
     template<> struct chartype<std::span<char>> { using type = char; };
+    template<size_t ssz, typename flusher> struct chartype<xsstr<char,ssz,flusher>> { using type = char; };
     template<> struct chartype<wstr> { using type = wchar; };
-
+	template<size_t ssz, typename flusher> struct chartype<xsstr<wchar, ssz, flusher>> { using type = wchar; };
 
 	template <typename TCH> TCH get_last_char(const xstr<TCH>& s)
 	{
@@ -129,7 +356,7 @@ namespace str
 
 	template <class CH> bool is_hollow(CH c)
 	{
-		return (c == ' ' || c == 0x9 || c == 0x0d || c == 0x0a);
+		return c == ' ' || c == 0x9 || c == 0x0d || c == 0x0a;
 	}
 
 	template <class CH> signed_t strz_find(const CH* const s, const CH c)
@@ -228,45 +455,123 @@ namespace str
         return std::span<const u8>(reinterpret_cast<const u8*>(s.data()), s.length());
     }
 
-	inline str::astr build_string(const char* s, ...)
-	{
-		char b[1024];
+    inline void operator += (std::span<char>& s, char c)
+    {
+        s.data()[s.size()] = c;
+        s = std::span(s.data(), s.size() + 1);
+    }
 
-		va_list args;
-		va_start(args, s);
-		int t = vsnprintf(b, sizeof(b), s, args);
-		va_end(args);
-		return str::astr(b, t);
+    inline void operator += (buffer& s, const astr_view& a)
+    {
+        s += span(a);
+    }
+
+    inline bool __ends(const astr_view& s, const astr_view& se)
+    {
+        return s.ends_with(se);
+    }
+    inline bool __ends(const astr_view& s, char se)
+    {
+        if (s.length() == 0)
+            return false;
+        return s[s.length() - 1] == se;
+    }
+
+    inline str::astr_view __cut_tail(const astr_view& s, size_t num_chars)
+    {
+        if (s.length() <= num_chars)
+            return astr_view();
+
+        return astr_view(s.data(), s.length() - num_chars);
+    }
+
+    template<typename SS> SS& __append(SS& s, const xstr_view<typename chartype<SS>::type>& a)
+    {
+        s += a;
+        return s;
+    }
+
+	inline void __append(astr& sout, const wstr& s);
+
+	inline void __append(astr& sout, const astr& s) {
+		sout.append(s);
 	}
+    template<typename CC> void __append(xstr<CC>& sout, const CC * s) {
+        sout.append(s);
+    }
+    template<typename CC, size_t sssz, typename flusher> void __append(xsstr<CC, sssz, flusher>& sout, const CC* s) {
+        sout.append(xstr_view<CC>(s,strlen(s)));
+    }
+    inline void __append(astr& sout, const std::exception& e) {
+        sout.append(e.what());
+    }
 
-	inline str::astr build_string_d(const char* fn, int ln, const char* s, ...)
+    inline void __append(astr& sout, std::floating_point auto e) {
+        sout.append(std::to_string(e));
+    }
+
+	template<typename SS> void __append(SS& sout, size_t x);
+	template<typename SS> void __append(SS& sout, const PTR& x);
+	template<typename SS, int MD, typename N> void __append(SS& sout, const hex<MD, N>& x);
+	template<typename SS, int MD, typename N> void __append(SS& sout, const dec<MD, N>& x);
+	inline void __append(astr& sout, const filename& x)
 	{
-		char b[1024];
-
-		int t = snprintf(b, sizeof(b), "%s(%i): ", fn, ln);
-
-		for (signed_t i = t - 1; i >= 0; --i)
+		for (size_t i = 0; i < x.csz; ++i)
 		{
-			if (b[i] == '\\')
-			{
-				memmove(b + i + 1, b + i, t-i);
-				++t;
-			}
+			char fnc = x.fn[i];
+			sout.push_back(fnc);
+			if (fnc == '\\')
+				sout.push_back('\\');
 		}
-
-		va_list args;
-		va_start(args, s);
-		t += vsnprintf(b + t, sizeof(b) - t, s, args);
-		va_end(args);
-
-		return str::astr(b, t);
 	}
 
-	inline str::astr build_string_d(const char* fn, int ln)
+	template<typename SS, typename S> SS& __append(SS& sout, const crlf<S>& x)
 	{
-		return build_string_d(fn, ln, "---");
+        if (__ends(x.s, ASTR("\r\n")))
+            __append(sout, x.s);
+        if (__ends(x.s, '\n'))
+        {
+            __append(sout, __cut_tail(x.s, 1));
+            __append(sout, ASTR("\r\n"));
+		} else {
+            __append(sout, x.s);
+            __append(sout, ASTR("\r\n"));
+		}
+		return sout;
 	}
 
+    template<typename SS> void impl_build_string(SS& sout, const char* format) {
+		__append(sout, format);
+    }
+
+    template <typename SS, typename T, typename... Ts> void impl_build_string(SS& sout, const char* format, const T& val, const Ts&... rest) {
+
+        while (*format)
+		{
+			char fchar = *format;
+			++format;
+            if (fchar == '$') {
+				__append(sout, val);
+				impl_build_string(sout, format, rest...);
+				return;
+            }
+            else {
+				sout += fchar;
+            }
+        }
+    }
+
+    template <typename... T> astr build_string(const char* s, const T&... args) {
+
+		astr sout;
+		impl_build_string(sout, s, args...);
+		return sout;
+    }
+
+    inline astr build_string() {
+
+		return astr();
+    }
 
 	enum class codepage_e
 	{
@@ -275,44 +580,84 @@ namespace str
 		UTF8,
 	};
 
-	size_t  _text_from_ucs2(char* out, size_t maxlen, const str::wstr_view& from, codepage_e cp);
-	size_t  _text_to_ucs2(wchar* out, size_t maxlen, const str::astr_view& from, codepage_e cp);
+	size_t  _text_from_ucs2(char* out, size_t maxlen, const wstr_view& from, codepage_e cp);
+	size_t  _text_to_ucs2(wchar* out, size_t maxlen, const astr_view& from, codepage_e cp);
 
-	inline str::astr to_str(const str::wstr_view& s, codepage_e cp)
+	inline str::astr to_str(const wstr_view& s, codepage_e cp)
 	{
-		str::astr   sout; sout.resize(s.length());
+		astr sout; sout.resize(s.length());
 
 		_text_from_ucs2(sout.data(), sout.capacity(), s, cp);
 		return sout;
 	}
 
-	inline str::astr to_str(const str::wstr_view& s)
+	inline astr to_str(const wstr_view& s)
 	{
 		return to_str(s, codepage_e::ANSI);
 	}
 
-	inline str::astr to_utf8(const str::astr_view& s)
+	inline astr to_utf8(const astr_view& s)
 	{
-		return str::astr(s);
+		return astr(s);
 	}
 
-	inline str::astr to_utf8(const str::wstr_view& s)
+	inline astr to_utf8(const wstr_view& s)
 	{
-		str::astr  sout; sout.resize(s.length() * 3); // hint: char at utf8 can be 6 bytes length, but ucs2 maximum code is 0xffff encoding to utf8 has 3 bytes len
+		astr  sout; sout.resize(s.length() * 3); // hint: char at utf8 can be 6 bytes length, but ucs2 maximum code is 0xffff encoding to utf8 has 3 bytes len
 		size_t nl = _text_from_ucs2(sout.data(), sout.capacity(), s, codepage_e::UTF8);
 		sout.resize(nl);
 		return sout;
 	}
 
-	inline str::wstr from_utf8(const str::astr_view& s)
+	inline wstr from_utf8(const str::astr_view& s)
 	{
-		str::wstr   sout; sout.resize(s.length());
+		wstr   sout; sout.resize(s.length());
 		size_t nl = _text_to_ucs2(sout.data(), sout.capacity(), s, codepage_e::UTF8);
 		sout.resize(nl);
 		return sout;
 	}
 
-	template <typename TCH> void qsplit(std::vector<xstr<TCH>>& splar, const xstr_view<TCH>& str)
+    template<typename SS, typename CCFROM> SS& __assign(SS& s, const xstr_view<CCFROM>& a)
+    {
+        if constexpr (std::is_same_v<typename chartype<SS>::type, CCFROM>)
+        {
+            s = a;
+        }
+        else if constexpr (std::is_same_v<typename chartype<SS>::type, char>)
+        {
+            s = to_utf8(a);
+        }
+        else if constexpr (std::is_same_v<typename chartype<SS>::type, wchar>)
+        {
+            s = from_utf8(a);
+        }
+		return s;
+    }
+    template<typename SS, typename CCFROM> SS& __assign(SS& s, const xstr<CCFROM>& a)
+    {
+        if constexpr (!std::is_same_v<typename chartype<SS>::type, CCFROM>)
+            return __assign(s, view(a));
+		else
+		{
+            s = a;
+			return s;
+		}
+    }
+	template<typename SS, typename CCFROM> SS& __assign(SS& s, std::floating_point auto v)
+	{
+		return __assign(s, std::to_string(v));
+	}
+    template<typename SS, typename CCFROM> SS& __assign(SS& s, std::integral auto v)
+    {
+		s.clear();
+        return append_num(s, v, 0);
+    }
+
+    inline void __append(astr& sout, const wstr& s) {
+        sout.append(to_utf8(s));
+    }
+
+	template <typename TCH> void qsplit(std::vector<xstr<TCH>>& splar, const xstr_view<TCH>& str, TCH spltr = ' ')
 	{
 		splar.clear();
 		if (str.length() == 0)  return;
@@ -324,7 +669,7 @@ namespace str
 			wchar ch = str[i];
 			if (bg < 0)
 			{
-				if (ch == ' ') continue;
+				if (ch == spltr) continue;
 				bg = i;
 				quote = ch == '\"';
 
@@ -341,7 +686,7 @@ namespace str
 				}
 				else
 				{
-					if (ch == ' ')
+					if (ch == spltr)
 					{
 						splar.emplace_back(str.substr(bg, i - bg));
 						bg = -1;
@@ -360,6 +705,33 @@ namespace str
 				splar.emplace_back(str.substr(bg, i - bg));
 			}
 		}
+	}
+
+	template<typename CH> xstr<CH> quoter(const xstr_view<CH> &s)
+	{
+		if (s.find(' ') == s.npos)
+			return xstr<CH>(s);
+
+		if (s[0] == '\"') // already quoted
+			return xstr<CH>(s);
+
+		xstr<CH> rv; rv.reserve(s.length() + 2);
+		rv.push_back('\"');
+		rv.append(s);
+		rv.push_back('\"');
+		return rv;
+	}
+
+	template<typename CH> xstr<CH> qjoin(const std::vector<xstr<CH>>& splar)
+	{
+		xstr<CH> rv;
+		for (const auto& s : splar)
+		{
+			if (!rv.empty())
+				rv.push_back(' ');
+			rv.append(quoter(view(s)));
+		}
+		return rv;
 	}
 
 	template<typename CH> struct sep_base
@@ -540,8 +912,8 @@ namespace str
 		}
 	};
 
-#define TFORa(tkn, s, c) for (str::token<char, str::sep_onechar<char, c>> tkn(s); tkn; tkn())
-#define TFORw(tkn, s, c) for (str::token<wchar, str::sep_onechar<wchar, c>> tkn(s); tkn; tkn())
+#define enum_tokens_a(tkn, s, c) for (str::token<char, str::sep_onechar<char, c>> tkn(str::view(s)); tkn; tkn())
+#define enum_tokens_w(tkn, s, c) for (str::token<wchar, str::sep_onechar<wchar, c>> tkn(s); tkn; tkn())
 
 	template<typename CH, typename TE = sep_onechar<CH, ','>> class token // tokenizer, for (token t(str); t; t()) if (*t=="...") ...
 	{
@@ -586,17 +958,6 @@ namespace str
 
 }
 
-
-
-
-
-
-
-
-#define ASTR( s ) BUILD_ASTRVIEW( s, sizeof(s)-1 )
-#define WSTR( s ) BUILD_WSTRVIEW( s, sizeof(s)-1 )
-
-
 namespace str
 {
     template<typename T> struct is_signed
@@ -618,18 +979,7 @@ namespace str
         void operator()(T& t) { t = -t; }
     };
 
-	inline void operator += (std::span<char>& s, char c)
-	{
-        s.data()[s.size()] = c;
-        s = std::span(s.data(), s.size() + 1);
-	}
-
-    inline void operator += (buffer& s, const astr_view& a)
-    {
-        s += span(a);
-    }
-
-    template <class CH, typename I> __inline CH* make_str_unsigned(CH* buf, signed_t& szbyte, I i)
+    template <class CH, typename I> __inline CH* make_str_unsigned(CH* buf, size_t& szbyte, I i)
     {
 		signed_t idx = (sizeof(I) * 4 - 1);
         buf[idx--] = 0;
@@ -640,83 +990,137 @@ namespace str
             i = d;
         }
         buf[idx] = (CH)((CH)i + 48);
-        szbyte = static_cast<signed_t>(((sizeof(I) * 4) - idx) * sizeof(CH));
+        szbyte = static_cast<size_t>(((sizeof(I) * 4) - idx) * sizeof(CH));
         return buf + idx;
     }
 
-	template<typename SS> struct strop
-    {
-		using CH = typename chartype<SS>::type;
-
-        static void append_chars(SS& s, signed_t n, CH filler)
-        {
-            signed_t l = s.size(), nl = l + n;
-            s.resize(nl);
-            for (signed_t i = l; i < nl; ++i)
-                s.data()[i] = filler;
-        }
-        static void append_char(SS& s, char cha)
-        {
-            s += cha;
-        }
-        static void append(SS& s, const xstr_view<CH>& a)
-        {
-			s += a;
-        }
-	};
-
-	template<typename SS, typename N> struct strap
+	inline size_t __size(const buffer& b)
 	{
-		static void append_num(SS& s, N n, signed_t minimum_digits)
+		return b.size();
+	}
+    template<typename CC> size_t __size(const xstr<CC>& s)
+    {
+        return s.length();
+    }
+    template<typename CC, size_t ssz, typename flusher> size_t __size(const xsstr<CC, ssz, flusher>& s)
+    {
+        return s.length();
+    }
+
+    inline void __resize(buffer& b, size_t newsize)
+    {
+		b.resize(newsize, true);
+    }
+    template<typename CC> void __resize(xstr<CC>& s, size_t newsize)
+    {
+		s.resize(newsize);
+    }
+    template<typename CC, size_t ssz, typename flusher> void __resize(xsstr<CC, ssz, flusher>& s, size_t newsize)
+    {
+		s.resize(newsize);
+    }
+
+	template<typename SS> void append(SS& s, signed_t n, typename chartype<SS>::type filler)
+    {
+        signed_t l = __size(s), nl = l + n;
+        __resize(s, nl);
+        for (signed_t i = l; i < nl; ++i)
+            s.data()[i] = filler;
+    }
+
+	template<typename SS, std::integral N> SS& append_num(SS& s, N n, size_t minimum_digits)
+	{
+        using CH = typename chartype<SS>::type;
+        CH buf[sizeof(N) * 4];
+
+        if constexpr (is_signed<N>::value)
+        {
+			if (n < 0)
+			{
+				s += '-';
+				invert<N>()(n);
+			}
+        }
+
+		size_t szbyte;
+        CH* tcalced = make_str_unsigned(buf, szbyte, n);
+		size_t digits = szbyte / sizeof(CH)-1;
+        if (digits < minimum_digits)
+            append(s, minimum_digits - digits, '0');
+        return __append(s, xstr_view<CH>(tcalced, digits));
+	}
+
+    template<size_t typesize> struct low_part_mask;
+    template<> struct low_part_mask<2> { static const u16 mask = 0x00ff; };
+    template<> struct low_part_mask<4> { static const u32 mask = 0x0000ffff; };
+    template<> struct low_part_mask<8> { static const u64 mask = 0x00000000ffffffffull; };
+
+	template<size_t typesize> struct hi_part_mask;
+	template<> struct hi_part_mask<2> { static const u16 mask = 0xff00; };
+	template<> struct hi_part_mask<4> { static const u32 mask = 0xffff0000; };
+	template<> struct hi_part_mask<8> { static const u64 mask = 0xffffffff00000000ull; };
+
+	template<size_t typesz> struct calc_left_zeros
+	{
+		signed operator()(auto v)
 		{
-            using CH = typename chartype<SS>::type;
-            CH buf[sizeof(N) * 4];
-
-            if constexpr (is_signed<N>::value)
-            {
-				if (n < 0)
-				{
-					strop<SS>::append_char(s, '-');
-					invert<N>()(n);
-				}
-            }
-
-            signed_t szbyte;
-            CH* tcalced = make_str_unsigned(buf, szbyte, n);
-            signed_t digits = szbyte / sizeof(CH)-1;
-            if (digits < minimum_digits)
-                strop<SS>::append_chars(s, minimum_digits - digits, '0');
-            strop<SS>::append(s, xstr_view<CH>(tcalced, digits));
-
+			if ((v & hi_part_mask<typesz>::mask) == 0) return typesz + calc_left_zeros<typesz / 2>()(static_cast<sztype<typesz / 2>::type>(v));
+			return calc_left_zeros<typesz / 2>()(static_cast<sztype<typesz / 2>::type>(v >> (4 * typesz)));
 		}
 	};
-	template<> struct strap<astr, float> { static void append_num(astr& s, float n, signed_t) { s.append( std::to_string(n) ); } };
-	template<> struct strap<astr, double> { static void append_num(astr& s, double n, signed_t) { s.append(std::to_string(n)); } };
-    //template<> struct strap<wstr, float> { static void append_num(wstr& s, float n, signed_t) { s.append(std::to_wstring(n)); } };
-    //template<> struct strap<wstr, double> { static void append_num(wstr& s, double n, signed_t) { s.append(std::to_wstring(n)); } };
+	template<> struct calc_left_zeros<1> {
+		signed operator()(auto v)
+        {
+            if (v == 0) return 2;
+            if ((v & 0xf0) == 0) return 1;
+            return 0;
+		}
+	};
 
-    template<typename SS, typename V, bool skipzeros = true> inline void append_hex(SS& s, V v) {
+#if 0
+    inline signed calc_left_zeros(u16 v)
+    {
+        if ((v & 0xff00) == 0) return 2 + calc_left_zeros(static_cast<u8>(v));
+        return calc_left_zeros(static_cast<u8>(v >> 8));
+    }
+    inline signed calc_left_zeros(u32 v)
+    {
+        if ((v & 0xffff0000) == 0) return 4 + calc_left_zeros(static_cast<u16>(v));
+        return calc_left_zeros(static_cast<u16>(v >> 16));
+    }
+    inline signed calc_left_zeros(u64 v)
+    {
+        if ((v & 0xffffffff00000000ull) == 0) return 8 + calc_left_zeros(static_cast<u32>(v));
+        return calc_left_zeros(static_cast<u32>(v >> 32));
+    }
+#endif
+
+    template<typename SS, typename V, int min_digits = -1> inline void append_hex(SS& s, V v) {
 
         static char cc[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
         const unsigned N = 2 * sizeof(v);
-        bool skipz = skipzeros;
-        for (unsigned i = 0; i < N; ++i)
+		unsigned fromd = 0;
+		if constexpr (min_digits > 0)
+		{
+			signed digits = N - calc_left_zeros<sizeof(v)>()(v);
+            if (digits < min_digits)
+                append(s, min_digits - digits, '0');
+			fromd = N - digits;
+		}
+
+		bool skipz = min_digits < 0;
+        for (unsigned i = fromd; i < N; ++i)
         {
             unsigned shiftr = 4 * (N - i - 1);
-            V hex = (v >> shiftr) & 0xf;
-            if (skipz && hex == 0)
+            V hexi = (v >> shiftr) & 0xf;
+            if (skipz && hexi == 0)
                 continue;
-            strop<SS>::append_char(s, cc[hex]);
+            s += cc[hexi];
             skipz = false;
         }
         if (skipz)
-            strop<SS>::append_char(s, cc[0]);
-    }
-
-    template <class SS, typename N> void append_num(SS& s, N n, signed_t minimum_digits)
-    {
-		strap<SS, N>::append_num(s,n,minimum_digits);
+            s += cc[0];
     }
 
 	template <typename SS> inline size_t __find(const SS& s, const xstr_view<typename chartype<SS>::type>& ss, size_t offs)
@@ -760,9 +1164,51 @@ namespace str
         return s;
     }
 
+	struct lazy_cleanup_string
+	{
+		astr_view s;
+		astr_view disabled_chars;
+		lazy_cleanup_string(const astr& s, astr_view disabled_chars) :s(view(s)), disabled_chars(disabled_chars) {}
+		lazy_cleanup_string(const astr_view &s, astr_view disabled_chars) :s(s), disabled_chars(disabled_chars) {}
+		void append_to(str::astr& sout) const
+        {
+            for (char cc : s)
+                if (disabled_chars.find(cc) != disabled_chars.npos)
+					sout.push_back('?');
+				else
+					sout.push_back(cc);
+        }
+	};
 
+	inline void __append(astr& sout, const lazy_cleanup_string& s) {
+        s.append_to(sout);
+    }
 
-	const char* printable(const str::astr& name, str::astr_view disabled_chars = ASTR("{}[]`\"\'\\/?&"));
+    template<typename SS> void __append(SS& sout, size_t x) {
+        append_num(sout, x, 0);
+    }
+	template<typename SS> void __append(SS& sout, const PTR& x)
+	{
+		//__append(sout, ASTR("0x"));
+		append_hex<SS, decltype(x.val), 0>(sout, x.val);
+	}
+	template<typename SS, int MD, typename N> void __append(SS& sout, const hex<MD, N>& x)
+	{
+		append_hex<SS, N, MD>(sout, x.n);
+	}
+	template<typename SS, int MD, typename N> void __append(SS& sout, const dec<MD, N>& x)
+	{
+		append_num(sout, x.n, MD);
+	}
+
+	inline lazy_cleanup_string clean(const astr& s, astr_view disabled_chars = ASTR("{}[]`\"\'\\/?&"))
+	{
+		return lazy_cleanup_string(s, disabled_chars);
+	}
+    inline lazy_cleanup_string clean(astr_view s, astr_view disabled_chars = ASTR("{}[]`\"\'\\/?&"))
+    {
+        return lazy_cleanup_string(s, disabled_chars);
+    }
 
 	inline char base64(signed_t index)
 	{
@@ -776,7 +1222,7 @@ namespace str
 	}
 
 
-	inline void encode_base64(str::astr& s, const void* data, signed_t size)
+	inline void encode_base64(astr& s, const void* data, signed_t size)
 	{
 		const uint8_t* b = (const uint8_t*)data;
 
@@ -825,7 +1271,7 @@ namespace str
 
 	}
 
-	inline signed_t base64_len(const str::astr_view& s, signed_t from = 0, signed_t ilen = -1)
+	inline signed_t base64_len(const astr_view& s, signed_t from = 0, signed_t ilen = -1)
 	{
 		const char* ss = s.data() + from;
 		signed_t sl = ilen < 0 ? (s.length() - from) : ilen;
@@ -833,7 +1279,7 @@ namespace str
 		else if (sl > 0 && ss[sl - 1] == '=') --sl;
 		return (sl * 6) / 8;
 	}
-	inline signed_t decode_base64(const str::astr_view& s, void* data, signed_t datasize, signed_t from = 0, signed_t ilen = -1)
+	inline signed_t decode_base64(const astr_view& s, void* data, signed_t datasize, signed_t from = 0, signed_t ilen = -1)
 	{
 		uint8_t* d = (uint8_t*)data;
 		const char* ss = s.data() + from;
@@ -851,12 +1297,12 @@ namespace str
 				uint8_t v = 0;
 				while ((sl>0) && v == 0)
 				{
-					v = (uint8_t)ss[0]; ++ss; --sl;
-					v = (uint8_t)((v < 43 || v > 122) ? 0 : cd64[v - 43]);
-					if (v)
-					{
-						v = (uint8_t)((v == '$') ? 0 : v - 61);
-					}
+					char bch = *ss; ++ss; --sl;
+					if (bch < 43 || v > 122)
+						continue; // just ignore all non-base64 chars
+
+					v = (uint8_t)(cd64[bch - 43]);
+					v = (uint8_t)((v == '$') ? 0 : v - 61);
 				}
 				if (v)
 					inb[i] = (uint8_t)(v - 1), inbb = true;
@@ -871,10 +1317,10 @@ namespace str
 		return (signed_t)(d - (uint8_t*)data);
 	}
 
-	inline signed_t parse_int(const astr_view& x, signed_t max_valid, signed_t if_failed)
+	template<typename CH> signed_t parse_int(const xstr_view<CH>& x, signed_t max_valid, signed_t if_failed)
 	{
 		signed_t v = 0;
-		for (char c : x)
+		for (CH c : x)
 		{
 			size_t y = c - 48;
 			if (y >= 10)
@@ -885,10 +1331,10 @@ namespace str
 		}
 		return v;
 	}
-    inline signed_t parse_int(const astr_view& x, signed_t if_failed)
+	template<typename CH> signed_t parse_int(const xstr_view<CH>& x, signed_t if_failed)
     {
         signed_t v = 0;
-        for (char c : x)
+        for (CH c : x)
         {
             size_t y = c - 48;
             if (y >= 10)
@@ -969,3 +1415,13 @@ namespace tools
 	template <typename TCH, typename VALT> using shashmap = std::unordered_map<str::xstr<TCH>, VALT, string_hash<TCH>, std::equal_to<>>;
 
 } // namespace tools
+
+
+void debug_print(str::astr_view s);
+template <typename... T> void debug_print(const char* s, const T&... args) {
+
+    str::astr sout;
+	str::impl_build_string(sout, s, args...);
+	debug_print(str::view(sout));
+}
+

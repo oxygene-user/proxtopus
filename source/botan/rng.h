@@ -11,9 +11,8 @@
 
 #include <botan/concepts.h>
 #include <botan/exceptn.h>
-#include <botan/mutex.h>
-#include <botan/secmem.h>
 
+#include <array>
 #include <chrono>
 #include <concepts>
 #include <span>
@@ -29,6 +28,22 @@ class Entropy_Sources;
 */
 class BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator {
    public:
+      /**
+      * Userspace RNGs like HMAC_DRBG will reseed after a specified number
+      * of outputs are generated. Set to zero to disable automatic reseeding.
+      */
+      static constexpr size_t DefaultReseedInterval = 1024;
+
+      /**
+      * Number of entropy bits polled for reseeding userspace RNGs like HMAC_DRBG
+      */
+      static constexpr size_t DefaultPollBits = 256;
+
+      /**
+      * Default poll timeout
+      */
+      static constexpr auto DefaultPollTimeout = std::chrono::milliseconds(50);
+
       virtual ~RandomNumberGenerator() = default;
 
       RandomNumberGenerator() = default;
@@ -129,10 +144,7 @@ class BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator {
          this->randomize_with_ts_input(std::span(output, output_len));
       }
 
-      /**
-      * @return the name of this RNG type
-      */
-      virtual std::string name() const = 0;
+      /// PROXTOPUS : name removed
 
       /**
       * Clear all internally held values of this RNG
@@ -154,8 +166,8 @@ class BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator {
       * Sets the seeded state to true if enough entropy was added.
       */
       virtual size_t reseed(Entropy_Sources& srcs,
-                            size_t poll_bits = BOTAN_RNG_RESEED_POLL_BITS,
-                            std::chrono::milliseconds poll_timeout = BOTAN_RNG_RESEED_DEFAULT_TIMEOUT);
+                            size_t poll_bits = RandomNumberGenerator::DefaultPollBits,
+                            std::chrono::milliseconds poll_timeout = RandomNumberGenerator::DefaultPollTimeout);
 
       /**
       * Reseed by reading specified bits from the RNG
@@ -164,7 +176,8 @@ class BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator {
       *
       * @throws Exception if RNG accepts input but reseeding failed.
       */
-      virtual void reseed_from_rng(RandomNumberGenerator& rng, size_t poll_bits = BOTAN_RNG_RESEED_POLL_BITS);
+      virtual void reseed_from_rng(RandomNumberGenerator& rng,
+                                   size_t poll_bits = RandomNumberGenerator::DefaultPollBits);
 
       // Some utility functions built on the interface above:
 
@@ -188,7 +201,7 @@ class BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator {
       */
       template <concepts::resizable_byte_buffer T>
       void random_vec(T& v, size_t bytes) {
-         v.resize(bytes);
+         resize(v, bytes);
          random_vec(v);
       }
 
@@ -205,6 +218,16 @@ class BOTAN_PUBLIC_API(2, 0) RandomNumberGenerator {
       T random_vec(size_t bytes) {
          T result;
          random_vec(result, bytes);
+         return result;
+      }
+
+      /**
+       * Create a std::array of @p bytes random bytes
+       */
+      template <size_t bytes>
+      std::array<uint8_t, bytes> random_array() {
+         std::array<uint8_t, bytes> result;
+         random_vec(result);
          return result;
       }
 
@@ -278,7 +301,7 @@ class BOTAN_PUBLIC_API(2, 0) Null_RNG final : public RandomNumberGenerator {
 
       void clear() override {}
 
-      std::string name() const override { return "Null_RNG"; }
+      /// PROXTOPUS : name removed
 
    private:
       void fill_bytes_with_input(std::span<uint8_t> output, std::span<const uint8_t> /* ignored */) override;

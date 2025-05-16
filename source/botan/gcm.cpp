@@ -22,7 +22,7 @@ namespace Botan {
 * GCM_Mode Constructor
 */
 GCM_Mode::GCM_Mode(std::unique_ptr<BlockCipher> cipher, size_t tag_size) :
-      m_tag_size(tag_size), m_cipher_name(cipher->name()) {
+      m_tag_size(tag_size) {
    if(cipher->block_size() != GCM_BS) {
       throw Invalid_Argument("Invalid block cipher for GCM");
    }
@@ -30,7 +30,7 @@ GCM_Mode::GCM_Mode(std::unique_ptr<BlockCipher> cipher, size_t tag_size) :
    /* We allow any of the values 128, 120, 112, 104, or 96 bits as a tag size */
    /* 64 bit tag is still supported but deprecated and will be removed in the future */
    if(m_tag_size != 8 && (m_tag_size < 12 || m_tag_size > 16)) {
-      throw Invalid_Argument(fmt("{} cannot use a tag of {} bytes", name(), m_tag_size));
+      throw Invalid_Argument(fmt("{} cannot use a tag of {} bytes", "", m_tag_size));
    }
 
    m_ctr = std::make_unique<CTR_BE>(std::move(cipher), 4);
@@ -49,20 +49,16 @@ void GCM_Mode::reset() {
    m_ghash->reset();
 }
 
-std::string GCM_Mode::name() const {
-   return fmt("{}/GCM({})", m_cipher_name, tag_size());
-}
+/// PROXTOPUS : name removed
 
-std::string GCM_Mode::provider() const {
-   return m_ghash->provider();
-}
+/// PROXTOPUS : provider removed
 
 size_t GCM_Mode::update_granularity() const {
-   return GCM_BS;
+   return 1;
 }
 
 size_t GCM_Mode::ideal_granularity() const {
-   return GCM_BS * std::max<size_t>(2, BOTAN_BLOCK_CIPHER_PAR_MULT);
+   return GCM_BS * std::max<size_t>(2, BlockCipher::ParallelismMult);
 }
 
 bool GCM_Mode::valid_nonce_length(size_t len) const {
@@ -96,7 +92,7 @@ void GCM_Mode::set_associated_data_n(size_t idx, std::span<const uint8_t> ad) {
 
 void GCM_Mode::start_msg(const uint8_t nonce[], size_t nonce_len) {
    if(!valid_nonce_length(nonce_len)) {
-      throw Invalid_IV_Length(name(), nonce_len);
+      throw Invalid_IV_Length("", nonce_len);
    }
 
    if(m_y0.size() != GCM_BS) {

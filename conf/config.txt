@@ -11,8 +11,13 @@ settings {
 	// sys - system
 	dns=int|hosts
 
+	log_file=$(tmp)\proxtopus.log
+
+	// addition command line options
+	options=
+
 	// only for win32
-	crash_log_file=$(tmp)\proxtopus.log
+	crash_log_file=$(tmp)\proxtopus_crash.log
 	dump_file=$(tmp)\proxtopus.dmp
 }
 

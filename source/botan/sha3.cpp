@@ -8,7 +8,6 @@
 #include <botan/internal/sha3.h>
 
 #include <botan/exceptn.h>
-#include <botan/internal/cpuid.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/keccak_perm.h>
 #include <botan/internal/loadstor.h>
@@ -23,13 +22,21 @@ SHA_3::SHA_3(size_t output_bits) : m_keccak(2 * output_bits, 2, 2), m_output_len
    }
 }
 
-std::string SHA_3::name() const {
-   return fmt("SHA-3({})", m_output_length * 8);
+/// PROXTOPUS : name removed
+/*virtual*/ Hash_Algo SHA_3::alg() const
+{
+	switch (m_output_length)
+	{
+	case 28: return Hash_Algo(ALG::SHA_3_224);
+	case 32: return Hash_Algo(ALG::SHA_3_256);
+	case 48: return Hash_Algo(ALG::SHA_3_384);
+	default:
+		break;
+	}
+	return Hash_Algo(ALG::_Unknown);
 }
 
-std::string SHA_3::provider() const {
-   return m_keccak.provider();
-}
+/// PROXTOPUS : provider removed
 
 std::unique_ptr<HashFunction> SHA_3::copy_state() const {
    return std::make_unique<SHA_3>(*this);

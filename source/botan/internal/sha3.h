@@ -9,7 +9,6 @@
 #define BOTAN_SHA3_H_
 
 #include <botan/hash.h>
-#include <botan/secmem.h>
 #include <botan/internal/keccak_perm.h>
 #include <string>
 
@@ -32,9 +31,10 @@ class SHA_3 : public HashFunction {
 
       std::unique_ptr<HashFunction> new_object() const override;
       std::unique_ptr<HashFunction> copy_state() const override;
-      std::string name() const override;
+      /// PROXTOPUS : name removed
+      /*virtual*/ Hash_Algo alg() const override;
       void clear() override;
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
    private:
       void add_data(std::span<const uint8_t> input) override;
@@ -51,6 +51,7 @@ class SHA_3 : public HashFunction {
 class SHA_3_224 final : public SHA_3 {
    public:
       SHA_3_224() : SHA_3(224) {}
+      /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_3_224); }
 };
 
 /**
@@ -59,6 +60,7 @@ class SHA_3_224 final : public SHA_3 {
 class SHA_3_256 final : public SHA_3 {
    public:
       SHA_3_256() : SHA_3(256) {}
+      /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_3_256); }
 };
 
 /**
@@ -67,6 +69,7 @@ class SHA_3_256 final : public SHA_3 {
 class SHA_3_384 final : public SHA_3 {
    public:
       SHA_3_384() : SHA_3(384) {}
+      /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_3_384); }
 };
 
 /**
@@ -75,6 +78,7 @@ class SHA_3_384 final : public SHA_3 {
 class SHA_3_512 final : public SHA_3 {
    public:
       SHA_3_512() : SHA_3(512) {}
+      /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_3_512); }
 };
 
 }  // namespace Botan

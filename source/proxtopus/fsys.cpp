@@ -172,7 +172,6 @@ void __remove_crap(FN& path)
 	}
 }
 
-
 FN  get_exec_full_name()
 {
 	FN wd;
@@ -199,6 +198,35 @@ FN  get_exec_full_name()
 	__remove_crap(wd);
 
 	return wd;
+}
+
+void get_exec_full_commandline(FNARR& args)
+{
+#ifdef _WIN32
+    FNc* cmdlb = GetCommandLineW();
+    str::qsplit(args, FNview(cmdlb));
+#else
+
+	FN fn(MAKEFN("/proc/"));
+	str::append_num(fn, getpid(), 0);
+	fn.append(MAKEFN("/cmdline"));
+
+    auto fd = open(fn.c_str(), O_RDONLY);
+	if (fd == -1)
+		return;
+
+	char cmdline[4096];
+	ssize_t bytes_read = read(fd, cmdline, sizeof(cmdline) - 1);
+    close(fd);
+    if (bytes_read > 0)
+    {
+        auto cmdlm = FNview(cmdline, bytes_read);
+        while(cmdlm.data()[cmdlm.size()-1] == '\0')
+            cmdlm = cmdlm.substr(0, cmdlm.size()-1);
+        str::qsplit(args, cmdlm, '\0');
+    }
+#endif
+
 }
 
 void  set_start_path(FN& wd, FN* exename)
@@ -362,7 +390,7 @@ bool load_buf(const FN& fn, buffer& b)
 		return false;
 	}
 	signed_t fnl = GetFileSize(h, nullptr);
-	b.resize(fnl);
+	b.resize(fnl, true);
 	DWORD r;
 	ReadFile(h, b.data(), (DWORD)fnl, &r, nullptr);
 
@@ -417,3 +445,55 @@ void save_buf(const FN& fn, const str::astr& b)
 #endif
 
 }
+
+file_appender::file_appender(const FN& fn)
+{
+#ifdef _WIN32
+	handler = CreateFileW(fn.c_str(), FILE_APPEND_DATA | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (INVALID_HANDLE_VALUE == handler)
+	{
+		handler = nullptr;
+		return;
+	}
+	SetFilePointer(handler, 0, nullptr, FILE_END);
+#endif
+#ifdef _NIX
+    int fd = open(fn.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666) + 1;
+	if (fd == 0)
+	{
+		handler = nullptr;
+		return;
+	}
+	handler = reinterpret_cast<void*>(fd);
+#endif
+}
+
+file_appender& file_appender::operator<<(const str::astr_view& s)
+{
+#ifdef _WIN32
+	if (handler)
+	{
+        DWORD w;
+        WriteFile(handler, s.data(), static_cast<DWORD>(s.length()), &w, nullptr);
+	}
+#endif
+#ifdef _NIX
+	int fd = reinterpret_cast<ptrdiff_t>(handler) - 1;
+    write(fd, s.data(), s.size());
+#endif
+
+	return *this;
+}
+
+file_appender::~file_appender()
+{
+#ifdef _WIN32
+	if (handler)
+		CloseHandle(handler);
+#endif
+#ifdef _NIX
+    int fd = reinterpret_cast<ptrdiff_t>(handler) - 1;
+    close(fd);
+#endif
+}
+

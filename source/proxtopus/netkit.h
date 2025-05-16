@@ -17,60 +17,79 @@ inline void closesocket(int s) { ::close(s); };
 
 struct thread_storage;
 
-namespace netkit
+struct u16be
 {
-	template <bool native_little, int sz> struct cvt {};
-	template<> struct cvt<true, 2> {
-		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
-		{
-			return ((v_nitive & 0xff) << 8) | ((v_nitive >> 8) & 0xff);
-		}
-		static inline u16 to_he(u16 v_network) // convert to host-endian
-		{
-			return ((v_network & 0xff) << 8) | ((v_network >> 8) & 0xff);
-		}
-	};
-    template<> struct cvt<true, 4> {
-        static inline u32 to_he(u32 v_network) // convert to host-endian
-        {
-            return ((v_network & 0xff) << 24) | ((v_network & 0xff00) << 8) | ((v_network & 0xff0000) >> 8) | ((v_network & 0xff000000) >> 24);
-        }
-    };
-	template<> struct cvt<false, 2> {
-		static inline u16 to_ne(u16 v_nitive) // convert to network-endian
-		{
-			return v_nitive;
-		}
-		static inline u16 to_he(u16 v_network) // convert to host-endian
-		{
-			return v_network;
-		}
-	};
-    template<> struct cvt<false, 4> {
-        static inline u32 to_he(u32 v_network) // convert to host-endian
-        {
-            return v_network;
-        }
-    };
+	u16 beval = 0;
 
-	inline u16 to_ne16(signed_t v_nitive)
-	{
-		return cvt<Endian::little, 2>::to_ne((u16)(v_nitive & 0xffff));
-	}
-    inline u16 to_he16(signed_t v_nitive)
+	u16be() {}
+    template <typename N> u16be(N nval)
     {
-        return cvt<Endian::little, 2>::to_he((u16)(v_nitive & 0xffff));
+        if constexpr (Endian::little)
+        {
+            beval = ((nval & 0xff) << 8) | ((nval >> 8) & 0xff);
+        }
+        else {
+            beval = (u16)(nval & 0xffff);
+        }
     }
 
-	inline u16 to_ne(u16 v_nitive)
+	operator u16() const
 	{
-		return cvt<Endian::little, 2>::to_ne(v_nitive);
-	}
-	template <typename T> T to_he(T v_network)
-	{
-		return cvt<Endian::little, sizeof(T)>::to_he(v_network);
-	}
+		if constexpr (Endian::little)
+		{
+			return ((beval & 0xff) << 8) | ((beval >> 8) & 0xff);
+		}
+		else {
+			return beval;
+		}
+	};
 
+    static u16be from_be(u16 beval)
+    {
+		u16be x;
+        x.beval = beval;
+        return x;
+    }
+
+};
+
+struct u32be
+{
+    u32 beval = 0;
+
+	u32be() {}
+    u32be(u32 nval)
+    {
+        if constexpr (Endian::little)
+        {
+            beval = ((nval & 0xff) << 24) | ((nval & 0xff00) << 8) | ((nval & 0xff0000) >> 8) | ((nval & 0xff000000) >> 24);
+        }
+        else {
+            beval = nval;
+        }
+    }
+
+    operator u32() const
+    {
+        if constexpr (Endian::little)
+        {
+            return ((beval & 0xff) << 24) | ((beval & 0xff00) << 8) | ((beval & 0xff0000) >> 8) | ((beval & 0xff000000) >> 24);
+        }
+        else {
+            return beval;
+        }
+    };
+
+	static u32be from_be(u32 beval)
+	{
+		u32be x;
+		x.beval = beval;
+		return x;
+	}
+};
+
+namespace netkit
+{
 	enum socket_type_e : u8
 	{
 		ST_UNDEFINED,
@@ -144,14 +163,16 @@ namespace netkit
 
 		ipap &init_localhost()
 		{
-            if (u8* dst = octets())
+            if (v4)
             {
-                *(dst+0) = 127;
-                *(dst+1) = 0;
-                *(dst+2) = 0;
-                *(dst+3) = 1;
+				u8* octs = reinterpret_cast<u8*>(&ipv4.s_addr); // ipv4.s_addr in big endian
+
+				octs[0] = 127;
+				octs[1] = 0;
+				octs[2] = 0;
+				octs[3] = 1;
             } else {
-                u16 * w = reinterpret_cast<u16*>(&ipv6);
+				u16be* w = reinterpret_cast<u16be*>(&ipv6);
                 w[0] = 0;
                 w[1] = 0;
                 w[2] = 0;
@@ -159,7 +180,7 @@ namespace netkit
                 w[4] = 0;
                 w[5] = 0;
                 w[6] = 0;
-                w[7] = to_ne(1);
+                w[7] = 1;
             }
 		    return *this;
 		}
@@ -168,7 +189,7 @@ namespace netkit
 		{
 			u32 ipt = ((u32)a1 << 24) | ((u32)a2 << 16) | ((u32)a3 << 8) | a4;
 			u32 msk = ((1 << m) - 1) << (32-m);
-			return (to_he(ipv4.s_addr) & msk) == ipt;
+			return (u32be::from_be(ipv4.s_addr) & msk) == ipt;
 		}
 
 		bool is_private() const
@@ -181,7 +202,7 @@ namespace netkit
 					match4(100, 64, 0, 0, 10) ||
 					match4(127, 0, 0, 0, 8);
 			}
-            
+
 			//fd00::/8
 
 			return *reinterpret_cast<const u8*>(&ipv6) == 0xfd;
@@ -209,13 +230,13 @@ namespace netkit
 			{
 				const sockaddr_in* a = (const sockaddr_in*)aaaa;
 				ipv4.s_addr = a->sin_addr.s_addr;
-				port = netkit::to_he(a->sin_port);
+				port = u16be::from_be(a->sin_port);
 			}
 			else
 			{
 				const sockaddr_in6* a = (const sockaddr_in6*)aaaa;
 				memcpy(&ipv6, &a->sin6_addr, sizeof(a->sin6_addr));
-				port = netkit::to_he(a->sin6_port);
+				port = u16be::from_be(a->sin6_port);
 			}
 		};
 
@@ -253,14 +274,14 @@ namespace netkit
 			v4 = true;
 			ipv4.s_addr = ip4->sin_addr.s_addr;
 			if (useport)
-				port = netkit::to_he(ip4->sin_port);
+				port = u16be::from_be(ip4->sin_port);
 		}
 		void set(const sockaddr_in6* ip6, bool useport)
 		{
 			v4 = false;
 			memcpy(&ipv6, &ip6->sin6_addr, sizeof(ip6->sin6_addr));
 			if (useport)
-				port = netkit::to_he(ip6->sin6_port);
+				port = u16be::from_be(ip6->sin6_port);
 		}
 
 		void operator=(const addrinfo *addr)
@@ -286,28 +307,21 @@ namespace netkit
 			return *this;
 		}
 
-		const u8* octets() const
+		u16be* words()
 		{
-			return v4 ? reinterpret_cast<const u8*>( &ipv4 ) : nullptr;
+			return !v4 ? reinterpret_cast<u16be*>(&ipv6) : nullptr;
 		}
-		u8* octets()
+		const u16be* words() const
 		{
-			return v4 ? reinterpret_cast<u8*>(&ipv4) : nullptr;
-		}
-
-		u16* words()
-		{
-			return !v4 ? reinterpret_cast<u16*>(&ipv6) : nullptr;
-		}
-		const u16* words() const
-		{
-			return !v4 ? reinterpret_cast<const u16*>(&ipv6) : nullptr;
+			return !v4 ? reinterpret_cast<const u16be*>(&ipv6) : nullptr;
 		}
 
 		str::astr to_string(signed_t logport) const
 		{
-			if (const u8 *octs = octets())
+			if (v4)
 			{
+				const u8* octs = reinterpret_cast<const u8*>(&ipv4.s_addr); // this is valid because ipv4.s_addr already in big endian and should be filled with in-mem byte order
+
 				str::astr s;
 				str::append_num(s, octs[0], 0);
 				s.push_back('.'); str::append_num(s, octs[1], 0);
@@ -321,7 +335,7 @@ namespace netkit
 				}
 				return s;
 			}
-			if (const u16* ww = words())
+			if (const u16be* ww = words())
 			{
 				str::astr s; if (logport > 0) s.push_back('[');
 
@@ -329,7 +343,7 @@ namespace netkit
 				bool needz = false;
 				for (signed_t i = 0; i < 8; ++i)
 				{
-					u16 w = ww[i];
+					u16be w = ww[i];
 					if (w == 0 && !needz)
 					{
 						if (!col)
@@ -345,7 +359,7 @@ namespace netkit
 					{
 						if (col)
 							needz = true;
-						str::append_hex(s, netkit::to_he(w));
+						str::append_hex(s, w);
 						if (i < 7)
 						{
 							clp = true;
@@ -401,8 +415,8 @@ namespace netkit
 			return copmpare(a);
 		}
 
-		operator u32() const {
-			return v4 ? ipv4.s_addr : 0;
+		operator u32be() const { // ACHTING!!! returns BIG-ENDIAN value of ipv4 address (on little-endian cpus lower octet contains high ip value (eg: 127 for "127.0.0.1"))
+			return v4 ? u32be::from_be(ipv4.s_addr) : u32be();
 		}
 
 		operator bool() const
@@ -416,6 +430,7 @@ namespace netkit
 		}
 		*/
 
+		signed_t bind_once(SOCKET s) const;
 		signed_t bind(SOCKET s) const; // returns -1 if fail, or port
 		bool connect(SOCKET s) const;
 		bool sendto(SOCKET s, const std::span<const u8> &p) const;
@@ -1066,10 +1081,10 @@ namespace netkit
 			data[ptr++] = (u8)((b >> 8) & 0xff); // high first
 			data[ptr++] = (u8)((b) & 0xff); // low second
 		}
-		void pushs(const str::astr& s)
+		void pushs(const str::astr_view& s)
 		{
 			data[ptr++] = (u8)s.length();
-			memcpy(data + ptr, s.c_str(), s.length());
+			memcpy(data + ptr, s.data(), s.length());
 			ptr += tools::as_word(s.length());
 		}
 		void push(const netkit::ipap &ip, bool push_port) // push ip
@@ -1105,6 +1120,7 @@ namespace netkit
 		ior_ok,
 		ior_general_fail,
 		ior_proxy_fail,
+		ior_decrypt_fail,
 		ior_send_failed,
 		ior_notresolved,
 		ior_timeout,
@@ -1147,7 +1163,7 @@ namespace netkit
 				if (free_space() >= sz_at_least)
 					return;
 				cap = capsize(sz + sz_at_least);
-				buf = (u8*)MRS(buf, cap);
+				buf = (u8*)MRS(buf, cap, true);
 			}
 			u8* free_space_ptr()
 			{

@@ -17,7 +17,7 @@ namespace Botan {
 */
 class SHA_384 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint64_t>;
+       using digest_type = hash_digest<uint64_t, 8>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Big;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -29,7 +29,8 @@ class SHA_384 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "SHA-384"; }
+       /// PROXTOPUS : name removed
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_384); }
 
       size_t output_length() const override { return output_bytes; }
 
@@ -39,7 +40,7 @@ class SHA_384 final : public HashFunction {
 
       std::unique_ptr<HashFunction> copy_state() const override;
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
       void clear() override { m_md.clear(); }
 
@@ -57,7 +58,7 @@ class SHA_384 final : public HashFunction {
 */
 class SHA_512 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint64_t>;
+       using digest_type = hash_digest<uint64_t, 8>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Big;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -69,7 +70,8 @@ class SHA_512 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "SHA-512"; }
+       /// PROXTOPUS : name removed
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_512); }
 
       size_t output_length() const override { return output_bytes; }
 
@@ -79,15 +81,19 @@ class SHA_512 final : public HashFunction {
 
       std::unique_ptr<HashFunction> copy_state() const override;
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
       void clear() override { m_md.clear(); }
 
    public:
       static void compress_digest(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
 
-#if defined(BOTAN_HAS_SHA2_64_BMI2)
-      static void compress_digest_bmi2(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
+#if defined(BOTAN_HAS_SHA2_64_X86_AVX2)
+      static void compress_digest_x86_avx2(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
+#endif
+
+#if defined(BOTAN_HAS_SHA2_64_X86)
+      static void compress_digest_x86(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
 #endif
 
 #if defined(BOTAN_HAS_SHA2_64_ARMV8)
@@ -108,7 +114,7 @@ class SHA_512 final : public HashFunction {
 */
 class SHA_512_256 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint64_t>;
+      using digest_type = hash_digest<uint64_t, 8>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Big;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -120,7 +126,8 @@ class SHA_512_256 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "SHA-512-256"; }
+       /// PROXTOPUS : name removed
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_512_256); }
 
       size_t output_length() const override { return output_bytes; }
 
@@ -130,7 +137,7 @@ class SHA_512_256 final : public HashFunction {
 
       std::unique_ptr<HashFunction> copy_state() const override;
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
       void clear() override { m_md.clear(); }
 

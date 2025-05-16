@@ -10,15 +10,16 @@
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
-#include <botan/internal/cpuid.h>
+
+#if defined(BOTAN_HAS_CPUID)
+   #include <botan/internal/cpuid.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
-
-#if defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
-   #include <string.h>
-#endif
+#include <iomanip>
+#include <sstream>
 
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
    #include <errno.h>
@@ -38,14 +39,8 @@
    #include <emscripten/emscripten.h>
 #endif
 
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) || defined(BOTAN_TARGET_OS_IS_ANDROID) || \
-   defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) || defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
    #include <sys/auxv.h>
-#endif
-
-#if defined(BOTAN_TARGET_OS_HAS_AUXINFO)
-   #include <dlfcn.h>
-   #include <elf.h>
 #endif
 
 #if defined(BOTAN_TARGET_OS_HAS_WIN32)
@@ -56,11 +51,6 @@
       #include <libloaderapi.h>
       #include <stringapiset.h>
    #endif
-#endif
-
-#if defined(BOTAN_TARGET_OS_IS_ANDROID)
-   #include <elf.h>
-extern "C" char** environ;
 #endif
 
 #if defined(BOTAN_TARGET_OS_IS_IOS) || defined(BOTAN_TARGET_OS_IS_MACOS)
@@ -83,36 +73,6 @@ extern "C" char** environ;
 
 namespace Botan {
 
-// Not defined in OS namespace for historical reasons
-void secure_scrub_memory(void* ptr, size_t n) {
-#if defined(BOTAN_TARGET_OS_HAS_RTLSECUREZEROMEMORY)
-   ::RtlSecureZeroMemory(ptr, n);
-
-#elif defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
-   ::explicit_bzero(ptr, n);
-
-#elif defined(BOTAN_TARGET_OS_HAS_EXPLICIT_MEMSET)
-   (void)::explicit_memset(ptr, 0, n);
-
-#elif defined(BOTAN_USE_VOLATILE_MEMSET_FOR_ZERO) && (BOTAN_USE_VOLATILE_MEMSET_FOR_ZERO == 1)
-   /*
-   Call memset through a static volatile pointer, which the compiler
-   should not elide. This construct should be safe in conforming
-   compilers, but who knows. I did confirm that on x86-64 GCC 6.1 and
-   Clang 3.8 both create code that saves the memset address in the
-   data segment and unconditionally loads and jumps to that address.
-   */
-   static void* (*const volatile memset_ptr)(void*, int, size_t) = std::memset;
-   (memset_ptr)(ptr, 0, n);
-#else
-
-   volatile uint8_t* p = reinterpret_cast<volatile uint8_t*>(ptr);
-
-   for(size_t i = 0; i != n; ++i)
-      p[i] = 0;
-#endif
-}
-
 uint32_t OS::get_process_id() {
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
    return ::getpid();
@@ -125,54 +85,85 @@ uint32_t OS::get_process_id() {
 #endif
 }
 
-unsigned long OS::get_auxval(unsigned long id) {
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
-   return ::getauxval(id);
-#elif defined(BOTAN_TARGET_OS_IS_ANDROID) && defined(BOTAN_TARGET_ARCH_IS_ARM32)
+namespace {
 
-   if(id == 0)
-      return 0;
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) || defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
+   #define BOTAN_TARGET_HAS_AUXVAL_INTERFACE
+#endif
 
-   char** p = environ;
-
-   while(*p++ != nullptr)
-      ;
-
-   Elf32_auxv_t* e = reinterpret_cast<Elf32_auxv_t*>(p);
-
-   while(e != nullptr) {
-      if(e->a_type == id)
-         return e->a_un.a_val;
-      e++;
-   }
-
-   return 0;
-#elif defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
-   unsigned long auxinfo = 0;
-   ::elf_aux_info(static_cast<int>(id), &auxinfo, sizeof(auxinfo));
-   return auxinfo;
-#elif defined(BOTAN_TARGET_OS_HAS_AUXINFO)
-   for(const AuxInfo* auxinfo = static_cast<AuxInfo*>(::_dlauxinfo()); auxinfo != AT_NULL; ++auxinfo) {
-      if(id == auxinfo->a_type)
-         return auxinfo->a_v;
-   }
-
-   return 0;
+std::optional<unsigned long> auxval_hwcap() {
+#if defined(AT_HWCAP)
+   return AT_HWCAP;
+#elif defined(BOTAN_TARGET_HAS_AUXVAL_INTERFACE)
+   // If the value is not defined in a header we can see,
+   // but auxval is supported, return the Linux/Android value
+   return 16;
 #else
-   BOTAN_UNUSED(id);
-   return 0;
+   return {};
 #endif
 }
 
-bool OS::running_in_privileged_state() {
+std::optional<unsigned long> auxval_hwcap2() {
+#if defined(AT_HWCAP2)
+   return AT_HWCAP2;
+#elif defined(BOTAN_TARGET_HAS_AUXVAL_INTERFACE)
+   // If the value is not defined in a header we can see,
+   // but auxval is supported, return the Linux/Android value
+   return 26;
+#else
+   return {};
+#endif
+}
+
+std::optional<unsigned long> get_auxval(std::optional<unsigned long> id) {
+   if(id) {
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
+      return ::getauxval(*id);
+#elif defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
+      unsigned long auxinfo = 0;
+      if(::elf_aux_info(static_cast<int>(*id), &auxinfo, sizeof(auxinfo)) == 0) {
+         return auxinfo;
+      }
+#endif
+   }
+
+   return {};
+}
+
+}  // namespace
+
+std::optional<std::pair<unsigned long, unsigned long>> OS::get_auxval_hwcap() {
+   if(const auto hwcap = get_auxval(auxval_hwcap())) {
+      // If hwcap worked/was valid, we don't require hwcap2 to also
+      // succeed but instead will return zeros if it failed.
+      auto hwcap2 = get_auxval(auxval_hwcap2()).value_or(0);
+      return std::make_pair(*hwcap, hwcap2);
+   } else {
+      return {};
+   }
+}
+
+namespace {
+
+/**
+* Test if we are currently running with elevated permissions
+* eg setuid, setgid, or with POSIX caps set.
+*/
+bool running_in_privileged_state() {
 #if defined(AT_SECURE)
-   return OS::get_auxval(AT_SECURE) != 0;
-#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   if(auto at_secure = get_auxval(AT_SECURE)) {
+      return at_secure != 0;
+   }
+#endif
+
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
    return (::getuid() != ::geteuid()) || (::getgid() != ::getegid());
 #else
    return false;
 #endif
 }
+
+}  // namespace
 
 uint64_t OS::get_cpu_cycle_counter() {
    uint64_t rtc = 0;
@@ -184,9 +175,15 @@ uint64_t OS::get_cpu_cycle_counter() {
 
 #elif defined(BOTAN_USE_GCC_INLINE_ASM)
 
-   #if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+   #if defined(BOTAN_TARGET_ARCH_IS_X86_64)
 
-   if(CPUID::has_rdtsc()) {
+   uint32_t rtc_low = 0, rtc_high = 0;
+   asm volatile("rdtsc" : "=d"(rtc_high), "=a"(rtc_low));
+   rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+
+   #elif defined(BOTAN_TARGET_CPU_IS_X86_FAMILY) && defined(BOTAN_HAS_CPUID)
+
+   if(CPUID::has(CPUID::Feature::RDTSC)) {
       uint32_t rtc_low = 0, rtc_high = 0;
       asm volatile("rdtsc" : "=d"(rtc_high), "=a"(rtc_low));
       rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
@@ -308,9 +305,13 @@ uint64_t OS::get_high_resolution_clock() {
    }
 #endif
 
+#if defined(BOTAN_TARGET_OS_HAS_SYSTEM_CLOCK)
    // Plain C++11 fallback
    auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
    return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+#else
+   return 0;
+#endif
 }
 
 uint64_t OS::get_system_timestamp_ns() {
@@ -321,8 +322,32 @@ uint64_t OS::get_system_timestamp_ns() {
    }
 #endif
 
+#if defined(BOTAN_TARGET_OS_HAS_SYSTEM_CLOCK)
    auto now = std::chrono::system_clock::now().time_since_epoch();
    return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+#else
+   throw Not_Implemented("OS::get_system_timestamp_ns this system does not support a clock");
+#endif
+}
+
+std::string OS::format_time(time_t time, const std::string& format) {
+   std::tm tm;
+
+#if defined(BOTAN_TARGET_OS_HAS_WIN32)
+   localtime_s(&tm, &time);
+#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   localtime_r(&time, &tm);
+#else
+   if(auto tmp = std::localtime(&time)) {
+      tm = *tmp;
+   } else {
+      throw Encoding_Error("Could not convert time_t to localtime");
+   }
+#endif
+
+   std::ostringstream oss;
+   oss << std::put_time(&tm, format.c_str());
+   return oss.str();
 }
 
 size_t OS::system_page_size() {

@@ -10,22 +10,22 @@ class dnspp
 #pragma pack(push,1)
 	struct header
 	{
-		unsigned      id : 16;		/* identification (used by client for identifications msg) */
+		unsigned      id : 16;      // identification (used by client for identifications msg)
 
-		unsigned      rd : 1;       /* resursion desired (DNS server must return IP addr of domain) */
-		unsigned      tc : 1;       /* truncated (msg is truncated, usual for UDP protocol) */
-		unsigned      aa : 1;       /* authoritative answer */
-		unsigned      opcode : 4;   /* operation code( 0 - usual query, 1 - inverse query, 2 - query of server`s status) */
-		unsigned      qr : 1;       /* type of msg (0 - query; 1 - response) */
+		unsigned      rd : 1;       // resursion desired (DNS server must return IP addr of domain)
+		unsigned      tc : 1;       // truncated (msg is truncated, usual for UDP protocol)
+		unsigned      aa : 1;       // authoritative answer
+		unsigned      opcode : 4;   // operation code( 0 - usual query, 1 - inverse query, 2 - query of server`s status)
+		unsigned      qr : 1;       // type of msg (0 - query; 1 - response)
 
-		unsigned      rcode : 4;    /* return code (0 - no errors, 3 - domain name error) */
-		unsigned      spare : 3;    /* not used, must be zero */
-		unsigned      ra : 1;       /* resursion avaiable (does DNS server support recursion) */
+		unsigned      rcode : 4;    // return code (0 - no errors, 3 - domain name error)
+		unsigned      spare : 3;    // not used, must be zero
+		unsigned      ra : 1;       // resursion avaiable (does DNS server support recursion)
 
-		unsigned      nques : 16;   /* number of questions */
-		unsigned      nansw : 16;   /* number of answers */
-		unsigned      nauth : 16;   /* number of authorities */
-		unsigned      nainf : 16;   /* number of additional informations */
+		u16be	      nques;        // number of questions
+		u16be	      nansw;        // number of answers
+		u16be	      nauth;        // number of authorities
+		u16be	      nainf;        // number of additional informations
 	};
 
 #pragma pack(pop)
@@ -348,22 +348,20 @@ class dns_resolver
 			r_2manycnames,
 			r_notresolved,
 			r_networkfail,
+			r_badname,
 		} result = r_ok;
 
-		query_internals(const str::astr_view& hn, bool casedn = true)
+		query_internals(const str::astr_view& hn, bool canonicalize = true)
 		{
 			host = hn;
 
-            if (casedn)
+            if (canonicalize)
             {
-                for (char* c = host.data(), *e = host.data() + host.length(); c < e; ++c)
-                {
-                    char ch = *c;
-                    if (ch >= 'A' && ch <= 'Z')
-                    {
-                        *c = ch + 32;
-                    }
-                }
+				if (!check_and_canonicalize(std::span(host.data(), host.size())))
+				{
+					result = r_badname;
+					return;
+				}
             }
 
 			add_cname(host);
@@ -451,4 +449,8 @@ public:
 
 	netkit::ipap resolve(const str::astr &hn, bool log_it);
 	void load_serves(engine *e, const asts* s);
+
+
+	static bool check_and_canonicalize(std::span<char> name);
+
 };

@@ -17,7 +17,7 @@ namespace Botan {
 */
 class SHA_1 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint32_t>;
+      using digest_type = hash_digest<uint32_t, 5>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Big;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -29,7 +29,7 @@ class SHA_1 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "SHA-1"; }
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_1); }
 
       size_t output_length() const override { return 20; }
 
@@ -39,7 +39,7 @@ class SHA_1 final : public HashFunction {
 
       std::unique_ptr<HashFunction> copy_state() const override;
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
       void clear() override { m_md.clear(); }
 
@@ -47,8 +47,8 @@ class SHA_1 final : public HashFunction {
       static void sha1_armv8_compress_n(digest_type& digest, std::span<const uint8_t> blocks, size_t block_count);
 #endif
 
-#if defined(BOTAN_HAS_SHA1_SSE2)
-      static void sse2_compress_n(digest_type& digest, std::span<const uint8_t> blocks, size_t block_count);
+#if defined(BOTAN_HAS_SHA1_SIMD_4X32)
+      static void simd_compress_n(digest_type& digest, std::span<const uint8_t> blocks, size_t block_count);
 #endif
 
 #if defined(BOTAN_HAS_SHA1_X86_SHA_NI)

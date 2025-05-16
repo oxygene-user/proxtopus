@@ -21,7 +21,7 @@ class Salsa20 final : public StreamCipher {
       size_t default_iv_length() const override;
       Key_Length_Specification key_spec() const override;
       void clear() override;
-      std::string name() const override;
+      /// PROXTOPUS : name removed
       std::unique_ptr<StreamCipher> new_object() const override;
       bool has_keying_material() const override;
       void seek(uint64_t offset) override;

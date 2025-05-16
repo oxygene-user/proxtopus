@@ -10,6 +10,8 @@
 #define BOTAN_AEAD_CHACHA20_POLY1305_H_
 
 #include <botan/aead.h>
+
+#include <botan/assert.h>
 #include <botan/mac.h>
 #include <botan/stream_cipher.h>
 
@@ -28,7 +30,7 @@ class ChaCha20Poly1305_Mode : public AEAD_Mode {
 
       bool associated_data_requires_key() const override { return false; }
 
-      std::string name() const override { return "ChaCha20Poly1305"; }
+      /// PROXTOPUS : name removed
 
       size_t update_granularity() const override;
 

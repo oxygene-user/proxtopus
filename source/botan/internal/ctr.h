@@ -24,7 +24,7 @@ class CTR_BE final : public StreamCipher {
 
       Key_Length_Specification key_spec() const override;
 
-      std::string name() const override;
+      /// PROXTOPUS : name removed
 
       std::unique_ptr<StreamCipher> new_object() const override;
 

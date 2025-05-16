@@ -10,11 +10,14 @@
 #include <botan/internal/keccak_perm.h>
 
 #include <botan/exceptn.h>
-#include <botan/internal/cpuid.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/keccak_perm_round.h>
 #include <botan/internal/loadstor.h>
 #include <botan/internal/stl_util.h>
+
+#if defined(BOTAN_HAS_CPUID)
+   #include <botan/internal/cpuid.h>
+#endif
 
 namespace Botan {
 
@@ -29,15 +32,7 @@ Keccak_Permutation::Keccak_Permutation(size_t capacity, uint64_t custom_padding,
    BOTAN_ARG_CHECK(capacity % 64 == 0, "capacity must be a multiple of 64");
 }
 
-std::string Keccak_Permutation::provider() const {
-#if defined(BOTAN_HAS_KECCAK_PERM_BMI2)
-   if(CPUID::has_bmi2()) {
-      return "bmi2";
-   }
-#endif
-
-   return "base";
-}
+/// PROXTOPUS : provider removed
 
 void Keccak_Permutation::clear() {
    zeroise(m_S);
@@ -122,7 +117,7 @@ void Keccak_Permutation::finish() {
 
 void Keccak_Permutation::permute() {
 #if defined(BOTAN_HAS_KECCAK_PERM_BMI2)
-   if(CPUID::has_bmi2()) {
+   if(CPUID::has(CPUID::Feature::BMI)) {
       return permute_bmi2();
    }
 #endif

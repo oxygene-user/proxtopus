@@ -5,7 +5,15 @@
 //#define LOG_TRAFFIC
 #endif
 
+#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
+#define MODE64
+#define ARCHBITS 64
+#else
+#define ARCHBITS 32
+#endif
+
 #include "mem.h"
+#include <bit>
 
 class Endian
 {
@@ -15,13 +23,6 @@ public:
     static constexpr bool little = std::endian::native == std::endian::little;
     static constexpr bool big = std::endian::native == std::endian::big;
 };
-
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
-#define MODE64
-#define ARCHBITS 64
-#else
-#define ARCHBITS 32
-#endif
 
 using i16 = int16_t;
 using signed_t = ptrdiff_t;
@@ -141,7 +142,6 @@ template <> struct std::hash<u128>
     }
 };
 
-
 namespace tools
 {
 
@@ -174,10 +174,10 @@ namespace tools
 
 
 #define SLASSERT ASSERT
-#define SLERROR(...) do {ERRORM(__FILE__, __LINE__, ##__VA_ARGS__); DEBUGBREAK(); } while(false)
+#define SLERROR(...) do {ERRORM(__FILE__, __LINE__, __VA_ARGS__); DEBUGBREAK(); } while(false)
 
-#define ERRORM(fn, ln, ...) (([&]()->bool { Print(FOREGROUND_RED, "%s\n", str::build_string_d(fn, ln, ##__VA_ARGS__).c_str()); return true; })())
-#define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, ##__VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
+#define ERRORM(fn, ln, ...) (([&]()->bool { debug_print("$($): $\n", filename(fn, strsize(fn)), ln, str::build_string(__VA_ARGS__).c_str()); return true; })())
+#define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, __VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
 
 #ifdef _NIX
 #define NIXONLY(...) __VA_ARGS__
@@ -204,15 +204,16 @@ inline bool is_debugger_present()
 {
 #ifdef _WIN32
 	return IsDebuggerPresent() != FALSE;
+#else
+    return false;
 #endif
-	return false;
 }
 
-using printfunc = void(const char* s, size_t l);
-void GetPrint(printfunc pf);
+//using printfunc = void(const char *s, signed_t sl);
+//void GetPrint(printfunc pf);
 
 void Print(); // print current queue
-void Print(const char* format, ...);
-void Print(signed_t color, const char* format, ...);
+void Print(const std::string_view& stroke);
+void Print(signed_t color, const std::string_view& stroke);
 void Print(const buffer& txt);
 

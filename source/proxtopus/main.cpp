@@ -2,6 +2,24 @@
 
 global_data glb;
 
+
+global_data::global_data()
+{
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+    cfg.crash_log_file = FN(MAKEFN("proxtopus.crush.log"));
+    cfg.dump_file = FN(MAKEFN("proxtopus.dmp"));
+#endif
+}
+
+void global_data::stop()
+{
+    logger::unmute();
+    Print();
+    exit = true;
+    if (!actual)
+        actual_proc.terminate();
+}
+
 #ifdef _WIN32
 
 #ifdef MEMSPY
@@ -22,11 +40,54 @@ static BOOL WINAPI consoleHandler(DWORD signal)
 {
 	if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
 	{
-		LOG_I("proxtopus has been received stop signal");
-		glb.stop();
+		if (!glb.is_stop())
+		{
+			logger::unmute();
+			LOG_I("proxtopus has been received stop signal");
+			glb.stop();
+		}
 	}
 	return TRUE;
 }
+
+void actual_process::terminate()
+{
+	SetEvent(evt);
+}
+void actual_process::actualize()
+{
+    str::wstr evn(str::wstr_view(PROXTOPUS_EVT, strsize(PROXTOPUS_EVT)));
+    str::append_hex(evn, glb.ppid);
+
+    evt = OpenEvent(
+        EVENT_MODIFY_STATE | SYNCHRONIZE,  // desired access
+        FALSE,                             // inherit handle
+		evn.c_str()
+    );
+	if (nullptr != evt)
+	{
+        std::thread th([this]() {
+
+			// wait parent process or close event
+
+			HANDLE pproc[2] = { OpenProcess(SYNCHRONIZE, FALSE, tools::as_dword(glb.ppid)), evt };
+            DWORD dwWaitResult = WaitForMultipleObjects(2, pproc+0, FALSE, INFINITE);
+
+            switch (dwWaitResult) {
+            case WAIT_OBJECT_0:
+			case WAIT_OBJECT_0+1:
+				glb.stop();
+                break;
+			default:;
+            }
+			CloseHandle(evt);
+			CloseHandle(pproc);
+			evt = nullptr;
+        });
+        th.detach();
+	}
+}
+
 #endif
 #ifdef _NIX
 #include <signal.h>
@@ -40,6 +101,7 @@ static void handle_signal(int sig) {
     {
         case SIGINT:
         case SIGTERM:
+        logger::unmute();
 		LOG_I("proxtopus has been received stop signal");
 		glb.stop();
 
@@ -51,23 +113,60 @@ static void handle_signal(int sig) {
         break;
     }
 }
+
+void actual_process::terminate()
+{
+	kill(pid, SIGTERM);
+}
+void actual_process::actualize()
+{
+	// nothing to do in Linux
+}
+
 #endif // _NIX
+
+global_data::print_line::print_line(const char* s, signed_t sl, bool nl)
+{
+	data = (char *)MA(sl+(nl ? 2 : 1));
+	memcpy(data, s, sl);
+	if (nl)
+		data[sl++] = '\n';
+	data[sl] = 0;
+	data_len = sl;
+}
+
+global_data::print_line::~print_line()
+{
+	ma::mf(data);
+}
+
+#ifdef DO_SPEED_TESTS
+void do_perf_tests();
+#endif
+#ifdef _DEBUG
+void do_tests();
+void do_pretests();
+#endif // _DEBUG
 
 void shapka()
 {
-	auto numcores = Botan::OS::get_cpu_available();
+	auto numcores = ostools::get_cores();
 
-	Print("proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ ")\n");
-	Print("cores count: %u\n", numcores);
+	LOG_N("proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ ")");
+	LOG_N("cores count: $", numcores);
 	LOG_D("debug mode");
 	Print();
+
+#ifdef DO_SPEED_TESTS
+	do_perf_tests();
+#endif
+#if defined _DEBUG && !defined _NIX
+    do_pretests();
+#endif
+
 }
 
-#ifdef _DEBUG
-void do_tests();
-#endif // _DEBUG
-
-int run_engine(bool as_service)
+int run_engine(WINONLY(bool as_service = false))
 {
 	engine e;
 
@@ -102,13 +201,65 @@ int run_engine(bool as_service)
 	do_tests();
 #endif
 
-	for (;;)
+	if (glb.actual)
 	{
-		signed_t ms = e.working();
-		if (ms < 0)
-			break;
+		// role: work process
+
+		glb.actual_proc.actualize();
+
+		watchdog wd;
+
+		for (; wd();)
+		{
+			signed_t ms = e.working();
+			if (ms < 0)
+				break;
+			Print();
+
+			spinlock::sleep((int)ms);
+		}
+	}
+	else
+	{
+		// role: watchdog process
+
+		LOG_N("watchdog mode...");
 		Print();
-		spinlock::sleep((int)ms);
+
+        FNARR fa;
+		fa.push_back(get_exec_full_name());
+        fa.push_back(FN(MAKEFN("--actual")));
+        #ifdef _WIN32
+        if (as_service)
+            fa.push_back(FN(MAKEFN("--mute")));
+        #endif
+		fa.push_back(FN(MAKEFN("--ppid")));
+		FN pid;
+        str::append_num(pid, ostools::process_id(), 0);
+        fa.push_back(pid);
+
+		auto need_exit = [](signed_t code) -> bool
+			{
+				switch (code)
+				{
+				case EXIT_FAIL_OVERLOAD:
+                case EXIT_TERMINATED: // presumably
+					return false;
+				default:
+					break;
+				}
+                return code < 100; // assume that all codes over 100 are passed through the TerminateProcess function, which means that the process has been terminated
+			};
+
+		for (;!glb.is_stop();)
+		{
+			signed_t ec = ostools::execute(fa WINONLY(, as_service));
+			if (need_exit(ec))
+			{
+                e.exit_code = static_cast<int>(ec);
+				break;
+			}
+		}
 	}
 
 	return e.exit_code;
@@ -240,11 +391,17 @@ static int error_startservice()
 	return EXIT_FAIL_STARTSERVICE;
 
 }
+
+void compile_oids(const FN& cppfile);
 #endif
 
-static int handle_command_line(NIXONLY(std::vector<FN> &&args))
+static int handle_command_line()
 {
-	commandline cmdl NIXONLY((std::move(args)));
+	commandline cmdl;
+
+	cmdl.handle_options();
+
+	shapka();
 
 	if (cmdl.help())
 		return EXIT_OK_EXIT;
@@ -252,6 +409,25 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 	glb.path_config = cmdl.path_config();
 
 #ifdef _WIN32
+
+#ifdef _DEBUG
+	FN cppfile;
+	if (cmdl.compile_oids(cppfile))
+	{
+		compile_oids(cppfile);
+		return EXIT_OK_EXIT;
+	}
+#endif
+
+    if (auto pid = cmdl.wait())
+    {
+        LOG_N("waiting for process end (pid:$)", pid);
+        Print();
+        ostools::wait_process(pid);
+        LOG_N("process ended (pid:$); continue", pid);
+        Print();
+    }
+
 	str::wstr sn(SERVICENAME);
 
 	if (cmdl.service())
@@ -381,27 +557,18 @@ static int handle_command_line(NIXONLY(std::vector<FN> &&args))
 	}
 #endif
 
-#ifdef _NIX
-	if (!cmdl.unmute())
-        logger::mute(); // mute by default on nix
+#if defined _NIX && LOGGER==2
+    logger::mute(); // mute by default on nix
 #endif
+
+	cmdl.handle_options();
 
 	return EXIT_OK;
 }
 
-#ifdef _NIX
-std::vector<FN> makepa(int argc, char* argv[])
+int main(NIXONLY(int /*argc*/, char* argv[]))
 {
-	std::vector<FN> pa;
-	for (int i = 0; i < argc; ++i)
-		pa.push_back(argv[i]);
-	return pa;
-}
-#endif
-
-int main(NIXONLY(int argc, char* argv[]))
-{
-    g_single_core = Botan::OS::get_cpu_available() == 1;
+    g_single_core = ostools::get_cores() == 1;
 
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 	set_unhandled_exception_filter();
@@ -431,9 +598,8 @@ int main(NIXONLY(int argc, char* argv[]))
 #endif // _NIX
 
 	set_start_path();
-	shapka();
 
-	int ercode = handle_command_line(NIXONLY(std::move(makepa(argc, argv))));
+	int ercode = handle_command_line();
 	if (ercode > 0)
 	{
 		Print();
@@ -446,5 +612,45 @@ int main(NIXONLY(int argc, char* argv[]))
 		return EXIT_OK;
 	}
 
-	return run_engine(false);
+	return run_engine();
 }
+
+
+#if 0
+void global_data::restart()
+{
+	stop();
+
+	// start FORCE SELF KILLER
+	std::thread th([]() {
+		spinlock::sleep(10000);
+		ostools::terminate();
+	});
+    th.detach();
+
+   	FNARR fa;
+	get_exec_full_commandline(fa);
+
+    auto w = MAKEFN("--wait");
+    auto b = MAKEFN("--btc");
+    for (signed_t i = fa.size() - 1; i >= 0; --i)
+    {
+        if (fa[i] == w || fa[i] == b)
+        {
+            fa.erase(fa.begin() + i);
+            if (i < (signed_t)fa.size())
+                fa.erase(fa.begin() + i);
+        }
+    }
+    fa.push_back(FN(w));
+    FN pid;
+    str::append_num(pid, ostools::process_id(), 0);
+    fa.push_back(pid);
+
+    fa.push_back(FN(b));
+    fa.push_back(FN(MAKEFN("5")));
+
+	ostools::execute(fa);
+
+}
+#endif

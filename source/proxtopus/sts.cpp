@@ -154,7 +154,7 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 #ifdef _DEBUG
 	if (!source_basis) source_basis = s;
 #endif
-#define END_CHECK(msg) if (s >= end) { LOG_W("unexpected eof while " msg "(line: %i)", get_current_line(s)); return false; }
+#define END_CHECK(msg) if (s >= end) { LOG_W("unexpected eof while " msg "(line: $)", get_current_line(s)); return false; }
 #define SKIP_SEPARATORS(additional_check) \
 	while (true)\
 	{\
@@ -242,7 +242,7 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 		break;
 
 	default:
-		LOG_W("'=' or '{' expected (line: %i)", get_current_line(s));
+		LOG_W("'=' or '{' expected (line: $)", get_current_line(s));
 		return true;
 	}
 #undef SKIP_SEPARATORS

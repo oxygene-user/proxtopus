@@ -4,34 +4,44 @@ enum AppExitCode
 {
 	EXIT_OK = 0,
 	EXIT_OK_EXIT = -1,
+	EXIT_TERMINATED = 1,
 
-	EXIT_FAIL_NOCONFIG = 1,				// no config.txt found
-	EXIT_FAIL_NOLISTENERS = 2,			// config has no \"listeners\" block
-										// "empty (or not loaded) \"listeners\" block
-	EXIT_FAIL_NOHANDLER = 3,			// handler not defined for listener [%s]
-	EXIT_FAIL_PROXY_NOTFOUND = 4,		// unknown {proxy} [%s] for handler of lisnener [%s].
-	EXIT_FAIL_INCOMPATIBLE_HANDLER = 5,	// handler not compatible
+	EXIT_FAIL_NOCONFIG = 2,				// no config.txt found
+	EXIT_FAIL_NOLISTENERS = 3,			// config has no \"listeners\" block
+	// "empty (or not loaded) \"listeners\" block
+	EXIT_FAIL_NOHANDLER = 4,			// handler not defined for listener [$]
+	EXIT_FAIL_PROXY_NOTFOUND = 5,		// unknown {proxy} [$] for handler of lisnener [$].
+	EXIT_FAIL_INCOMPATIBLE_HANDLER = 6,	// handler not compatible
 
-	EXIT_FAIL_PORT_UNDEFINED = 10,		// port not defined for listener [%s]
-	EXIT_FAIL_TYPE_UNDEFINED = 11,      // {type} not defined for lisnener [%s]. Type {proxtopus help listener} for more information.
-										// unknown {type} [%s] for lisnener [%s]. Type {proxtopus help listener} for more information.
-										// {type} not defined for handler of listener [%s]
-										// unknown {type} [%s] for handler of lisnener [%s]. Type {proxtopus --help handler} for more information.
-										// {type} not defined for proxy [%s]. Type {proxtopus help proxy} for more information.
-										// unknown {type} [%s] for proxy [%s]. Type {proxtopus help proxy} for more information.
-	EXIT_FAIL_ADDR_UNDEFINED = 12,		// addr not defined for proxy [%s]
-	EXIT_FAIL_METHOD_UNDEFINED = 13,	// {method} not defined for proxy [%s]
-										// {to} field of direct handler not defined or invalid (listener: [%s]). Valid format of {to} field is: domain_or_ipv4:port
+	EXIT_FAIL_PORT_UNDEFINED = 10,		// port not defined for listener [$]
+	EXIT_FAIL_TYPE_UNDEFINED = 11,      // {type} not defined for lisnener / handler / transport
+	// unknown {type} [$] for lisnener [$].
+	// {type} not defined for handler of listener [$]
+	// unknown {type} [$] for handler of lisnener [$].
+	// {type} not defined for proxy [$].
+	// unknown {type} [$] for proxy [$].
+	EXIT_FAIL_ADDR_UNDEFINED = 12,		// addr not defined for proxy [$]
+	EXIT_FAIL_METHOD_UNDEFINED = 13,	// {method} not defined for proxy [$]
+	// {to} field of direct handler not defined or invalid (listener: [$]). Valid format of {to} field is: domain_or_ipv4:port
 	EXIT_FAIL_IPV46_VALS = 14,
-    EXIT_FAIL_SOCKET_TYPE = 15,
+	EXIT_FAIL_SOCKET_TYPE = 15,
 
 	EXIT_FAIL_ICPT_NOT_SUPPORTED = 16,
 	EXIT_FAIL_ICPT_INIT_ERROR = 17,
 
 	EXIT_FAIL_MODE_UNDEFINED = 18,
+	EXIT_FAIL_NEED_ALL_LISTENERS = 19,
+	EXIT_FAIL_NO_PASSWORDS_DEFINED = 20,
+
+	EXIT_FAIL_KEY_MISSED = 40,
+	EXIT_FAIL_CRT_MISSED = 41,
 
 	EXIT_FAIL_DUP_NAME = 50,
+	EXIT_FAIL_EVNT_CREATE = 51,
+	EXIT_FAIL_CHILD_CREATE = 52,
 
+	EXIT_FAIL_OVERLOAD = 53,
+	EXIT_FAIL_WATCHDOG = 97,
 	EXIT_FAIL_ELEVATION = 98,
 	EXIT_FAIL_CTLHANDLE = 99,
 
@@ -47,10 +57,13 @@ enum AppExitCode
 
 class commandline
 {
-	std::vector<FN> parar_;
+	FNARR parar_;
 public:
-	commandline(NIXONLY(std::vector<FN>&& mas));
+	commandline();
+    commandline(FNARR&& mas);
 	~commandline() {}
+
+	void handle_options();
 
 	const std::vector<FN>& parar() const
 	{
@@ -59,8 +72,17 @@ public:
 
 	bool have_option(const FNview &opt) const
 	{
-		return std::find(parar_.begin() + 1, parar_.end(), opt) != parar_.end();
+		return std::find(parar_.begin(), parar_.end(), opt) != parar_.end();
 	}
+
+    FN get_option_par(const FNview& opt) const
+    {
+        auto fr = std::find(parar_.begin(), parar_.end(), opt);
+		if (parar_.end() == fr)
+			return FN();
+
+		return *(++fr);
+    }
 
 	bool help() const;
 
@@ -86,14 +108,52 @@ public:
 		return parar_.size() > 1 ? parar_[1] == MAKEFN("service") : false;
 	}
 #endif
-#ifdef _NIX
-    bool unmute() const
+    bool mute() const
+    {
+        return have_option(MAKEFN("--mute"));
+    }
+
+	bool unmute() const
     {
         return have_option(MAKEFN("--unmute"));
     }
 
-#endif
+    bool lna() const // listeners need all
+    {
+        return have_option(MAKEFN("--lna"));
+    }
 
+    bool actual() const // actual run (not through watchdog)
+    {
+        return have_option(MAKEFN("--actual"));
+    }
+
+    signed_t wait() const // wait pid end before work
+    {
+        return str::parse_int(str::view(get_option_par(MAKEFN("--wait"))), 0);
+    }
+
+    signed_t ppid() const // parent pid
+    {
+        return str::parse_int(str::view(get_option_par(MAKEFN("--ppid"))), 0);
+    }
+
+    u8 btc() const // bind try count
+    {
+        return tools::as_byte(str::parse_int(str::view(get_option_par(MAKEFN("--btc"))), 0));
+    }
+
+#if defined _DEBUG && defined _WIN32
+    bool compile_oids(FN &cppfile) const
+    {
+		if (parar_.size() > 2 && parar_[1] == MAKEFN("oids"))
+		{
+			cppfile = parar_[2];
+			return true;
+		}
+		return false;
+    }
+#endif
 
 	FN path_config() const;
 };

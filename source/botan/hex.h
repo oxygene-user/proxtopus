@@ -8,7 +8,7 @@
 #ifndef BOTAN_HEX_CODEC_H_
 #define BOTAN_HEX_CODEC_H_
 
-#include <botan/secmem.h>
+#include <botan/api.h>
 #include <span>
 #include <string>
 #include <string_view>

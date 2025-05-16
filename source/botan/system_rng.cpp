@@ -59,7 +59,7 @@ class System_RNG_Impl final : public RandomNumberGenerator {
       void clear() override { /* not possible */
       }
 
-      std::string name() const override { return "RtlGenRandom"; }
+      /// PROXTOPUS : name removed
 
    private:
       void fill_bytes_with_input(std::span<uint8_t> output, std::span<const uint8_t> /* ignored */) override {
@@ -203,8 +203,6 @@ class System_RNG_Impl final : public RandomNumberGenerator {
 
       void clear() override { /* not possible */
       }
-
-      std::string name() const override { return "getrandom"; }
 
    private:
       void fill_bytes_with_input(std::span<uint8_t> output, std::span<const uint8_t> /* ignored */) override {

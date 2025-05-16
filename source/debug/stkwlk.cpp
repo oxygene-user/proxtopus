@@ -40,8 +40,6 @@
 // Normally it should be enough to use 'CONTEXT_FULL' (better would be 'CONTEXT_ALL')
 #define USED_CONTEXT_FLAGS CONTEXT_FULL
 
-CHAR outBuffer[StackWalker::STACKWALK_MAX_NAMELEN];
-
 static CHAR tmpData[4096];
 
 class StackWalkerInternal
@@ -148,7 +146,7 @@ public:
     if (szSymPath != nullptr)
       m_szSymPath = _strdup(szSymPath);
     if (this->pSI(m_hProcess, m_szSymPath, FALSE) == FALSE)
-      this->m_parent->OnDbgHelpErr("SymInitialize", GetLastError(), 0);
+      this->m_parent->OnDbgHelpErr(ASTR("SymInitialize"), GetLastError(), 0);
 
     DWORD symOptions = this->pSGO();  // SymGetOptions
     symOptions |= SYMOPT_LOAD_LINES;
@@ -161,7 +159,7 @@ public:
     if (this->pSGSP != nullptr)
     {
       if (this->pSGSP(m_hProcess, buf, StackWalker::STACKWALK_MAX_NAMELEN) == FALSE)
-        this->m_parent->OnDbgHelpErr("SymGetSearchPath", GetLastError(), 0);
+        this->m_parent->OnDbgHelpErr(ASTR("SymGetSearchPath"), GetLastError(), 0);
     }
     char szUserName[1024] = {};
     DWORD dwSize = 1024;
@@ -448,7 +446,7 @@ private:
 
       DWORD dwRes = this->LoadModule(hProcess, tt, tt2, (DWORD64) mi.lpBaseOfDll, mi.SizeOfImage);
       if (dwRes != ERROR_SUCCESS)
-        this->m_parent->OnDbgHelpErr("LoadModule", dwRes, 0);
+        this->m_parent->OnDbgHelpErr(ASTR("LoadModule"), dwRes, 0);
       cnt++;
     }
 
@@ -591,7 +589,7 @@ public:
 };
 
 // #############################################################
-StackWalker::StackWalker(DWORD dwProcessId, HANDLE hProcess)
+StackWalker::StackWalker(DWORD dwProcessId, HANDLE hProcess) :m_buf(flush)
 {
   this->m_options = OptionsAll;
   this->m_modulesLoaded = FALSE;
@@ -600,7 +598,7 @@ StackWalker::StackWalker(DWORD dwProcessId, HANDLE hProcess)
   this->m_dwProcessId = dwProcessId;
   this->m_szSymPath = nullptr;
 }
-StackWalker::StackWalker(int options, LPCSTR szSymPath, DWORD dwProcessId, HANDLE hProcess)
+StackWalker::StackWalker(int options, LPCSTR szSymPath, DWORD dwProcessId, HANDLE hProcess) :m_buf(flush)
 {
   this->m_options = options;
   this->m_modulesLoaded = FALSE;
@@ -729,7 +727,7 @@ BOOL StackWalker::LoadModules()
   if (szSymPath != nullptr) free(szSymPath); szSymPath = nullptr;
   if (bRet == FALSE)
   {
-    this->OnDbgHelpErr("Error while initializing dbghelp.dll", 0, 0);
+    this->OnDbgHelpErr(ASTR("Error while initializing dbghelp.dll"), 0, 0);
     SetLastError(ERROR_DLL_INIT_FAILED);
     return FALSE;
   }
@@ -773,8 +771,7 @@ BOOL StackWalker::ShowCallstack(HANDLE hThread, const CONTEXT *context)const
     TraceRegisters(hThread, &__c);
   }else __c = *context;
 
-  int len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Call stack (%08p):\r\n", hThread);
-  OnOutput(outBuffer, len);
+  str::impl_build_string(m_buf, "Call stack ($):\r\n", PTR(hThread));
 
   // init STACKFRAME for first call
   memset(&__s, 0, sizeof(__s));
@@ -820,7 +817,7 @@ BOOL StackWalker::ShowCallstack(HANDLE hThread, const CONTEXT *context)const
     // CONTEXT need not to be suplied if imageTyp is IMAGE_FILE_MACHINE_I386!
     if ( ! this->m_sw->pSW(imageType, this->m_hProcess, hThread, &__s, &__c, myReadProcMem, this->m_sw->pSFTA, this->m_sw->pSGMB, nullptr) )
     {
-      //this->OnDbgHelpErr("StackWalk64", GetLastError(), s.AddrPC.Offset);
+      //this->OnDbgHelpErr(ASTR("StackWalk64"), GetLastError(), s.AddrPC.Offset);
       break;
     }
 
@@ -837,7 +834,7 @@ BOOL StackWalker::ShowCallstack(HANDLE hThread, const CONTEXT *context)const
     csEntry.moduleName[0] = 0;
     if (__s.AddrPC.Offset == __s.AddrReturn.Offset)
     {
-      //this->OnDbgHelpErr("StackWalk64-Endless-Callstack!", 0, s.AddrPC.Offset);
+      //this->OnDbgHelpErr(ASTR("StackWalk64-Endless-Callstack!"), 0, s.AddrPC.Offset);
       break;
     }
     if (__s.AddrPC.Offset != 0)
@@ -853,7 +850,7 @@ BOOL StackWalker::ShowCallstack(HANDLE hThread, const CONTEXT *context)const
       }
       else
       {
-        //this->OnDbgHelpErr("SymGetSymFromAddr64", GetLastError(), s.AddrPC.Offset);
+        //this->OnDbgHelpErr(ASTR("SymGetSymFromAddr64"), GetLastError(), s.AddrPC.Offset);
       }
 
       // show line number info, NT5.0-method (SymGetLineFromAddr64())
@@ -867,7 +864,7 @@ BOOL StackWalker::ShowCallstack(HANDLE hThread, const CONTEXT *context)const
         }
         else
         {
-          //this->OnDbgHelpErr("SymGetLineFromAddr64", GetLastError(), s.AddrPC.Offset);
+          //this->OnDbgHelpErr(ASTR("SymGetLineFromAddr64"), GetLastError(), s.AddrPC.Offset);
         }
       } // yes, we have SymGetLineFromAddr64()
 
@@ -919,7 +916,7 @@ BOOL StackWalker::ShowCallstack(HANDLE hThread, const CONTEXT *context)const
       } // got module info OK
       else
       {
-        //this->OnDbgHelpErr("SymGetModuleInfo64", GetLastError(), s.AddrPC.Offset);
+        //this->OnDbgHelpErr(ASTR("SymGetModuleInfo64"), GetLastError(), s.AddrPC.Offset);
       }
     } // we seem to have a valid PC
 
@@ -973,30 +970,33 @@ void StackWalker::OnCallstackEntry(CallstackEntryType eType, CallstackEntry &ent
 {
 	if ( (eType != lastEntry) && (entry.offset != 0) )
 	{
-        int len = 0;
 		if (/*entry.lineFileName!=nullptr && */entry.lineFileName[0] != 0)
 		{
 			if (entry.offsetFromLine!=0)
 			{
-				len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "%04X:%p (0x%p 0x%p 0x%p 0x%p) %s, %s()+%llu byte(s), %s, line %u+%u byte(s)\r\n", entry.segment, (LPVOID) entry.offset, (LPVOID) stackInfo.Params[0], (LPVOID) stackInfo.Params[1], (LPVOID) stackInfo.Params[2], (LPVOID) stackInfo.Params[3], entry.loadedImageNamep, entry.name, entry.offsetFromSmybol, entry.lineFileName, entry.lineNumber, entry.offsetFromLine);
+                str::impl_build_string(m_buf, "$:$ (0x$ 0x$ 0x$ 0x$) $, $()+$ byte(s), $, line $+$ byte(s)\r\n", HEX(4,entry.segment), PTR((LPVOID)entry.offset),
+                    PTR((LPVOID)stackInfo.Params[0]), PTR((LPVOID)stackInfo.Params[1]), PTR((LPVOID)stackInfo.Params[2]), PTR((LPVOID)stackInfo.Params[3]),
+                    entry.loadedImageNamep, entry.name, entry.offsetFromSmybol, entry.lineFileName, entry.lineNumber, entry.offsetFromLine);
 			}
 			else
 			{
-				len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "%04X:%p (0x%p 0x%p 0x%p 0x%p) %s, %s()+%llu byte(s), %s, line %u\r\n", entry.segment, (LPVOID) entry.offset, (LPVOID) stackInfo.Params[0], (LPVOID) stackInfo.Params[1], (LPVOID) stackInfo.Params[2], (LPVOID) stackInfo.Params[3], entry.loadedImageNamep, entry.name, entry.offsetFromSmybol, entry.lineFileName, entry.lineNumber);
+                str::impl_build_string(m_buf, "$:$ (0x$ 0x$ 0x$ 0x$) $, $()+$ byte(s), $, line $\r\n", HEX(4,entry.segment), PTR((LPVOID) entry.offset),
+                    PTR((LPVOID)stackInfo.Params[0]), PTR((LPVOID)stackInfo.Params[1]), PTR((LPVOID)stackInfo.Params[2]), PTR((LPVOID)stackInfo.Params[3]),
+                    entry.loadedImageNamep, entry.name, entry.offsetFromSmybol, entry.lineFileName, entry.lineNumber);
 			}
 		}
 		else
 		{
-			len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "%04X:%p (0x%p 0x%p 0x%p 0x%p) %s, %s()+%llu byte(s), %s\r\n", entry.segment, (LPVOID) entry.offset, (LPVOID) stackInfo.Params[0], (LPVOID) stackInfo.Params[1], (LPVOID) stackInfo.Params[2], (LPVOID) stackInfo.Params[3], entry.loadedImageNamep, entry.name, entry.offsetFromSmybol, entry.lineFileName);
+            str::impl_build_string(m_buf, "$:$ (0x$ 0x$ 0x$ 0x$) $, $()+$ byte(s), $\r\n", HEX(4, entry.segment), PTR((LPVOID)entry.offset),
+                PTR((LPVOID)stackInfo.Params[0]), PTR((LPVOID)stackInfo.Params[1]), PTR((LPVOID)stackInfo.Params[2]), PTR((LPVOID)stackInfo.Params[3]),
+                entry.loadedImageNamep, entry.name, entry.offsetFromSmybol, entry.lineFileName);
 		}
-		OnOutput(outBuffer, len);
 	}
 }
 
-void StackWalker::OnDbgHelpErr(LPCSTR szFuncName, DWORD gle, DWORD64 addr)
+void StackWalker::OnDbgHelpErr(str::astr_view szFuncName, DWORD gle, DWORD64 addr)
 {
-	int len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, " ERROR: %s, GetLastError: %lu (Address: %p)\r\n", szFuncName, gle, (LPVOID) addr);
-	OnOutput(outBuffer, len);
+    str::impl_build_string(m_buf, " ERROR: $, GetLastError: $ (Address: $)\r\n", szFuncName, gle, PTR((LPVOID) addr));
 }
 
 void StackWalker::OnSymInit(LPCSTR, DWORD, LPCSTR)
@@ -1026,51 +1026,38 @@ void StackWalker::OnSymInit(LPCSTR, DWORD, LPCSTR)
 #endif
 }
 
-void StackWalker::OnOutput(const char* szText, size_t /*len*/)const
-{
-	printf("%08X %s", (unsigned int)GetCurrentThreadId(), szText);
-
-	fflush(stdout);
-	fflush(stderr);
-}
-
 void StackWalker::OnOSVersion(DWORD dwMajorVersion, DWORD dwMinorVersion, DWORD dwBuildNumber, LPCSTR szCSDVersion, WORD wServicePackMajor, WORD wServicePackMinor, WORD wSuiteMask, BYTE wProductType) const
 {
-	_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "OS-Version: %lu.%lu Build:%lu (%s) SP: %d.%d (0x%x-0x%x)\r\n",
-				dwMajorVersion, dwMinorVersion, dwBuildNumber,
-				szCSDVersion, wServicePackMajor, wServicePackMinor, wSuiteMask, wProductType);
-// 	OnOutput(outBuffer);
+    str::impl_build_string(m_buf, "OS-Version: $.$ Build:$ ($) SP: $.$ (0x$-0x$)\r\n", dwMajorVersion, dwMinorVersion, dwBuildNumber, szCSDVersion, wServicePackMajor, wServicePackMinor, HEX(-1,wSuiteMask), HEX(-1,wProductType));
 }
 
 void StackWalker::TraceRegisters( const HANDLE thread, const CONTEXT* pCxt )const
 {
     // registers
 #ifdef _M_IX86
-    int len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Registers (%08p):\r\n\
-EAX=%p  EBX=%p  ECX=%p  EDX=%p  ESI=%p\r\n\
-EDI=%p  EBP=%p  ESP=%p  EIP=%p  FLG=%p\r\n\
-CS=%04X   DS=%04X  SS=%04X  ES=%04X   FS=%04X  GS=%04X\r\n\r\n", thread,
-        (LPVOID)pCxt->Eax, (LPVOID)pCxt->Ebx, (LPVOID)pCxt->Ecx, (LPVOID)pCxt->Edx, (LPVOID)pCxt->Esi,
-        (LPVOID)pCxt->Edi, (LPVOID)pCxt->Ebp, (LPVOID)pCxt->Esp, (LPVOID)pCxt->Eip, (LPVOID)pCxt->EFlags,
-        pCxt->SegCs,pCxt->SegDs,pCxt->SegSs,
-        pCxt->SegEs,pCxt->SegFs,pCxt->SegGs);
+    str::impl_build_string(m_buf, 
+        "Registers ($):\r\n"
+        "EAX=$  EBX=$  ECX=$  EDX=$  ESI=$\r\n"
+        "EDI=$  EBP=$  ESP=$  EIP=$  FLG=$", PTR(thread),
+        HEX(8, pCxt->Eax), HEX(8, pCxt->Ebx), HEX(8, pCxt->Ecx), HEX(8, pCxt->Edx), HEX(8, pCxt->Esi),
+        HEX(8, pCxt->Edi), HEX(8, pCxt->Ebp), HEX(8, pCxt->Esp), HEX(8, pCxt->Eip), HEX(8, pCxt->EFlags));
 #elif _M_X64
-    int len = _snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Registers (%08p):\r\n\
-RAX=%p  RBX=%p  RCX=%p  RDX=%p  RSI=%p\r\n\
-RDI=%p  R8 =%p  R9 =%p  R10=%p  R11=%p\r\n\
-R12=%p  R13=%p  R14=%p  R15=%p  RIP=%p\r\n\
-RSP=%p  EBP=%p  FLG=%p\r\n\
-CS=%04X  DS=%04X  SS=%04X  ES=%04X   FS=%04X  GS=%04X\r\n\r\n", thread,
-        (LPVOID)pCxt->Rax, (LPVOID)pCxt->Rbx, (LPVOID)pCxt->Rcx, (LPVOID)pCxt->Rdx, (LPVOID)pCxt->Rsi,
-        (LPVOID)pCxt->Rdi, (LPVOID)pCxt->R8 , (LPVOID)pCxt->R9 , (LPVOID)pCxt->R10, (LPVOID)pCxt->R11,
-        (LPVOID)pCxt->R12, (LPVOID)pCxt->R13, (LPVOID)pCxt->R14, (LPVOID)pCxt->R15, (LPVOID)pCxt->Rip,
-        (LPVOID)pCxt->Rsp, (LPVOID)pCxt->Rbp, (LPVOID)(size_t)pCxt->EFlags,
-        pCxt->SegCs,pCxt->SegDs,pCxt->SegSs,
-        pCxt->SegEs,pCxt->SegFs,pCxt->SegGs);
+    str::impl_build_string(m_buf,
+        "Registers ($):\r\n"
+        "RAX=$  RBX=$  RCX=$  RDX=$  RSI=$\r\n"
+        "RDI=$  R8 =$  R9 =$  R10=$  R11=$\r\n"
+        "R12=$  R13=$  R14=$  R15=$  RIP=$\r\n"
+        "RSP=$  EBP=$  FLG=$",
+        PTR(thread),
+        HEX(16, pCxt->Rax), HEX(16, pCxt->Rbx), HEX(16, pCxt->Rcx), HEX(16, pCxt->Rdx), HEX(16, pCxt->Rsi),
+        HEX(16, pCxt->Rdi), HEX(16, pCxt->R8 ), HEX(16, pCxt->R9 ), HEX(16, pCxt->R10), HEX(16, pCxt->R11),
+        HEX(16, pCxt->R12), HEX(16, pCxt->R13), HEX(16, pCxt->R14), HEX(16, pCxt->R15), HEX(16, pCxt->Rip),
+        HEX(16, pCxt->Rsp), HEX(16, pCxt->Rbp), HEX(16, pCxt->EFlags));
 #else
 #error "Platform not supported!"
 #endif
-    OnOutput(outBuffer, len);
+    str::impl_build_string(m_buf, "\r\nCS=$  DS=$  SS=$  ES=$   FS=$  GS=$\r\n\r\n", HEX(4, pCxt->SegCs), HEX(4, pCxt->SegDs), HEX(4, pCxt->SegSs),
+        HEX(4, pCxt->SegEs), HEX(4, pCxt->SegFs), HEX(4, pCxt->SegGs));
 }
 
 HMODULE StackWalker::DBGDLL() const

@@ -11,10 +11,9 @@
 
 #include <botan/assert.h>
 
-#include <compare>
 #include <concepts>
 #include <cstdint>
-#include <ostream>
+#include <iosfwd>
 #include <ranges>
 #include <span>
 #include <type_traits>
@@ -111,7 +110,9 @@ inline constexpr void assert_exact_byte_length(R&& r) {
    if constexpr(statically_spanable_range<R>) {
       static_assert(s.size_bytes() == expected, "memory region does not have expected byte lengths");
    } else {
-      BOTAN_ASSERT(s.size_bytes() == expected, "memory region does not have expected byte lengths");
+      if(s.size_bytes() != expected) {
+         throw Invalid_Argument("Memory regions did not have expected byte lengths");
+      }
    }
 }
 
@@ -135,8 +136,12 @@ inline constexpr void assert_equal_byte_lengths(R0&& r0, Rs&&... rs)
       (assert_exact_byte_length<expected_size>(rs), ...);
    } else {
       const size_t expected_size = s0.size_bytes();
-      BOTAN_ARG_CHECK(((std::span<const std::ranges::range_value_t<Rs>>{rs}.size_bytes() == expected_size) && ...),
-                      "memory regions don't have equal lengths");
+      const bool correct_size =
+         ((std::span<const std::ranges::range_value_t<Rs>>{rs}.size_bytes() == expected_size) && ...);
+
+      if(!correct_size) {
+         throw Invalid_Argument("Memory regions did not have equal lengths");
+      }
    }
 }
 
@@ -158,29 +163,42 @@ concept container_pointer =
 
 template <typename T>
 concept container = requires(T a) {
-                       { a.begin() } -> container_iterator<T>;
-                       { a.end() } -> container_iterator<T>;
-                       { a.cbegin() } -> container_iterator<T>;
-                       { a.cend() } -> container_iterator<T>;
-                       { a.size() } -> std::same_as<typename T::size_type>;
-                       typename T::value_type;
-                    };
+   { a.begin() } -> container_iterator<T>;
+   { a.end() } -> container_iterator<T>;
+   { a.cbegin() } -> container_iterator<T>;
+   { a.cend() } -> container_iterator<T>;
+   { a.size() } -> std::same_as<typename T::size_type>;
+   typename T::value_type;
+};
 
 template <typename T>
 concept contiguous_container = container<T> && requires(T a) {
-                                                  { a.data() } -> container_pointer<T>;
-                                               };
+   { a.data() } -> container_pointer<T>;
+};
 
 template <typename T>
 concept has_empty = requires(T a) {
-                       { a.empty() } -> std::same_as<bool>;
-                    };
+   { a.empty() } -> std::same_as<bool>;
+};
+
+// clang-format off
+template <typename T>
+concept has_bounds_checked_accessors = container<T> && (
+                                          requires(T a, const T ac, typename T::size_type s) {
+                                             { a.at(s) } -> std::same_as<typename T::value_type&>;
+                                             { ac.at(s) } -> std::same_as<const typename T::value_type&>;
+                                          } ||
+                                          requires(T a, const T ac, typename T::key_type k) {
+                                             { a.at(k) } -> std::same_as<typename T::mapped_type&>;
+                                             { ac.at(k) } -> std::same_as<const typename T::mapped_type&>;
+                                          });
+// clang-format on
 
 template <typename T>
 concept resizable_container = container<T> && requires(T& c, typename T::size_type s) {
-                                                 T(s);
-                                                 c.resize(s);
-                                              };
+   T(s);
+   c.resize(s);
+};
 
 template <typename T>
 concept reservable_container = container<T> && requires(T& c, typename T::size_type s) { c.reserve(s); };
@@ -199,7 +217,13 @@ template <class T>
 concept contiguous_strong_type = strong_type<T> && contiguous_container<T>;
 
 template <class T>
+concept integral_strong_type = strong_type<T> && std::integral<typename T::wrapped_type>;
+
+template <class T>
 concept unsigned_integral_strong_type = strong_type<T> && std::unsigned_integral<typename T::wrapped_type>;
+
+template <typename T, typename Capability>
+concept strong_type_with_capability = T::template has_capability<Capability>();
 
 }  // namespace concepts
 

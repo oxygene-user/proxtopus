@@ -1,15 +1,15 @@
 #include "pch.h"
 
-commandline::commandline(NIXONLY(std::vector<FN>&& mas)) NIXONLY(:parar_(std::move(mas)))
+commandline::commandline()
 {
-#ifdef _WIN32
-	FNc* cmdlb = GetCommandLineW();
-	str::qsplit(parar_, FNview(cmdlb));
-#endif
+	get_exec_full_commandline(parar_);
+}
+commandline::commandline(FNARR&& mas) :parar_(std::move(mas))
+{
+	// never do anything here, except just init parar_
 }
 
 #ifdef _WIN32
-
 str::astr read_reg(const wchar *n)
 {
 	HKEY k;
@@ -232,4 +232,26 @@ FN commandline::path_config() const
 	return cp;
 }
 
+void commandline::handle_options()
+{
 
+#if LOGGER==2
+    if (mute())
+        logger::mute();
+
+    if (unmute())
+        logger::unmute();
+#endif
+
+    if (lna())
+        glb.listeners_need_all = true;
+
+    if (auto c = btc())
+        glb.bind_try_count = c;
+
+    if (actual())
+        glb.actual = true;
+
+    if (auto p = ppid())
+        glb.ppid = p;
+}

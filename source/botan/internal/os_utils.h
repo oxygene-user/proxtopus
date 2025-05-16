@@ -9,7 +9,10 @@
 #define BOTAN_OS_UTILS_H_
 
 #include <botan/types.h>
+#include <ctime>
 #include <functional>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -38,12 +41,6 @@ namespace Botan::OS {
 uint32_t BOTAN_TEST_API get_process_id();
 
 /**
-* Test if we are currently running with elevated permissions
-* eg setuid, setgid, or with POSIX caps set.
-*/
-bool running_in_privileged_state();
-
-/**
 * @return CPU processor clock, if available
 *
 * On Windows, calls QueryPerformanceCounter.
@@ -57,14 +54,13 @@ uint64_t BOTAN_TEST_API get_cpu_cycle_counter();
 size_t BOTAN_TEST_API get_cpu_available();
 
 /**
-* Return the ELF auxiliary vector cooresponding to the given ID.
-* This only makes sense on Unix-like systems and is currently
-* only supported on Linux, Android, and FreeBSD.
+* If this system supports getauxval (or an equivalent interface,
+* like FreeBSD's elf_aux_info) queries AT_HWCAP and AT_HWCAP2
+* and returns both.
 *
-* Returns zero if not supported on the current system or if
-* the id provided is not known.
+* Otherwise returns nullopt.
 */
-unsigned long get_auxval(unsigned long id);
+std::optional<std::pair<unsigned long, unsigned long>> get_auxval_hwcap();
 
 /*
 * @return best resolution timestamp available
@@ -74,15 +70,29 @@ unsigned long get_auxval(unsigned long id);
 *
 * Uses hardware cycle counter, if available.
 * On POSIX platforms clock_gettime is used with a monotonic timer
+*
 * As a final fallback std::chrono::high_resolution_clock is used.
+*
+* On systems that are lacking a real time clock, this may return 0
 */
 uint64_t BOTAN_TEST_API get_high_resolution_clock();
 
 /**
 * @return system clock (reflecting wall clock) with best resolution
-* available, normalized to nanoseconds resolution.
+* available, normalized to nanoseconds resolution, using Unix epoch.
+*
+* If the system does not have a real time clock this function will throw
+* Not_Implemented
 */
 uint64_t BOTAN_TEST_API get_system_timestamp_ns();
+
+/**
+* Format a time
+*
+* Converts the time_t to a local time representation,
+* then invokes std::put_time with the specified format.
+*/
+std::string BOTAN_TEST_API format_time(time_t time, const std::string& format);
 
 /**
 * @return maximum amount of memory (in bytes) Botan could/should

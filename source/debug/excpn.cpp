@@ -9,33 +9,31 @@
 
 namespace dbg
 {
-	void LogMessage(const char* caption, const char* msg)
+	void append_crush_log(const str::astr_view& msg)
 	{
-		FILE* f = fopen(glb.cfg.crash_log_file.c_str(), "ab");
-		if (f)
+		if (file_appender fa(glb.cfg.crash_log_file); fa)
 		{
-			time_t curtime;
-			time(&curtime);
-			const tm& t = *localtime(&curtime);
-			if (caption)
-				fprintf(f, "-------------------------\r\nDATETIME: %i-%02i-%02i %02i:%02i\r\nCAPTION: %s\r\nMESSAGE: %s\r\n\r\n", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, caption, msg);
-			else
-				fprintf(f, "(%i-%02i-%02i %02i:%02i) : %s\r\n", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, msg);
-			fclose(f);
+            time_t curtime;
+            time(&curtime);
+            const tm& t = *localtime(&curtime);
+
+            auto flush_to_file = [&fa](const char* data, size_t size) -> bool {
+                fa << str::astr_view(data, size);
+				return true;
+            };
+
+			str::xsstr<char, 4096, decltype(flush_to_file)> buf(flush_to_file);
+            str::impl_build_string(buf, "$-$-$ $:$:$ : $", t.tm_year + 1900, dec<2, int>(t.tm_mon + 1), DEC(2, t.tm_mday), DEC(2, t.tm_hour), DEC(2, t.tm_min), DEC(2, t.tm_sec), crlf(msg));
 		}
 	}
 
-	void Log(const char* s, ...)
-	{
-		char str[65535];
+    template <typename... T> void Log(const char* s, const T&... args) {
 
-		va_list args;
-		va_start(args, s);
-		vsnprintf(str, sizeof(str), s, args);
-		va_end(args);
+        str::asstr<2048> sout;
+        str::impl_build_string(sout, s, args...);
+		append_crush_log(str::view(sout));
+    }
 
-		LogMessage(nullptr, str);
-	}
 
 
 char* strerror_r(int errnum, char *buf, size_t n)
@@ -70,159 +68,158 @@ char* strerror_r(int errnum, char *buf, size_t n)
 };
 
 
-const char* ExceptionCodeToStr(DWORD exceptioncode)
+str::astr_view ExceptionCodeToStr(DWORD exceptioncode)
 {
 	switch (exceptioncode)
 	{
-	case EXCEPTION_ACCESS_VIOLATION         : return("EXCEPTION_ACCESS_VIOLATION");
-	case EXCEPTION_DATATYPE_MISALIGNMENT    : return("EXCEPTION_DATATYPE_MISALIGNMENT");
-	case EXCEPTION_BREAKPOINT               : return("EXCEPTION_BREAKPOINT");
-	case EXCEPTION_SINGLE_STEP              : return("EXCEPTION_SINGLE_STEP");
-	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED    : return("EXCEPTION_ARRAY_BOUNDS_EXCEEDED");
-	case EXCEPTION_FLT_DENORMAL_OPERAND     : return("EXCEPTION_FLT_DENORMAL_OPERAND");
-	case EXCEPTION_FLT_DIVIDE_BY_ZERO       : return("EXCEPTION_FLT_DIVIDE_BY_ZERO");
-	case EXCEPTION_FLT_INEXACT_RESULT       : return("EXCEPTION_FLT_INEXACT_RESULT");
-	case EXCEPTION_FLT_INVALID_OPERATION    : return("EXCEPTION_FLT_INVALID_OPERATION");
-	case EXCEPTION_FLT_OVERFLOW             : return("EXCEPTION_FLT_OVERFLOW");
-	case EXCEPTION_FLT_STACK_CHECK          : return("EXCEPTION_FLT_STACK_CHECK");
-	case EXCEPTION_FLT_UNDERFLOW            : return("EXCEPTION_FLT_UNDERFLOW");
-	case EXCEPTION_INT_DIVIDE_BY_ZERO       : return("EXCEPTION_INT_DIVIDE_BY_ZERO");
-	case EXCEPTION_INT_OVERFLOW             : return("EXCEPTION_INT_OVERFLOW");
-	case EXCEPTION_PRIV_INSTRUCTION         : return("EXCEPTION_PRIV_INSTRUCTION");
-	case EXCEPTION_IN_PAGE_ERROR            : return("EXCEPTION_IN_PAGE_ERROR");
-	case EXCEPTION_ILLEGAL_INSTRUCTION      : return("EXCEPTION_ILLEGAL_INSTRUCTION");
-	case EXCEPTION_NONCONTINUABLE_EXCEPTION : return("EXCEPTION_NONCONTINUABLE_EXCEPTION");
-	case EXCEPTION_STACK_OVERFLOW           : return("EXCEPTION_STACK_OVERFLOW");
-	case EXCEPTION_INVALID_DISPOSITION      : return("EXCEPTION_INVALID_DISPOSITION");
-	case EXCEPTION_GUARD_PAGE               : return("EXCEPTION_GUARD_PAGE");
-	case EXCEPTION_INVALID_HANDLE           : return("EXCEPTION_INVALID_HANDLE");
+	case EXCEPTION_ACCESS_VIOLATION         : return ASTR("EXCEPTION_ACCESS_VIOLATION");
+	case EXCEPTION_DATATYPE_MISALIGNMENT    : return ASTR("EXCEPTION_DATATYPE_MISALIGNMENT");
+	case EXCEPTION_BREAKPOINT               : return ASTR("EXCEPTION_BREAKPOINT");
+	case EXCEPTION_SINGLE_STEP              : return ASTR("EXCEPTION_SINGLE_STEP");
+	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED    : return ASTR("EXCEPTION_ARRAY_BOUNDS_EXCEEDED");
+	case EXCEPTION_FLT_DENORMAL_OPERAND     : return ASTR("EXCEPTION_FLT_DENORMAL_OPERAND");
+	case EXCEPTION_FLT_DIVIDE_BY_ZERO       : return ASTR("EXCEPTION_FLT_DIVIDE_BY_ZERO");
+	case EXCEPTION_FLT_INEXACT_RESULT       : return ASTR("EXCEPTION_FLT_INEXACT_RESULT");
+	case EXCEPTION_FLT_INVALID_OPERATION    : return ASTR("EXCEPTION_FLT_INVALID_OPERATION");
+	case EXCEPTION_FLT_OVERFLOW             : return ASTR("EXCEPTION_FLT_OVERFLOW");
+	case EXCEPTION_FLT_STACK_CHECK          : return ASTR("EXCEPTION_FLT_STACK_CHECK");
+	case EXCEPTION_FLT_UNDERFLOW            : return ASTR("EXCEPTION_FLT_UNDERFLOW");
+	case EXCEPTION_INT_DIVIDE_BY_ZERO       : return ASTR("EXCEPTION_INT_DIVIDE_BY_ZERO");
+	case EXCEPTION_INT_OVERFLOW             : return ASTR("EXCEPTION_INT_OVERFLOW");
+	case EXCEPTION_PRIV_INSTRUCTION         : return ASTR("EXCEPTION_PRIV_INSTRUCTION");
+	case EXCEPTION_IN_PAGE_ERROR            : return ASTR("EXCEPTION_IN_PAGE_ERROR");
+	case EXCEPTION_ILLEGAL_INSTRUCTION      : return ASTR("EXCEPTION_ILLEGAL_INSTRUCTION");
+	case EXCEPTION_NONCONTINUABLE_EXCEPTION : return ASTR("EXCEPTION_NONCONTINUABLE_EXCEPTION");
+	case EXCEPTION_STACK_OVERFLOW           : return ASTR("EXCEPTION_STACK_OVERFLOW");
+	case EXCEPTION_INVALID_DISPOSITION      : return ASTR("EXCEPTION_INVALID_DISPOSITION");
+	case EXCEPTION_GUARD_PAGE               : return ASTR("EXCEPTION_GUARD_PAGE");
+	case EXCEPTION_INVALID_HANDLE           : return ASTR("EXCEPTION_INVALID_HANDLE");
 	default:
-		return("EXCEPTION_UNKNOWN");
+		return ASTR("EXCEPTION_UNKNOWN");
 	}
 }
 
-void exceptions_best_friend::glpp(const char* s, size_t l)
-{
-	glb.ebf.OnOutput(s,l);
-};
+#ifdef _M_IX86
+#define CODE_REG Eip
+#define CODE_REG_S "EIP"
+#define STACK_REG Esp
+#elif _M_X64
+#define CODE_REG Rip
+#define CODE_REG_S "RIP"
+#define STACK_REG Rsp
+#endif
 
 void exceptions_best_friend::trace_info(EXCEPTION_POINTERS* pExp)
 {
 	// generate exception text and out
 
-	char modulename[256];
-	GetModuleFileNameA(nullptr, modulename, 256);
-
-	char* name=strrchr(modulename,'\\');
-	if (name)
+	str::asstr<255> modulename;
+	modulename.resize(GetModuleFileNameA(nullptr, modulename.data(), modulename.maxsize));
+	size_t ni = str::view(modulename).rfind('\\');
+	if (ni != str::astr::npos)
 	{
-		name++;
-		int len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Exception info [%04X]:\r\n\r\n%s caused a %s at %04X:%p\r\n\r\n", (int)GetCurrentThreadId(), name, ExceptionCodeToStr(pExp->ExceptionRecord->ExceptionCode), pExp->ContextRecord->SegCs, (LPVOID)pExp->ExceptionRecord->ExceptionAddress);
-		OnOutput(outBuffer, len);
-		//GetPrint(glpp);
+		str::astr_view name = str::view(modulename).substr(ni + 1);
+		
+		str::impl_build_string(m_buf, "Exception info [$]:\r\n\r\n$ caused a $ at $:$\r\n\r\n",
+			HEX(4, GetCurrentThreadId()),
+			name,
+			ExceptionCodeToStr(pExp->ExceptionRecord->ExceptionCode),
+			HEX(4, pExp->ContextRecord->SegCs),
+			PTR(pExp->ExceptionRecord->ExceptionAddress)
+			);
 
 		unsigned char* code = nullptr;
 
-		__try{
-#ifdef _M_IX86
-		if (pExp->ContextRecord-> Eip && !pExp->ExceptionRecord->ExceptionRecord)
-		{
-			code = (unsigned char*)(pExp->ContextRecord-> Eip); //-V204
-			len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Bytes at CS::EIP:\r\n%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\r\n\r\n",
-				code[0], code[1], code[2], code[3], code[4], code[5], code[6], code[7],
-				code[8], code[9], code[10], code[11], code[12], code[13], code[14], code[15]);
-		}
-		else len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Bytes at CS::EIP:\r\n<NULL>\r\n\r\n");
-#elif _M_X64
-		if (pExp->ContextRecord-> Rip && !pExp->ExceptionRecord->ExceptionRecord)
-		{
-			code = (unsigned char*)(pExp->ContextRecord-> Rip);
-			len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Bytes at CS::RIP:\r\n%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\r\n",
-				code[0], code[1], code[2], code[3], code[4], code[5], code[6], code[7],
-				code[8], code[9], code[10], code[11], code[12], code[13], code[14], code[15]);
-		}
-		else len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Bytes at CS::RIP:\r\n<NULL>\r\n\r\n");
-#endif
+		__try {
+			if (pExp->ContextRecord->CODE_REG && !pExp->ExceptionRecord->ExceptionRecord)
+			{
+				code = (unsigned char*)(pExp->ContextRecord->CODE_REG);
+
+				m_buf.append(ASTR("Bytes at CS::" CODE_REG_S ":\r\n"));
+				for (int i = 0; i < 16; ++i, ++code)
+				{
+					if (i > 0) m_buf += ' ';
+					str::append_hex<decltype(m_buf), u8, 2>(m_buf, *code);
+				}
+				m_buf.append(ASTR("\r\n\r\n"));
+			}
+			else {
+				m_buf.append(ASTR("Bytes at CS::" CODE_REG_S ":\r\n<NULL>\r\n\r\n"));
+			}
 		}__except(EXCEPTION_EXECUTE_HANDLER){
-			len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Bytes at CS::RIP(inavlid):\r\n %p\r\n\r\n", code);
+            str::impl_build_string(m_buf, "Bytes at CS::" CODE_REG_S "(inavlid):\r\n $\r\n\r\n", PTR(code));
 		};
 
-		OnOutput(outBuffer, len);
-
-		void** stack =NULL;
+		void** stack =nullptr;
 
 		__try{
-#ifdef _M_IX86
-		if (pExp->ContextRecord -> Esp && !pExp->ExceptionRecord->ExceptionRecord)
-		{
-			stack = (void**)(pExp->ContextRecord -> Esp); //-V204
-			len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "nStack dump:\r\n%p %p %p %p %p %p %p %p\r\n%p %p %p %p %p %p %p %p\r\n%p %p %p %p %p %p %p %p\r\n%p %p %p %p %p %p %p %p\r\n\r\n",
-				stack[0], stack[1], stack[2], stack[3], stack[4], stack[5], stack[6], stack[7],
-				stack[8], stack[9], stack[10], stack[11], stack[12], stack[13], stack[14], stack[15],
-				stack[16], stack[17], stack[18], stack[19], stack[20], stack[21], stack[22], stack[23],
-				stack[24], stack[25], stack[26], stack[27], stack[28], stack[29], stack[30], stack[31]);
-		}
-		else len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "nStack dump:\r\n<NULL>");
-#elif _M_X64
-		if (pExp->ContextRecord -> Rsp && !pExp->ExceptionRecord->ExceptionRecord)
-		{
-			stack = (void**)(pExp->ContextRecord -> Rsp);
-			len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "nStack dump:\r\n%p %p %p %p %p %p %p %p\r\n%p %p %p %p %p %p %p %p\r\n%p %p %p %p %p %p %p %p\r\n%p %p %p %p %p %p %p %p\r\n\r\n",
-				stack[0], stack[1], stack[2], stack[3], stack[4], stack[5], stack[6], stack[7],
-				stack[8], stack[9], stack[10], stack[11], stack[12], stack[13], stack[14], stack[15],
-				stack[16], stack[17], stack[18], stack[19], stack[20], stack[21], stack[22], stack[23],
-				stack[24], stack[25], stack[26], stack[27], stack[28], stack[29], stack[30], stack[31]);
-		}
-		else len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "nStack dump:\r\n<NULL>\r\n\r\n");
-#endif
-		}__except(EXCEPTION_EXECUTE_HANDLER){
-			len =_snprintf_s(outBuffer, STACKWALK_MAX_NAMELEN, "Stack dump:(inavlid):\r\n %p\r\n\r\n", stack);
-		};
+			if (pExp->ContextRecord ->STACK_REG && !pExp->ExceptionRecord->ExceptionRecord)
+			{
+				stack = (void**)(pExp->ContextRecord ->STACK_REG);
+				m_buf.append(ASTR("Stack dump:\r\n"));
+                for (int i = 0; i < 32; ++i, ++stack)
+                {
+					if (i > 0)
+					{
+						if (i & 7)
+							m_buf += ' ';
+						else
+							m_buf.append(ASTR("\r\n"));
+					}
+                    str::append_hex<decltype(m_buf), uintptr_t, 0>(m_buf, reinterpret_cast<uintptr_t>(*stack));
+                }
+                m_buf.append(ASTR("\r\n\r\n"));
 
-		OnOutput(outBuffer, len);
+			}
+			else {
+				m_buf.append(ASTR("Stack dump:\r\n<NULL>\r\n\r\n"));
+			}
+		}__except(EXCEPTION_EXECUTE_HANDLER){
+			str::impl_build_string(m_buf, "Stack dump:(inavlid):\r\n $\r\n\r\n", PTR(stack));
+		};
 	}
 }
 
-void (*CheckMemCorrupt)() = NULL;
+void (*CheckMemCorrupt)() = nullptr;
 
 LONG WINAPI exceptions_best_friend::exception_filter(EXCEPTION_POINTERS* pExp)
 {
-	Log("crush!"); 
-	Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "crush! (See config.txt -> settings -> crash_log_file for stack trace)\n");
+    Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "crush! (See config.txt -> settings -> crash_log_file for stack trace)\n");
+	Print();
+    
+	SIMPLELOCK(self.lock);
+    self.m_buf.clear();
+	self.m_buf.append(ASTR("crush!\r\n"));
 
 	if (pExp->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW){
 		self.trace_info(pExp);
 		spinlock::sleep(1000000);
 	}
 
-    SIMPLELOCK(self.lock);
-	self.output[0] = 0;
-	self.OnOutput1("\n=====================================================================\n");
-    self.trace_info(pExp);
-    self.TraceRegisters(GetCurrentThread(), pExp->ContextRecord);
-    self.ShowCallstack(GetCurrentThread(), pExp->ContextRecord);
-	self.OnOutput1("=====================================================================\n");
+	if (file_appender fa(glb.cfg.crash_log_file); fa)
+	{
+		if (flusher* f = self.m_buf.get_flusher())
+		{
+			f->m_fa = &fa;
 
-	if (CheckMemCorrupt)
-		CheckMemCorrupt();
+			self.m_buf += ASTR("\n=====================================================================\n");
+			self.trace_info(pExp);
+			self.TraceRegisters(GetCurrentThread(), pExp->ContextRecord);
+			self.ShowCallstack(GetCurrentThread(), pExp->ContextRecord);
+			self.m_buf += ASTR("=====================================================================\n");
 
-	Log(self.output.data());
+			if (CheckMemCorrupt)
+				CheckMemCorrupt();
+
+			(*f)(self.m_buf.data(), self.m_buf.length());
+			f->m_fa = nullptr;
+			self.m_buf.clear();
+		}
+
+	}
 
     create_dump(pExp);
 	return self.TraceFinal(pExp);
-}
-
-void WINAPI exceptions_best_friend::show_callstack(HANDLE hThread, const char* name)
-{
-    SIMPLELOCK(self.lock);
-	self.output[0] = 0;
-	self.OnOutput1("\n=====================================================================\n");
-	std::array<char,256> stamp;
-	int len = sprintf_s(stamp.data(), stamp.max_size(), "%s [%04X]\n", name, ((unsigned int)(size_t)hThread));
-	self.OnOutput(stamp.data(), len);
-	self.ShowCallstack(hThread, NULL);
-	self.OnOutput1("=====================================================================");
-	Log(self.output.data());
 }
 
 LONG exceptions_best_friend::TraceFinal(EXCEPTION_POINTERS* pExp)
@@ -231,15 +228,6 @@ LONG exceptions_best_friend::TraceFinal(EXCEPTION_POINTERS* pExp)
 		return EXCEPTION_CONTINUE_EXECUTION;
 
 	return EXCEPTION_CONTINUE_SEARCH;
-}
-
-void exceptions_best_friend::OnOutput(const char* szText, size_t len) const
-{
-	size_t maxlen = output.max_size() - output_len - 1;
-    if (len > maxlen) len = maxlen;
-    memcpy(output.data() + output_len, szText, len);
-	output_len += len;
-	output[output_len] = 0;
 }
 
 exceptions_best_friend::exceptions_best_friend()
@@ -273,7 +261,7 @@ void exceptions_best_friend::create_dump(EXCEPTION_POINTERS* pExp/*=NULL*/, bool
 			return;
 		}
 
-        HANDLE hFile = ::CreateFileA(glb.cfg.dump_file.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        HANDLE hFile = ::CreateFileW(glb.cfg.dump_file.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
         if (hFile!=INVALID_HANDLE_VALUE)
         {
@@ -296,14 +284,14 @@ void exceptions_best_friend::create_dump(EXCEPTION_POINTERS* pExp/*=NULL*/, bool
         } else
         {
             err=GetLastError();
-            Log("CreateFile dump error: (%d) %s", err, strerror_r(err, tmperror.data(), tmperror.max_size()));
+            Log("CreateFile dump error: ($) $", err, strerror_r(err, tmperror.data(), tmperror.max_size()));
 			
         }
     }
     else
     {
         err=GetLastError();
-        Log("MiniDumpWriteDump didn't find in DBGHELP.DLL. Error: (%d) %s", err, strerror_r(err, tmperror.data(), tmperror.max_size()));
+        Log("MiniDumpWriteDump didn't find in DBGHELP.DLL. Error: ($) $", err, strerror_r(err, tmperror.data(), tmperror.max_size()));
     }
 
     spinlock::simple_unlock(lock);
@@ -321,7 +309,7 @@ LONG WINAPI exceptions_best_friend::DUMP(HANDLE hFile, MINIDUMPWRITEDUMP pDump, 
     {
         static int err=GetLastError();
         static char tmperror[256];
-        Log("MiniDumpWriteDump error: (%d) %s", err, strerror_r(err, tmperror, 256));
+        Log("MiniDumpWriteDump error: ($) $", err, strerror_r(err, tmperror, 256));
     }
 
     return(EXCEPTION_EXECUTE_HANDLER);

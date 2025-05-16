@@ -49,10 +49,10 @@ handler_http::handler_http(loader& ldr, listener* owner, const asts& bb, netkit:
                 ldr.exit_code = EXIT_FAIL_MODE_UNDEFINED;
                 if (ms.empty())
                 {
-                    LOG_E("{mode} not defined for http host of listener [%s]; type {proxtopus help http} for more information", str::printable(owner->get_name()));
+                    LOG_E("{mode} not defined for http host of listener [$]^", str::clean(owner->get_name()));
                     return;
                 }
-                LOG_E("unknown {mode} [%s] for http host of listener [%s]; type {proxtopus help http} for more information", ms.c_str(), str::printable(owner->get_name()));
+                LOG_E("unknown {mode} [$] for http host of listener [$]^", ms, str::clean(owner->get_name()));
                 return;
             }
             if (!h.m->load(*it))
@@ -265,7 +265,7 @@ mode_result host_mode_simple::do_GET(http_server& s)
     {
         if (fni.ends_with(MAKEFN(".htm")) || fni.ends_with(MAKEFN(".html")))
             mimet = ASTR("text/html");
-        if (fni.ends_with(MAKEFN(".css")))
+        else if (fni.ends_with(MAKEFN(".css")))
             mimet = ASTR("text/css");
         else
             mimet = ASTR("application/octet-stream");
@@ -292,7 +292,7 @@ mode_result host_mode_simple::do_GET(http_server& s)
 bool host_mode_proxy::load(const asts& b)
 {
     flags = 0;
-    for (str::token<char, str::sep_onechar<char, '|'>> tkn(str::view(b.get_string(ASTR("addr")))); tkn; tkn())
+    enum_tokens_a(tkn, b.get_string(ASTR("addr")), '|')
     {
         if (ASTR("host") == *tkn)
         {

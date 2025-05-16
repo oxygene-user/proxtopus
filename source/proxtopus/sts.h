@@ -32,12 +32,6 @@ template <typename CH=char> class sts_t
 
 	int get_current_line(const CH *s);
 
-	template<typename S, typename T> void _to_string(S& v, T t)
-	{
-		v.clear();
-		str::append_num(v,t,0);
-	}
-
 public:
 
     sts_t(sts_t *parent) : parent(parent) {}
@@ -280,21 +274,15 @@ public:
 		double_value_cache = -DBL_MAX;
 		return *this;
 	}
-	sts_t& set_value(double val)
+	sts_t& set_value(std::floating_point auto val)
 	{
-		_to_string(value, val);
-		double_value_cache = val;
-		return *this;
-	}
-	sts_t& set_value(float val)
-	{
-		_to_string(value, val);
+		str::__assign(value, val);
 		double_value_cache = val;
 		return *this;
 	}
 	template<typename T> sts_t& set_value(T val)
 	{
-		_to_string(value, val);
+		str::__assign(value, val);
 		double_value_cache = (double)val;
 		return *this;
 	}

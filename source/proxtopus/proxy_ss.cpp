@@ -1,5 +1,4 @@
 #include "pch.h"
-#include "botan/botan.h"
 
 /*
 class jpipe : public netkit::pipe
@@ -52,7 +51,7 @@ proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const a
 	if (addr.state() == netkit::EPS_EMPTY)
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("addr not defined for proxy [%s]", str::printable(name));
+		LOG_E("addr not defined for proxy [$]", str::clean(name));
 		return;
 	}
 
@@ -87,7 +86,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
 
-	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, std::move(core.cb()), core.masterKey, core.cp));
+	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, std::move(core.cb()), core.masterkeys.lock_read()()[0].key, core.cp));
 
 	// just send connect request (shadowsocks 2012 protocol spec)
 	// no need to wait answer: stream mode just after request
@@ -102,7 +101,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 
 /*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_shadowsocks::prepare(netkit::udp_pipe* transport) const
 {
-	return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, std::move(core.cb()), core.masterKey, core.cp);
+	return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, std::move(core.cb()), core.masterkeys.lock_read()()[0].key, core.cp);
 }
 
 /*virtual*/ void proxy_shadowsocks::api(json_saver& j) const

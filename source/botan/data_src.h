@@ -9,8 +9,9 @@
 #ifndef BOTAN_DATA_SRC_H_
 #define BOTAN_DATA_SRC_H_
 
-#include <botan/secmem.h>
+#include <botan/api.h>
 #include <iosfwd>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -137,9 +138,12 @@ class BOTAN_PUBLIC_API(2, 0) DataSource_Memory final : public DataSource {
 
       size_t get_bytes_read() const override { return m_offset; }
 
+      DataSource_Memory() {} /// PROXTOPUS : m_source can be reused, so no need to init it in constructor
+      secure_vector<uint8_t>& buf() { return m_source; } /// PROXTOPUS : for reuse
+      void reset_offset() { m_offset = 0; }
    private:
       secure_vector<uint8_t> m_source;
-      size_t m_offset;
+      size_t m_offset = 0;
 };
 
 /**

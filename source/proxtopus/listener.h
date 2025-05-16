@@ -1,6 +1,7 @@
 #pragma once
 
 #include "handlers.h"
+#include "transport.h"
 
 class loader;
 class proxy;

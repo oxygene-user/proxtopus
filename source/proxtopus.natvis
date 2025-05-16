@@ -24,7 +24,19 @@
 		</Expand>
 	</Type>
 
-	<Type Name="ptr::shared_ptr&lt;str::shared_str&gt;">
+    <Type Name="str::xsstr&lt;*, *, *&gt;">
+        <DisplayString>{cor.len} chars : {(char*)cor.buf,s}</DisplayString>
+        <Expand>
+            <Item Name="[length]">cor.len</Item>
+            <Item Name="[capacity]">maxsize</Item>
+            <ArrayItems>
+                <Size>cor.len</Size>
+                <ValuePointer>cor.buf</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+
+    <Type Name="ptr::shared_ptr&lt;str::shared_str&gt;">
 		<DisplayString Condition="!object">empty</DisplayString>
 		<DisplayString Condition="object">{*object}</DisplayString>
 	</Type>
@@ -37,5 +49,29 @@
 		</Expand>
 	</Type>
 
+	<Type Name="Botan::Any_Algo">
+		<DisplayString>{a,en}</DisplayString>
+	</Type>
+	
+	<Type Name="Botan::Algo_Group">
+		<DisplayString Condition="!a[0].a">empty</DisplayString>
+		<DisplayString Condition="!a[1].a">{a[0]} ({saltl,d})</DisplayString>
+		<DisplayString Condition="!a[2].a">{a[0]}.{a[1]} ({saltl,d})</DisplayString>
+		<DisplayString Condition="!a[3].a">{a[0]}.{a[1]}.{a[2]} ({saltl,d})</DisplayString>
+		<DisplayString Condition="!a[4].a">{a[0]}.{a[1]}.{a[2]}.{a[3]} ({saltl,d})</DisplayString>
+
+	</Type>
+
+	<Type Name="Botan::secure_vector&lt;unsigned char&gt;">
+		<DisplayString Condition="!buf">&lt;empty&gt;</DisplayString>
+		<DisplayString Condition="buf">size: {sz}; cap: {cap}</DisplayString>
+		<Expand>
+			<ArrayItems Condition="buf">
+				<Size>sz</Size>
+				<ValuePointer>buf</ValuePointer>
+			</ArrayItems>
+		</Expand>
+
+	</Type>
 
 </AutoVisualizer>

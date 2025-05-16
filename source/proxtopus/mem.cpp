@@ -135,9 +135,13 @@ namespace ma
 #endif
 
 #ifdef MEMSPY
-	void* rs(const char* f, size_t l, void* p, size_t size)
+	void* rs(const char* f, size_t l, void* p, size_t size, bool /*allow_discard_old_content*/)
 #else
-    void* rs(void* p, size_t size)
+#if USE_DLMALLOC
+	void* rs_dummy(void* p, size_t size, size_t keep_data)
+#else
+    void* rs(void* p, size_t size, size_t keep_data)
+#endif
 #endif
 	{
 #ifdef MEMSPY
@@ -145,13 +149,13 @@ namespace ma
             return mspy_realloc(f, (int)l, 0, p, size);
 #endif
 
-#ifdef USE_ARENAS
+#if USE_ARENAS
 		if (glb.arena16.here(p))
 		{
 			if (size <= 16)
 				return p;
 			void* np = MA(size);
-			memcpy(np, p, 16);
+			memcpy(np, p, keep_data);
 			glb.arena16.free(p);
 			return np;
 		}
@@ -160,7 +164,7 @@ namespace ma
 			if (size <= 32)
 				return p;
 			void* np = MA(size);
-			memcpy(np, p, 32);
+            memcpy(np, p, keep_data);
 			glb.arena32.free(p);
 			return np;
 		}
@@ -169,7 +173,7 @@ namespace ma
 			if (size <= 64)
 				return p;
 			void* np = MA(size);
-			memcpy(np, p, 64);
+            memcpy(np, p, keep_data);
 			glb.arena64.free(p);
 			return np;
 		}
@@ -179,6 +183,11 @@ namespace ma
 		if (true)
 			return aaa().realloc(p, size);
 #endif
+		if (keep_data == 0)
+		{
+			// TODO : check that malloc/free will be faster than realloc, since there is no need to copy memory
+			//_msize();
+		}
 
 		return realloc(p, size);
 	}
@@ -186,7 +195,11 @@ namespace ma
 #ifdef MEMSPY
 	void* ma(const char* f, size_t l, size_t size)
 #else
+#if USE_DLMALLOC
+    void* ma_dummy(size_t size)
+#else
 	void* ma(size_t size)
+#endif
 #endif
 	{
 #ifdef MEMSPY
@@ -194,7 +207,7 @@ namespace ma
 			return mspy_malloc(f, (int)l, 0, size);
 #endif
 
-#ifdef USE_ARENAS
+#if USE_ARENAS
 		if (size <= 16)
 			return glb.arena16.alloc(size);
 		if (size <= 32)
@@ -209,7 +222,12 @@ namespace ma
 #endif
 		return malloc(size);
 	}
+
+#if USE_DLMALLOC
+    void mf_dummy(void* p)
+#else
 	void mf(void* p)
+#endif
 	{
 #ifdef MEMSPY
 		if (true)
@@ -219,7 +237,7 @@ namespace ma
 		}
 #endif
 
-#ifdef USE_ARENAS
+#if USE_ARENAS
 		if (glb.arena16.free(p))
 			return;
 		if (glb.arena32.free(p))
@@ -241,14 +259,6 @@ global_data::first_init::first_init()
 {
 #if defined _DEBUG && defined COUNT_ALLOCS
 	new (&ma::aaa()) ma::aa();
-#endif
-}
-
-global_data::global_data()
-{
-#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
-	cfg.crash_log_file = str::astr(ASTR("proxtopus.crush.log"));
-	cfg.dump_file = str::astr(ASTR("proxtopus.dmp"));
 #endif
 }
 
@@ -335,3 +345,28 @@ void operator delete[](void* ptr, std::size_t /*size*/, std::align_val_t /*align
 	ma::mf(ptr);
 }
 
+// dlmalloc -----------------
+
+#ifdef _MSC_VER
+#pragma warning (disable:4559)
+#pragma warning (disable:4127)
+#pragma warning (disable:4057)
+#pragma warning (disable:4702)
+#endif // _MSC_VEW
+
+#define MALLOC_ALIGNMENT ((size_t)16U)
+#define USE_DL_PREFIX
+#define USE_LOCKS 0
+
+static spinlock::long3264 dlmalloc_spinlock = 0;
+
+#define PREACTION(M)  (spinlock::simple_lock(dlmalloc_spinlock), 0)
+#define POSTACTION(M) spinlock::simple_unlock(dlmalloc_spinlock)
+
+#define _NTOS_
+#undef ERROR
+#undef M_TRIM_THRESHOLD
+#undef M_MMAP_THRESHOLD
+#define mallinfo dlmallinfo
+
+#include "dlmalloc/dlmalloc.c"

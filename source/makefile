@@ -29,7 +29,32 @@ OBJDIR_RELEASE = obj/Release
 DEP_RELEASE = 
 OUT_RELEASE = bin/proxtopus
 
-OBJ_RELEASE = $(OBJDIR_RELEASE)/botan/sha2_32_bmi2.o $(OBJDIR_RELEASE)/botan/sha2_32_x86.o $(OBJDIR_RELEASE)/botan/sha2_64.o $(OBJDIR_RELEASE)/botan/sha2_64_bmi2.o $(OBJDIR_RELEASE)/botan/sha3.o $(OBJDIR_RELEASE)/botan/stateful_rng.o $(OBJDIR_RELEASE)/botan/sym_algo.o $(OBJDIR_RELEASE)/botan/sha2_32.o $(OBJDIR_RELEASE)/botan/system_rng.o $(OBJDIR_RELEASE)/proxtopus/botan.o $(OBJDIR_RELEASE)/proxtopus/cipher_ss.o $(OBJDIR_RELEASE)/proxtopus/cmdline.o $(OBJDIR_RELEASE)/botan/parsing.o $(OBJDIR_RELEASE)/botan/keccak_perm.o $(OBJDIR_RELEASE)/botan/keccak_perm_bmi2.o $(OBJDIR_RELEASE)/botan/md5.o $(OBJDIR_RELEASE)/botan/mem_ops.o $(OBJDIR_RELEASE)/botan/os_utils.o $(OBJDIR_RELEASE)/proxtopus/connect.o $(OBJDIR_RELEASE)/botan/poly1305.o $(OBJDIR_RELEASE)/botan/rng.o $(OBJDIR_RELEASE)/botan/salsa20.o $(OBJDIR_RELEASE)/botan/sha1.o $(OBJDIR_RELEASE)/botan/sha1_sse2.o $(OBJDIR_RELEASE)/botan/sha1_x86.o $(OBJDIR_RELEASE)/proxtopus/pch.o $(OBJDIR_RELEASE)/proxtopus/proxy.o $(OBJDIR_RELEASE)/proxtopus/proxy_ss.o $(OBJDIR_RELEASE)/proxtopus/rndgen.o $(OBJDIR_RELEASE)/proxtopus/sts.o $(OBJDIR_RELEASE)/proxtopus/tools.o $(OBJDIR_RELEASE)/proxtopus/engine.o $(OBJDIR_RELEASE)/proxtopus/fsys.o $(OBJDIR_RELEASE)/proxtopus/handler_ss.o $(OBJDIR_RELEASE)/proxtopus/handler_http.o $(OBJDIR_RELEASE)/proxtopus/http_api.o $(OBJDIR_RELEASE)/proxtopus/handlers.o $(OBJDIR_RELEASE)/proxtopus/listener.o $(OBJDIR_RELEASE)/proxtopus/loader.o $(OBJDIR_RELEASE)/proxtopus/logger.o $(OBJDIR_RELEASE)/proxtopus/main.o $(OBJDIR_RELEASE)/proxtopus/mem.o $(OBJDIR_RELEASE)/proxtopus/netkit.o $(OBJDIR_RELEASE)/proxtopus/dnsq.o $(OBJDIR_RELEASE)/botan/ctr.o $(OBJDIR_RELEASE)/botan/dyn_load.o $(OBJDIR_RELEASE)/botan/exceptn.o $(OBJDIR_RELEASE)/botan/filter.o $(OBJDIR_RELEASE)/botan/cpuid_x86.o $(OBJDIR_RELEASE)/botan/gcm.o $(OBJDIR_RELEASE)/botan/ghash.o $(OBJDIR_RELEASE)/botan/ghash_cpu.o $(OBJDIR_RELEASE)/botan/ghash_vperm.o $(OBJDIR_RELEASE)/botan/hkdf.o $(OBJDIR_RELEASE)/botan/hmac.o $(OBJDIR_RELEASE)/botan/hmac_drbg.o $(OBJDIR_RELEASE)/botan/aes.o $(OBJDIR_RELEASE)/botan/aes_ni.o $(OBJDIR_RELEASE)/botan/aes_vperm.o $(OBJDIR_RELEASE)/botan/chacha.o $(OBJDIR_RELEASE)/botan/chacha20poly1305.o $(OBJDIR_RELEASE)/botan/chacha_avx2.o $(OBJDIR_RELEASE)/botan/chacha_avx512.o $(OBJDIR_RELEASE)/botan/chacha_simd32.o $(OBJDIR_RELEASE)/botan/cpuid.o $(OBJDIR_RELEASE)/proxtopus/json.o $(OBJDIR_RELEASE)/proxtopus/icpt.o $(OBJDIR_RELEASE)/proxtopus/macro.o $(OBJDIR_RELEASE)/res/help.o $(OBJDIR_RELEASE)/res/help_nix.o
+FILES_CPP_PROXTOPUS = botan cipher_ss cmdline connect dnsq engine fsys handler_http handler_ss handlers http_api icpt json known_oids listener loader logger macro main mem
+FILES_CPP_PROXTOPUS += netkit os_tools pch proxy proxy_ss rndgen sts tls tools transport transport_tls watchdog
+
+FILES_CPP_BOTAN = aes aes_ni aes_vaes aes_vperm alg_id alt_name asn1_obj asn1_oid asn1_str asn1_time ber_dec big_code big_ops2 big_ops3 big_rand bigint blake2b blinding buf_comp
+FILES_CPP_BOTAN += calendar cbc certstor chacha chacha_avx2 chacha_avx512 chacha_simd32 chacha20poly1305 charset cpuid cpuid_x86 credentials_manager crl_ent ct_utils ctr
+FILES_CPP_BOTAN += curve448_gf curve448_scalar data_src der_enc dh divide dl_group dl_named dl_scheme donna dyn_load ec_apoint ec_group ec_inner_data ec_inner_pc ec_key_data
+FILES_CPP_BOTAN += ec_named ec_scalar ecc_key ecdh ecdsa ed25519 ed25519_fe ed25519_key eme_pkcs emsa_pkcs1 exceptn filter gcm ge ghash ghash_cpu ghash_vperm hash_id hex hkdf
+FILES_CPP_BOTAN += hmac hmac_drbg keccak_perm keccak_perm_bmi2 keypair make_prm md5 mem_ops mem_utils mgf1 mod_inv monty monty_exp mp_comba mp_karat mp_monty mp_monty_n
+FILES_CPP_BOTAN += msg_cert_req msg_cert_status msg_cert_verify msg_certificate_12 msg_client_hello msg_client_kex msg_finished msg_hello_verify msg_server_hello msg_server_kex
+FILES_CPP_BOTAN += msg_session_ticket name_constraint numthry ocsp ocsp_types os_utils pcurves pcurves_generic pcurves_secp224r1 pcurves_secp256r1 pcurves_secp384r1
+FILES_CPP_BOTAN += pcurves_secp521r1 pem pk_algs pk_keys pk_ops pkcs8 poly1305 prf_tls primality primes pss_params pssr pubkey reducer rmd160 rng rsa salsa20 sc_muladd sc_reduce
+FILES_CPP_BOTAN += sha1 sha1_simd sha1_x86 sha2_32 sha2_32_avx2 sha2_32_simd sha2_32_x86 sha2_64 sha2_64_avx2 sha3 sm3 stateful_rng system_rng tls_alert tls_algos
+FILES_CPP_BOTAN += tls_callbacks tls_cbc tls_channel_impl_12 tls_ciphersuite tls_extensions tls_extensions_cert_status_req tls_handshake_hash tls_handshake_io tls_handshake_state
+FILES_CPP_BOTAN += tls_handshake_transitions tls_policy tls_record tls_server_impl_12 tls_session tls_session_key tls_session_manager tls_session_manager_memory
+FILES_CPP_BOTAN += tls_signature_scheme tls_suite_info tls_version x448 x448_internal x509_crl x509_dn x509_ext x509_key x509_obj x509cert x509path x25519 xmd
+
+FILES_CPP = $(addprefix botan/, $(FILES_CPP_BOTAN))
+FILES_CPP += $(addprefix proxtopus/, $(FILES_CPP_PROXTOPUS))
+FILES_TXT = res/help res/help_nix
+
+CPP_RELEASE = $(addprefix $(OBJDIR_RELEASE)/, $(addsuffix .o, $(FILES_CPP)))
+TXT_RELEASE = $(addprefix $(OBJDIR_RELEASE)/, $(addsuffix .o, $(FILES_TXT)))
+
+OBJ_RELEASE = $(CPP_RELEASE)
+OBJ_RELEASE += $(TXT_RELEASE)
+
 
 all: release
 
@@ -46,217 +71,13 @@ after_release:
 release: before_release out_release after_release
 
 out_release: before_release $(OBJ_RELEASE) $(DEP_RELEASE)
-	$(LD) $(LIBDIR_RELEASE) -o $(OUT_RELEASE) $(OBJ_RELEASE)  $(LDFLAGS_RELEASE) $(LIB_RELEASE)
+	$(LD) $(LIBDIR_RELEASE) -o $(OUT_RELEASE) $(OBJ_RELEASE) $(LDFLAGS_RELEASE) $(LIB_RELEASE)
 
-$(OBJDIR_RELEASE)/botan/sha2_32_bmi2.o: botan/sha2_32_bmi2.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha2_32_bmi2.cpp -o $(OBJDIR_RELEASE)/botan/sha2_32_bmi2.o
+$(CPP_RELEASE) : $(OBJDIR_RELEASE)/%.o: %.cpp
+	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c $< -o $@
 
-$(OBJDIR_RELEASE)/botan/sha2_32_x86.o: botan/sha2_32_x86.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha2_32_x86.cpp -o $(OBJDIR_RELEASE)/botan/sha2_32_x86.o
-
-$(OBJDIR_RELEASE)/botan/sha2_64.o: botan/sha2_64.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha2_64.cpp -o $(OBJDIR_RELEASE)/botan/sha2_64.o
-
-$(OBJDIR_RELEASE)/botan/sha2_64_bmi2.o: botan/sha2_64_bmi2.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha2_64_bmi2.cpp -o $(OBJDIR_RELEASE)/botan/sha2_64_bmi2.o
-
-$(OBJDIR_RELEASE)/botan/sha3.o: botan/sha3.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha3.cpp -o $(OBJDIR_RELEASE)/botan/sha3.o
-
-$(OBJDIR_RELEASE)/botan/stateful_rng.o: botan/stateful_rng.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/stateful_rng.cpp -o $(OBJDIR_RELEASE)/botan/stateful_rng.o
-
-$(OBJDIR_RELEASE)/botan/sym_algo.o: botan/sym_algo.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sym_algo.cpp -o $(OBJDIR_RELEASE)/botan/sym_algo.o
-
-$(OBJDIR_RELEASE)/botan/sha2_32.o: botan/sha2_32.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha2_32.cpp -o $(OBJDIR_RELEASE)/botan/sha2_32.o
-
-$(OBJDIR_RELEASE)/botan/system_rng.o: botan/system_rng.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/system_rng.cpp -o $(OBJDIR_RELEASE)/botan/system_rng.o
-
-$(OBJDIR_RELEASE)/proxtopus/botan.o: proxtopus/botan.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/botan.cpp -o $(OBJDIR_RELEASE)/proxtopus/botan.o
-
-$(OBJDIR_RELEASE)/proxtopus/cipher_ss.o: proxtopus/cipher_ss.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/cipher_ss.cpp -o $(OBJDIR_RELEASE)/proxtopus/cipher_ss.o
-
-$(OBJDIR_RELEASE)/proxtopus/cmdline.o: proxtopus/cmdline.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/cmdline.cpp -o $(OBJDIR_RELEASE)/proxtopus/cmdline.o
-
-$(OBJDIR_RELEASE)/botan/parsing.o: botan/parsing.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/parsing.cpp -o $(OBJDIR_RELEASE)/botan/parsing.o
-
-$(OBJDIR_RELEASE)/botan/keccak_perm.o: botan/keccak_perm.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/keccak_perm.cpp -o $(OBJDIR_RELEASE)/botan/keccak_perm.o
-
-$(OBJDIR_RELEASE)/botan/keccak_perm_bmi2.o: botan/keccak_perm_bmi2.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/keccak_perm_bmi2.cpp -o $(OBJDIR_RELEASE)/botan/keccak_perm_bmi2.o
-
-$(OBJDIR_RELEASE)/botan/md5.o: botan/md5.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/md5.cpp -o $(OBJDIR_RELEASE)/botan/md5.o
-
-$(OBJDIR_RELEASE)/botan/mem_ops.o: botan/mem_ops.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/mem_ops.cpp -o $(OBJDIR_RELEASE)/botan/mem_ops.o
-
-$(OBJDIR_RELEASE)/botan/os_utils.o: botan/os_utils.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/os_utils.cpp -o $(OBJDIR_RELEASE)/botan/os_utils.o
-
-$(OBJDIR_RELEASE)/proxtopus/connect.o: proxtopus/connect.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/connect.cpp -o $(OBJDIR_RELEASE)/proxtopus/connect.o
-
-$(OBJDIR_RELEASE)/botan/poly1305.o: botan/poly1305.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/poly1305.cpp -o $(OBJDIR_RELEASE)/botan/poly1305.o
-
-$(OBJDIR_RELEASE)/botan/rng.o: botan/rng.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/rng.cpp -o $(OBJDIR_RELEASE)/botan/rng.o
-
-$(OBJDIR_RELEASE)/botan/salsa20.o: botan/salsa20.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/salsa20.cpp -o $(OBJDIR_RELEASE)/botan/salsa20.o
-
-$(OBJDIR_RELEASE)/botan/sha1.o: botan/sha1.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha1.cpp -o $(OBJDIR_RELEASE)/botan/sha1.o
-
-$(OBJDIR_RELEASE)/botan/sha1_sse2.o: botan/sha1_sse2.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha1_sse2.cpp -o $(OBJDIR_RELEASE)/botan/sha1_sse2.o
-
-$(OBJDIR_RELEASE)/botan/sha1_x86.o: botan/sha1_x86.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/sha1_x86.cpp -o $(OBJDIR_RELEASE)/botan/sha1_x86.o
-
-$(OBJDIR_RELEASE)/proxtopus/pch.o: proxtopus/pch.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/pch.cpp -o $(OBJDIR_RELEASE)/proxtopus/pch.o
-
-$(OBJDIR_RELEASE)/proxtopus/proxy.o: proxtopus/proxy.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/proxy.cpp -o $(OBJDIR_RELEASE)/proxtopus/proxy.o
-
-$(OBJDIR_RELEASE)/proxtopus/proxy_ss.o: proxtopus/proxy_ss.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/proxy_ss.cpp -o $(OBJDIR_RELEASE)/proxtopus/proxy_ss.o
-
-$(OBJDIR_RELEASE)/proxtopus/rndgen.o: proxtopus/rndgen.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/rndgen.cpp -o $(OBJDIR_RELEASE)/proxtopus/rndgen.o
-
-$(OBJDIR_RELEASE)/proxtopus/sts.o: proxtopus/sts.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/sts.cpp -o $(OBJDIR_RELEASE)/proxtopus/sts.o
-
-$(OBJDIR_RELEASE)/proxtopus/tools.o: proxtopus/tools.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/tools.cpp -o $(OBJDIR_RELEASE)/proxtopus/tools.o
-
-$(OBJDIR_RELEASE)/proxtopus/engine.o: proxtopus/engine.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/engine.cpp -o $(OBJDIR_RELEASE)/proxtopus/engine.o
-
-$(OBJDIR_RELEASE)/proxtopus/fsys.o: proxtopus/fsys.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/fsys.cpp -o $(OBJDIR_RELEASE)/proxtopus/fsys.o
-
-$(OBJDIR_RELEASE)/proxtopus/handler_ss.o: proxtopus/handler_ss.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/handler_ss.cpp -o $(OBJDIR_RELEASE)/proxtopus/handler_ss.o
-
-$(OBJDIR_RELEASE)/proxtopus/handler_http.o: proxtopus/handler_http.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/handler_http.cpp -o $(OBJDIR_RELEASE)/proxtopus/handler_http.o
-
-$(OBJDIR_RELEASE)/proxtopus/http_api.o: proxtopus/http_api.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/http_api.cpp -o $(OBJDIR_RELEASE)/proxtopus/http_api.o
-
-$(OBJDIR_RELEASE)/proxtopus/handlers.o: proxtopus/handlers.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/handlers.cpp -o $(OBJDIR_RELEASE)/proxtopus/handlers.o
-
-$(OBJDIR_RELEASE)/proxtopus/listener.o: proxtopus/listener.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/listener.cpp -o $(OBJDIR_RELEASE)/proxtopus/listener.o
-
-$(OBJDIR_RELEASE)/proxtopus/loader.o: proxtopus/loader.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/loader.cpp -o $(OBJDIR_RELEASE)/proxtopus/loader.o
-
-$(OBJDIR_RELEASE)/proxtopus/logger.o: proxtopus/logger.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/logger.cpp -o $(OBJDIR_RELEASE)/proxtopus/logger.o
-
-$(OBJDIR_RELEASE)/proxtopus/main.o: proxtopus/main.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/main.cpp -o $(OBJDIR_RELEASE)/proxtopus/main.o
-
-$(OBJDIR_RELEASE)/proxtopus/mem.o: proxtopus/mem.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/mem.cpp -o $(OBJDIR_RELEASE)/proxtopus/mem.o
-
-$(OBJDIR_RELEASE)/proxtopus/netkit.o: proxtopus/netkit.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/netkit.cpp -o $(OBJDIR_RELEASE)/proxtopus/netkit.o
-
-$(OBJDIR_RELEASE)/proxtopus/dnsq.o: proxtopus/dnsq.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/dnsq.cpp -o $(OBJDIR_RELEASE)/proxtopus/dnsq.o
-
-$(OBJDIR_RELEASE)/botan/ctr.o: botan/ctr.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/ctr.cpp -o $(OBJDIR_RELEASE)/botan/ctr.o
-
-$(OBJDIR_RELEASE)/botan/dyn_load.o: botan/dyn_load.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/dyn_load.cpp -o $(OBJDIR_RELEASE)/botan/dyn_load.o
-
-$(OBJDIR_RELEASE)/botan/exceptn.o: botan/exceptn.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/exceptn.cpp -o $(OBJDIR_RELEASE)/botan/exceptn.o
-
-$(OBJDIR_RELEASE)/botan/filter.o: botan/filter.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/filter.cpp -o $(OBJDIR_RELEASE)/botan/filter.o
-
-$(OBJDIR_RELEASE)/botan/cpuid_x86.o: botan/cpuid_x86.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/cpuid_x86.cpp -o $(OBJDIR_RELEASE)/botan/cpuid_x86.o
-
-$(OBJDIR_RELEASE)/botan/gcm.o: botan/gcm.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/gcm.cpp -o $(OBJDIR_RELEASE)/botan/gcm.o
-
-$(OBJDIR_RELEASE)/botan/ghash.o: botan/ghash.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/ghash.cpp -o $(OBJDIR_RELEASE)/botan/ghash.o
-
-$(OBJDIR_RELEASE)/botan/ghash_cpu.o: botan/ghash_cpu.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/ghash_cpu.cpp -o $(OBJDIR_RELEASE)/botan/ghash_cpu.o
-
-$(OBJDIR_RELEASE)/botan/ghash_vperm.o: botan/ghash_vperm.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/ghash_vperm.cpp -o $(OBJDIR_RELEASE)/botan/ghash_vperm.o
-
-$(OBJDIR_RELEASE)/botan/hkdf.o: botan/hkdf.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/hkdf.cpp -o $(OBJDIR_RELEASE)/botan/hkdf.o
-
-$(OBJDIR_RELEASE)/botan/hmac.o: botan/hmac.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/hmac.cpp -o $(OBJDIR_RELEASE)/botan/hmac.o
-
-$(OBJDIR_RELEASE)/botan/hmac_drbg.o: botan/hmac_drbg.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/hmac_drbg.cpp -o $(OBJDIR_RELEASE)/botan/hmac_drbg.o
-
-$(OBJDIR_RELEASE)/botan/aes.o: botan/aes.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/aes.cpp -o $(OBJDIR_RELEASE)/botan/aes.o
-
-$(OBJDIR_RELEASE)/botan/aes_ni.o: botan/aes_ni.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/aes_ni.cpp -o $(OBJDIR_RELEASE)/botan/aes_ni.o
-
-$(OBJDIR_RELEASE)/botan/aes_vperm.o: botan/aes_vperm.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/aes_vperm.cpp -o $(OBJDIR_RELEASE)/botan/aes_vperm.o
-
-$(OBJDIR_RELEASE)/botan/chacha.o: botan/chacha.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/chacha.cpp -o $(OBJDIR_RELEASE)/botan/chacha.o
-
-$(OBJDIR_RELEASE)/botan/chacha20poly1305.o: botan/chacha20poly1305.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/chacha20poly1305.cpp -o $(OBJDIR_RELEASE)/botan/chacha20poly1305.o
-
-$(OBJDIR_RELEASE)/botan/chacha_avx2.o: botan/chacha_avx2.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/chacha_avx2.cpp -o $(OBJDIR_RELEASE)/botan/chacha_avx2.o
-
-$(OBJDIR_RELEASE)/botan/chacha_avx512.o: botan/chacha_avx512.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/chacha_avx512.cpp -o $(OBJDIR_RELEASE)/botan/chacha_avx512.o
-
-$(OBJDIR_RELEASE)/botan/chacha_simd32.o: botan/chacha_simd32.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/chacha_simd32.cpp -o $(OBJDIR_RELEASE)/botan/chacha_simd32.o
-
-$(OBJDIR_RELEASE)/botan/cpuid.o: botan/cpuid.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c botan/cpuid.cpp -o $(OBJDIR_RELEASE)/botan/cpuid.o
-
-$(OBJDIR_RELEASE)/proxtopus/icpt.o: proxtopus/icpt.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/icpt.cpp -o $(OBJDIR_RELEASE)/proxtopus/icpt.o
-
-$(OBJDIR_RELEASE)/proxtopus/macro.o: proxtopus/macro.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/macro.cpp -o $(OBJDIR_RELEASE)/proxtopus/macro.o
-
-$(OBJDIR_RELEASE)/proxtopus/json.o: proxtopus/json.cpp
-	$(CXX) $(CFLAGS_RELEASE) $(INC_RELEASE) -c proxtopus/json.cpp -o $(OBJDIR_RELEASE)/proxtopus/json.o
-
-$(OBJDIR_RELEASE)/res/help.o: res/help.txt
-	objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/help.txt $(OBJDIR_RELEASE)/res/help.o
-
-$(OBJDIR_RELEASE)/res/help_nix.o: res/help_nix.txt
-	objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 res/help_nix.txt $(OBJDIR_RELEASE)/res/help_nix.o
+$(TXT_RELEASE) : $(OBJDIR_RELEASE)/%.o: %.txt
+	objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 $< $@
 
 clean_release: 
 	rm -f $(OBJ_RELEASE) $(OUT_RELEASE)

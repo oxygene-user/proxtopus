@@ -32,7 +32,7 @@ extern "C" {
 
 icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):name(name)
 {
-    for (str::token<char, str::sep_onechar<char, '/'>> tkn(str::view(s)); tkn; tkn())
+    enum_tokens_a(tkn, s, '/')
     {
         auto dv = tkn->find(':');
         if (dv == tkn->npos)
@@ -56,7 +56,7 @@ icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):na
             prx = eng->find_proxy(tkn->substr(dv + 1));
             if (prx == nullptr)
             {
-                LOG_E("unknown {proxy} [%s] for icpt-rule [%s]", str::astr(tkn->substr(dv + 1)).c_str(), str::printable(name));
+                LOG_E("unknown {proxy} [$] for icpt-rule [$]", tkn->substr(dv + 1), str::clean(name));
                 eng->exit_code = EXIT_FAIL_PROXY_NOTFOUND;
                 return;
             }
@@ -78,7 +78,7 @@ icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):na
             if (!prx->support(netkit::ST_UDP))
             {
                 eng->exit_code = EXIT_FAIL_SOCKET_TYPE;
-                LOG_E("upstream {proxy} [%s] does not support UDP protocol (icpt-rule: [%s])", prx->get_name().c_str(), str::printable(name));
+                LOG_E("upstream {proxy} [$] does not support UDP protocol (icpt-rule: [$])", prx->get_name(), str::clean(name));
                 return;
             }
         }
@@ -87,7 +87,7 @@ icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):na
             if (!prx->support(netkit::ST_TCP))
             {
                 eng->exit_code = EXIT_FAIL_SOCKET_TYPE;
-                LOG_E("upstream {proxy} [%s] does not support TCP protocol (icpt-rule: [%s])", prx->get_name().c_str(), str::printable(name));
+                LOG_E("upstream {proxy} [$] does not support TCP protocol (icpt-rule: [$])", prx->get_name(), str::clean(name));
                 return;
             }
         }
@@ -194,7 +194,7 @@ void interceptor::hand_pair::nthread()
                 }
             }
 
-            LOG_I("src %i : %u", info.UDPHeader->SrcPort, pid);
+            LOG_I("src $ : $", info.UDPHeader->SrcPort, pid);
         }
         
 
@@ -290,7 +290,7 @@ bool interceptor::load(engine* e, const asts* s)
         if (!udp.open())
         {
             HRESULT err = GetLastError();
-            LOG_E("packet interception driver load error: %u", (u32)err);
+            LOG_E("packet interception driver load error: $", (u32)err);
             e->exit_code = EXIT_FAIL_ICPT_INIT_ERROR;
             return false;
         }

@@ -9,7 +9,9 @@ using FNc = wchar;
 inline FN& tofn(str::wstr& s) { return s; }
 inline const FN& tofn(const str::wstr& s) { return s; }
 inline const FN tofn(const str::astr_view& s) { return str::from_utf8(s); }
+inline const FN tofn(const str::astr& s) { return str::from_utf8(s); }
 inline signed_t fnlen(const FN& fn) { return wcslen(fn.c_str()); }
+
 #define MAKEFN WSTR
 #elif defined __GNUC__
 using FN = str::astr;
@@ -39,12 +41,26 @@ void save_buf(const FN& fn, const str::astr& b);
 bool is_path_exists(const FNview& path);
 bool is_file_exists(const FN& fname);
 
-
-
+using FNARR = std::vector<FN>;
 FN  get_exec_full_name();
+void get_exec_full_commandline(FNARR &args);
 void  set_start_path(FN& wd, FN* exename = nullptr);
 inline void set_start_path()
 {
 	FN wd;
 	set_start_path(wd);
 }
+
+struct file_appender
+{
+	void* handler = nullptr;
+	file_appender(const FN& fn);
+	~file_appender();
+
+	operator bool() const
+    {
+        return handler != nullptr;
+    }
+
+	file_appender& operator<<(const str::astr_view& s);
+};

@@ -8,12 +8,14 @@
 #include <botan/internal/sha1.h>
 
 #include <botan/internal/bit_ops.h>
-#include <botan/internal/cpuid.h>
 #include <botan/internal/loadstor.h>
 #include <botan/internal/rotate.h>
 #include <botan/internal/stl_util.h>
-
 #include <array>
+
+#if defined(BOTAN_HAS_CPUID)
+   #include <botan/internal/cpuid.h>
+#endif
 
 namespace Botan {
 
@@ -64,42 +66,47 @@ void SHA_1::compress_n(digest_type& digest, std::span<const uint8_t> input, size
    using namespace SHA1_F;
 
 #if defined(BOTAN_HAS_SHA1_X86_SHA_NI)
-   if(CPUID::has_intel_sha()) {
+   if(CPUID::has(CPUID::Feature::SHA)) {
       return sha1_compress_x86(digest, input, blocks);
    }
 #endif
 
 #if defined(BOTAN_HAS_SHA1_ARMV8)
-   if(CPUID::has_arm_sha1()) {
+   if(CPUID::has(CPUID::Feature::SHA1)) {
       return sha1_armv8_compress_n(digest, input, blocks);
    }
 #endif
 
-#if defined(BOTAN_HAS_SHA1_SSE2)
-   if(CPUID::has_sse2()) {
-      return sse2_compress_n(digest, input, blocks);
+#if defined(BOTAN_HAS_SHA1_SIMD_4X32)
+   if(CPUID::has_simd_4x32()) {
+      return simd_compress_n(digest, input, blocks);
    }
 
 #endif
 
    uint32_t A = digest[0], B = digest[1], C = digest[2], D = digest[3], E = digest[4];
    std::array<uint32_t, 80> W;
+   auto W_in = std::span{W}.first<block_bytes / sizeof(uint32_t)>();
 
    BufferSlicer in(input);
 
    for(size_t i = 0; i != blocks; ++i) {
-      load_be(W.data(), in.take(block_bytes).data(), 16);
+      load_be(W_in, in.take<block_bytes>());
+
+      // clang-format off
 
       for(size_t j = 16; j != 80; j += 8) {
-         W[j] = rotl<1>(W[j - 3] ^ W[j - 8] ^ W[j - 14] ^ W[j - 16]);
+         W[j + 0] = rotl<1>(W[j - 3] ^ W[j - 8] ^ W[j - 14] ^ W[j - 16]);
          W[j + 1] = rotl<1>(W[j - 2] ^ W[j - 7] ^ W[j - 13] ^ W[j - 15]);
          W[j + 2] = rotl<1>(W[j - 1] ^ W[j - 6] ^ W[j - 12] ^ W[j - 14]);
-         W[j + 3] = rotl<1>(W[j] ^ W[j - 5] ^ W[j - 11] ^ W[j - 13]);
+         W[j + 3] = rotl<1>(W[j    ] ^ W[j - 5] ^ W[j - 11] ^ W[j - 13]);
          W[j + 4] = rotl<1>(W[j + 1] ^ W[j - 4] ^ W[j - 10] ^ W[j - 12]);
-         W[j + 5] = rotl<1>(W[j + 2] ^ W[j - 3] ^ W[j - 9] ^ W[j - 11]);
-         W[j + 6] = rotl<1>(W[j + 3] ^ W[j - 2] ^ W[j - 8] ^ W[j - 10]);
-         W[j + 7] = rotl<1>(W[j + 4] ^ W[j - 1] ^ W[j - 7] ^ W[j - 9]);
+         W[j + 5] = rotl<1>(W[j + 2] ^ W[j - 3] ^ W[j -  9] ^ W[j - 11]);
+         W[j + 6] = rotl<1>(W[j + 3] ^ W[j - 2] ^ W[j -  8] ^ W[j - 10]);
+         W[j + 7] = rotl<1>(W[j + 4] ^ W[j - 1] ^ W[j -  7] ^ W[j -  9]);
       }
+
+      // clang-format on
 
       F1(A, B, C, D, E, W[0]);
       F1(E, A, B, C, D, W[1]);
@@ -200,27 +207,7 @@ void SHA_1::init(digest_type& digest) {
    digest.assign({0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0});
 }
 
-std::string SHA_1::provider() const {
-#if defined(BOTAN_HAS_SHA1_X86_SHA_NI)
-   if(CPUID::has_intel_sha()) {
-      return "intel_sha";
-   }
-#endif
-
-#if defined(BOTAN_HAS_SHA1_ARMV8)
-   if(CPUID::has_arm_sha1()) {
-      return "armv8_sha";
-   }
-#endif
-
-#if defined(BOTAN_HAS_SHA1_SSE2)
-   if(CPUID::has_sse2()) {
-      return "sse2";
-   }
-#endif
-
-   return "base";
-}
+/// PROXTOPUS : provider removed
 
 std::unique_ptr<HashFunction> SHA_1::new_object() const {
    return std::make_unique<SHA_1>();

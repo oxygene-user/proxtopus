@@ -19,7 +19,7 @@ namespace Botan {
 class HMAC final : public MessageAuthenticationCode {
    public:
       void clear() override;
-      std::string name() const override;
+      /// PROXTOPUS : name removed
       std::unique_ptr<MessageAuthenticationCode> new_object() const override;
 
       size_t output_length() const override;
@@ -35,6 +35,8 @@ class HMAC final : public MessageAuthenticationCode {
 
       HMAC(const HMAC&) = delete;
       HMAC& operator=(const HMAC&) = delete;
+
+      Hash_Algo alg() { return m_hash->alg(); }
 
    private:
       void add_data(std::span<const uint8_t>) override;

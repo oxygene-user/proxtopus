@@ -11,7 +11,7 @@
 #include <botan/types.h>
 #include <type_traits>
 
-#if defined(BOTAN_BUILD_COMPILER_IS_MSVC) && defined(BOTAN_TARGET_CPU_HAS_NATIVE_64BIT)
+#if defined(BOTAN_BUILD_COMPILER_IS_MSVC)
    #include <intrin.h>
 #endif
 
@@ -36,7 +36,7 @@ constexpr inline void mul64x64_128(uint64_t a, uint64_t b, uint64_t* lo, uint64_
 #if defined(BOTAN_TARGET_HAS_NATIVE_UINT128)
    const uint128_t r = static_cast<uint128_t>(a) * b;
    *hi = (r >> 64) & 0xFFFFFFFFFFFFFFFF;
-   *lo = (r)&0xFFFFFFFFFFFFFFFF;
+   *lo = (r) & 0xFFFFFFFFFFFFFFFF;
 #else
 
    /*

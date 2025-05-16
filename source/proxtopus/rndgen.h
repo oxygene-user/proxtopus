@@ -1,9 +1,5 @@
 #pragma once
 
-#include "botan/botan.h"
-#include "botan/hmac_drbg.h"
-#include "botan/entropy_src.h"
-
 class randomgen : public Botan::RandomNumberGenerator {
 
     Botan::HMAC_DRBG sfrng;
@@ -23,10 +19,7 @@ class randomgen : public Botan::RandomNumberGenerator {
             return sfrng.reseed(srcs, poll_bits, poll_timeout);
         }
 
-        std::string name() const override
-        {
-            return sfrng.name();
-        }
+        /// PROXTOPUS : name removed
 
         void clear() override
         {

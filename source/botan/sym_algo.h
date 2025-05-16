@@ -8,12 +8,14 @@
 #ifndef BOTAN_SYMMETRIC_ALGORITHM_H_
 #define BOTAN_SYMMETRIC_ALGORITHM_H_
 
-#include <botan/symkey.h>
 #include <botan/types.h>
 
 #include <span>
+#include <string>
 
 namespace Botan {
+
+class OctetString;
 
 /**
 * Represents the length requirements on an algorithm key
@@ -110,13 +112,18 @@ class BOTAN_PUBLIC_API(2, 0) SymmetricAlgorithm {
       * Set the symmetric key of this object.
       * @param key the SymmetricKey to be set.
       */
-      void set_key(const SymmetricKey& key) { set_key(std::span{key.begin(), key.length()}); }
+      void set_key(const OctetString& key) { set_key(std::span(key.begin(), key.length())); }
 
       /**
       * Set the symmetric key of this object.
       * @param key the contiguous byte range to be set.
       */
-      void set_key(std::span<const uint8_t> key);
+      void set_key(std::span<const uint8_t> key) {
+          if (!valid_keylength(key.size())) {
+              throw Invalid_Key_Length("", key.size());
+          }
+          key_schedule(key);
+      }
 
       /**
       * Set the symmetric key of this object.
@@ -125,10 +132,7 @@ class BOTAN_PUBLIC_API(2, 0) SymmetricAlgorithm {
       */
       void set_key(const uint8_t key[], size_t length) { set_key(std::span{key, length}); }
 
-      /**
-      * @return the algorithm name
-      */
-      virtual std::string name() const = 0;
+      /// PROXTOPUS : name removed
 
       /**
       * @return true if a key has been set on this object

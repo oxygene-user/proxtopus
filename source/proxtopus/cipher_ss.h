@@ -26,7 +26,7 @@ namespace ss
 	std::unique_ptr<Botan::Cipher_Mode> make_aesgcm_256(bool enc);
 
 	class cipher;
-	class keyed_filter : public Botan::Keyed_Filter
+	class keyed_filter : public Botan::Filter
 	{
 		std::unique_ptr<Botan::Cipher_Mode> mode;
 		buffer iv;
@@ -43,11 +43,6 @@ namespace ss
 		void update_key(std::span<const u8> key);
 		void setup(std::unique_ptr<Botan::Cipher_Mode>&& mode, std::span<const u8> key, unsigned NonceSize, cipher* ciph);
 
-		/*virtual*/ void set_key(const Botan::SymmetricKey& /*key*/) override {}
-		/*virtual*/ Botan::Key_Length_Specification key_spec() const override { return mode->key_spec(); }
-		/*virtual*/ bool valid_iv_length(size_t /*length*/) const override { return true; }
-
-		/*virtual*/ str::astr name() const override { return mode->name(); };
 		/*virtual*/ void write(const uint8_t input[], size_t input_length) override;
 		/*virtual*/ void start_msg() override { mode->start(iv); }
 		/*virtual*/ void end_msg() override;
@@ -58,7 +53,6 @@ namespace ss
 		keyed_filter recoder;
 	public:
 		cipher() {}
-		/*virtual*/ str::astr name() const override { return recoder.name(); };
 	};
 
 	class cipher_enc : public cipher
@@ -119,9 +113,9 @@ namespace ss
 
 	using outbuffer = tools::chunk_buffer<16384>;
 
-    inline void deriveAeadSubkey(std::span<u8> skey, const str::astr &masterKey, const std::span<const u8>& salt)
+    inline void deriveAeadSubkey(std::span<u8> skey, const str::astr & master_key, const std::span<const u8>& salt)
     {
-        glb.kdf.derive_key(skey, str::span(masterKey), salt, str::span(ASTR("ss-subkey")));
+        glb.kdf.derive_key(skey, str::span(master_key), salt, str::span(ASTR("ss-subkey")));
     }
 
 	struct core
@@ -149,6 +143,15 @@ namespace ss
 			crypto_par pars;
 
 		public:
+
+			enum dec_rslt
+			{
+				dr_ok,
+				dr_fail,
+				dr_not_enough_data,
+				dr_unsupported,
+			};
+
 			cryptor(crypto_par p) :pars(p) {}
 			virtual ~cryptor() {}
 
@@ -156,8 +159,11 @@ namespace ss
 
 			virtual void init_encryptor(std::span<const u8> /*key*/) {}
 			virtual void init_decryptor(std::span<const u8> /*key*/) {}
-			virtual void encipher(std::span<const u8> plain, buffer& cipher, const std::span<u8>* key) = 0;
-			virtual bool decipher(outbuffer& plain, std::span<const u8> cipher, const std::span<u8>* key) = 0;
+			virtual void encipher(std::span<const u8> plain, buffer& cipher_data, const std::span<u8>* key) = 0;
+			
+			virtual bool decipher(outbuffer& plain, std::span<const u8> cipher_data, const std::span<u8>* key) = 0;
+			virtual bool prebuf(std::span<const u8> cipher_data) = 0; // return false, if prebuf is not supported
+			virtual dec_rslt decipher(outbuffer& plain) = 0;
 
 			const crypto_par& getPars() const { return pars; };
 		};
@@ -180,34 +186,9 @@ namespace ss
 				plain.assign(cipher);
 				return true;
 			}
-		};
+			/*virtual*/ bool prebuf(std::span<const u8> /*cipher_data*/) { return false; }
+			/*virtual*/ dec_rslt decipher(outbuffer& /*plain*/) { return dr_unsupported; }
 
-		struct skip_buf : public buffer
-		{
-			size_t skip = 0;
-			u8* data() { return buffer::data() + skip; }
-			const u8* data() const { return buffer::data() + skip; }
-			size_t size() const { return buffer::size() - skip; }
-			void clear() {
-				buffer::clear();
-				skip = 0;
-			}
-			void erase(size_t szerase)
-			{
-				skip += szerase;
-			}
-
-			skip_buf &operator+=(const std::span<const u8> &d)
-			{
-				if (skip > 500 * 1024 && sz + d.size() > cap)
-				{
-					memcpy(buffer::data(), data(), size());
-					sz = size();
-					skip = 0;
-				}
-				buffer::operator+=(d);
-				return *this;
-			}
 		};
 
 		class aead_cryptor : public cryptor
@@ -217,20 +198,28 @@ namespace ss
 			ss::cipher_builder cb;
 			ss::cipher_enc encryptor;
 			ss::cipher_dec decryptor;
-			skip_buf unprocessed;
+			tools::skip_buf unprocessed;
 			size_t last_block_payload_size = 0;
 
-			/*virtual*/ signed_t decrypt(size_t& from, outbuffer& plain);
+			signed_t decrypt(size_t& from, outbuffer& plain);
 
 		public:
 			aead_cryptor(crypto_par p, ss::cipher_builder cb) :cryptor(p), cb(cb) {}
 
 			/*virtual*/ bool is_decryptor_init() const { return decryptor.is_init(); }
 
-			/*virtual*/ void init_encryptor(std::span<const u8> key);
-			/*virtual*/ void init_decryptor(std::span<const u8> key);
-			/*virtual*/ void encipher(std::span<const u8> plain, buffer& cipher, const std::span<u8>* key);
-			/*virtual*/ bool decipher(outbuffer& plain, std::span<const u8> cipher, const std::span<u8>* key);
+			/*virtual*/ void init_encryptor(std::span<const u8> key) override;
+			/*virtual*/ void init_decryptor(std::span<const u8> key) override;
+			/*virtual*/ void encipher(std::span<const u8> plain, buffer& cipher, const std::span<u8>* key) override;
+			/*virtual*/ bool decipher(outbuffer& plain, std::span<const u8> cipher, const std::span<u8>* key) override;
+
+            /*virtual*/ bool prebuf(std::span<const u8> cipher_data) override {
+                unprocessed += cipher_data;
+                return true;
+            }
+
+			/*virtual*/ dec_rslt decipher(outbuffer& plain) override;
+
 		};
 
 		using cryptobuilder = std::function<std::unique_ptr<cryptor>(void)>;
@@ -241,24 +230,29 @@ namespace ss
 		std::unique_ptr<cryptor> make_aead_crypto_aesgcm_128();
 		static std::unique_ptr<cryptor> makeuncrypted();
 
-		str::astr masterKey;
+        struct masterkey
+        {
+            i64 expired = 0; // deadline time (seconds) // -1 means expired
+            str::astr name;
+            str::astr key;
+        };
+
+		using masterkey_array = spinlock::syncvar<std::vector<masterkey>>;
+
+		masterkey_array masterkeys; // multi-threaded due it can be modified dynamically
 		crypto_par cp;
 		cryptobuilder cb;
 
 	public:
 
-        void deriveAeadSubkey(std::span<u8> skey, const std::span<const u8>& salt)
-        {
-			ss::deriveAeadSubkey(skey, masterKey, salt);
-        }
-
-		class crypto_pipe : public netkit::pipe
+		class crypto_pipe_base : public netkit::pipe
 		{
+		protected:
 			struct incdec
 			{
 				volatile spinlock::long3264& v;
-				crypto_pipe* owner;
-				incdec(volatile spinlock::long3264& v, crypto_pipe* owner) :v(v), owner(owner) { if (spinlock::increment(v) > 10000) owner = nullptr; }
+				crypto_pipe_base* owner;
+				incdec(volatile spinlock::long3264& v, crypto_pipe_base* owner) :v(v), owner(owner) { if (spinlock::increment(v) > 10000) owner = nullptr; }
 				~incdec() { if (spinlock::decrement(v) > 10000 && owner) owner->close(true); }
 				operator bool() const
 				{
@@ -268,27 +262,66 @@ namespace ss
 
 			volatile spinlock::long3264 busy = 0;
 			netkit::pipe_ptr pipe;
-
-			std::unique_ptr<cryptor> crypto;
-			buffer encrypted_data;
+            std::unique_ptr<cryptor> crypto;
+			buffer encrypted_data; // ready 2 send data
 			outbuffer decrypted_data;
-			str::astr masterKey;
-			ss::cipher_builder cb;
 			crypto_par cp;
 			friend class proxy_shadowsocks;
 
-		public:
-			crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor> &&c, const str::astr &masterKey, crypto_par cp);
-			/*virtual*/ ~crypto_pipe();
+			virtual bool init_decryptor(u8* temp) = 0;
+            void generate_outgoing_salt();  // make initial salt as starting sequence
 
-			/*virtual*/ bool alive() override;
+		public:
+			crypto_pipe_base(netkit::pipe_ptr pipe, crypto_par cp) :pipe(pipe), cp(cp) {}
+			/*virtual*/ ~crypto_pipe_base()
+            {
+                close(true);
+            }
+
+
+			/*virtual*/ bool alive() override
+            {
+                return pipe && pipe->alive();
+            }
+
 			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
 			/*virtual*/ bool unrecv(const u8* data, signed_t sz) override;
 			/*virtual*/ netkit::WAITABLE get_waitable() override;
 			/*virtual*/ void close(bool flush_before_close) override;
 
+
 		};
+
+		class multipass_crypto_pipe;
+        class crypto_pipe : public crypto_pipe_base
+        {
+            str::astr master_key;
+
+			friend class proxy_shadowsocks;
+
+			/*virtual*/ bool init_decryptor(u8* temp);
+
+        public:
+			crypto_pipe(multipass_crypto_pipe& mpcp);
+            crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor>&& c, const str::astr& master_key, crypto_par cp);
+			/*virtual*/ ~crypto_pipe() {}
+        };
+
+        class multipass_crypto_pipe : public crypto_pipe_base
+        {
+            friend class crypto_pipe;
+
+            /*virtual*/ bool init_decryptor(u8* temp);
+
+        public:
+
+			multipass_crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<cryptor>&& c, masterkey_array& mks, crypto_par cp);
+            /*virtual*/ ~multipass_crypto_pipe() {}
+
+			netkit::pipe_ptr get_pipe() { return pipe; }
+			crypto_par get_pars() { return cp; }
+        };
 
 		str::astr load(loader& ldr, const str::astr& name, const asts& bb); // returns addr (if url field present)
 
@@ -296,7 +329,7 @@ namespace ss
         class udp_crypto_pipe : public netkit::udp_pipe
         {
             netkit::udp_pipe* transport;
-            str::astr masterKey;
+            str::astr master_key;
             std::unique_ptr<cryptor> crypto;
             ss::cipher_builder cb;
             crypto_par cp;
@@ -305,7 +338,7 @@ namespace ss
 
 			netkit::endpoint ssproxyep;
         public:
-			udp_crypto_pipe(const netkit::endpoint &ssproxyep, netkit::udp_pipe* transport, std::unique_ptr<cryptor> &&c, str::astr masterKey, crypto_par cp);
+			udp_crypto_pipe(const netkit::endpoint &ssproxyep, netkit::udp_pipe* transport, std::unique_ptr<cryptor> &&c, str::astr master_key, crypto_par cp);
 
 			/*virtual*/ netkit::io_result send(const netkit::endpoint& toaddr, const netkit::pgen& pg /* in */) override;
             /*virtual*/ netkit::io_result recv(netkit::ipap& from, netkit::pgen& pg /* out */, signed_t max_bufer_size /*used as max size of answer*/) override;

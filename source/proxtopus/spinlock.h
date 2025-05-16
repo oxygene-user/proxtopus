@@ -261,9 +261,9 @@ SLINLINE uint32_t tid_self() { return ::pthread_self() & 0xffffffff; }
 #define LOCK_WRITE_VAL      0x0000010000000000
 #define LOCK_READ_VAL       0x0001000000000000
 
-#define CHECK_WRITE_LOCK(lock) if (!(lock & LOCK_WRITE_MASK)) SLERROR("No WRITE LOCK: %llu", lock)
-#define CHECK_READ_LOCK(lock) SLASSERT(lock & LOCK_READ_MASK, "No READ LOCK: %llu", lock)
-#define CHECK_LOCK(lock) if (!(lock & LOCK_READ_MASK) && !(lock & LOCK_WRITE_MASK)) SLERROR("No LOCK: %llu", lock)
+#define CHECK_WRITE_LOCK(lock) if (!(lock & LOCK_WRITE_MASK)) SLERROR("No WRITE LOCK: $", lock)
+#define CHECK_READ_LOCK(lock) SLASSERT(lock & LOCK_READ_MASK, "No READ LOCK: $", lock)
+#define CHECK_LOCK(lock) if (!(lock & LOCK_READ_MASK) && !(lock & LOCK_WRITE_MASK)) SLERROR("No LOCK: $", lock)
 
 SLINLINE void lock_write(RWLOCK &lock)
 {
@@ -368,7 +368,7 @@ SLINLINE void unlock_write(RWLOCK &lock)
 
     RWLOCKVALUE thread = tid_self();
     if ((tmp & LOCK_THREAD_MASK)!=thread)
-        SLERROR("DEAD LOCK: %llu", lock);
+        SLERROR("DEAD LOCK: $", lock);
 
     CHECK_WRITE_LOCK(tmp);
 

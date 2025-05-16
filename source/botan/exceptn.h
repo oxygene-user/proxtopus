@@ -144,7 +144,7 @@ class BOTAN_PUBLIC_API(2, 0) Invalid_Argument : public Exception {
 */
 class BOTAN_PUBLIC_API(3, 0) Unknown_PK_Field_Name final : public Invalid_Argument {
    public:
-      Unknown_PK_Field_Name(std::string_view algo_name, std::string_view field_name);
+      Unknown_PK_Field_Name(ALG algo_name, std::string_view field_name);
 };
 
 /**
@@ -252,17 +252,7 @@ class BOTAN_PUBLIC_API(2, 0) Algorithm_Not_Found final : public Lookup_Error {
       explicit Algorithm_Not_Found(std::string_view name);
 };
 
-/**
-* Provider_Not_Found is thrown when a specific provider was requested
-* but that provider is not available.
-*
-* @warning This exception type will be removed in the future. Instead
-* just catch Lookup_Error.
-*/
-class BOTAN_PUBLIC_API(2, 0) Provider_Not_Found final : public Lookup_Error {
-   public:
-      Provider_Not_Found(std::string_view algo, std::string_view provider);
-};
+/// PROXTOPUS : provider removed
 
 /**
 * An AEAD or MAC check detected a message modification

@@ -41,18 +41,16 @@ class BOTAN_PUBLIC_API(2, 0) AEAD_Mode : public Cipher_Mode {
       * @param provider optional specification for provider to use
       * @return an AEAD mode, or throw an exception
       */
-      static std::unique_ptr<AEAD_Mode> create_or_throw(std::string_view algo,
-                                                        Cipher_Dir direction,
-                                                        std::string_view provider = "");
+      static std::unique_ptr<AEAD_Mode> create_or_throw(Cipher_Algo algo, Cipher_Dir direction); /// PROXTOPUS
 
       /**
-      * Set associated data that is not included in the ciphertext but
-      * that should be authenticated. Must be called after set_key and
-      * before start.
+      * Set associated data that is not included in the ciphertext but that
+      * should be authenticated. Must be called after set_key() and before
+      * start().
       *
-      * Unless reset by another call, the associated data is kept
-      * between messages. Thus, if the AD does not change, calling
-      * once (after set_key) is the optimum.
+      * Unless reset by another call, the associated data is kept between
+      * messages. Thus, if the AD does not change, calling once (after
+      * set_key()) is the optimum.
       *
       * @param ad the associated data
       */
@@ -62,12 +60,12 @@ class BOTAN_PUBLIC_API(2, 0) AEAD_Mode : public Cipher_Mode {
 
       /**
       * Set associated data that is not included in the ciphertext but
-      * that should be authenticated. Must be called after set_key and
-      * before start.
+      * that should be authenticated. Must be called after set_key() and
+      * before start().
       *
       * Unless reset by another call, the associated data is kept
       * between messages. Thus, if the AD does not change, calling
-      * once (after set_key) is the optimum.
+      * once (after set_key()) is the optimum.
       *
       * Some AEADs (namely SIV) support multiple AD inputs. For
       * all other modes only nominal AD input 0 is supported; all
@@ -99,8 +97,8 @@ class BOTAN_PUBLIC_API(2, 0) AEAD_Mode : public Cipher_Mode {
 
       /**
       * Set associated data that is not included in the ciphertext but
-      * that should be authenticated. Must be called after set_key and
-      * before start.
+      * that should be authenticated. Must be called after set_key() and
+      * before start().
       *
       * See @ref set_associated_data().
       *
@@ -114,16 +112,14 @@ class BOTAN_PUBLIC_API(2, 0) AEAD_Mode : public Cipher_Mode {
 
       /**
       * Set associated data that is not included in the ciphertext but
-      * that should be authenticated. Must be called after set_key and
-      * before start.
+      * that should be authenticated. Must be called after set_key() and
+      * before start().
       *
       * See @ref set_associated_data().
       *
       * @param ad the associated data
       */
-      BOTAN_DEPRECATED("Please use set_associated_data")
-
-      void set_ad(std::span<const uint8_t> ad) { set_associated_data(ad); }
+      BOTAN_DEPRECATED("Use set_associated_data") void set_ad(std::span<const uint8_t> ad) { set_associated_data(ad); }
 
       /**
       * @return default AEAD nonce size (a commonly supported value among AEAD
@@ -139,9 +135,7 @@ class BOTAN_PUBLIC_API(2, 0) AEAD_Mode : public Cipher_Mode {
 * @param name AEAD name
 * @param direction Cipher_Dir::Encryption or Cipher_Dir::Decryption
 */
-BOTAN_DEPRECATED("Use AEAD_Mode::create")
-
-inline AEAD_Mode* get_aead(std::string_view name, Cipher_Dir direction) {
+BOTAN_DEPRECATED("Use AEAD_Mode::create") inline AEAD_Mode* get_aead(std::string_view name, Cipher_Dir direction) {
    return AEAD_Mode::create(name, direction, "").release();
 }
 

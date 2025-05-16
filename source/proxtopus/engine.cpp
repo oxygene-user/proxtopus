@@ -20,6 +20,9 @@ engine::engine()
 
 	glb.path_config = FN();
 
+	if (!glb.actual)
+		return;
+
 	ldr.iterate_p([&](const str::astr& name, const asts& lb) {
 
 		if (name.empty())
@@ -47,6 +50,12 @@ engine::engine()
 
 		if (name.empty())
 		{
+			if (glb.listeners_need_all)
+			{
+				ldr.exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
+				return false;
+			}
+
 			LOG_W("listener with no name skipped");
 			return true;
 		}

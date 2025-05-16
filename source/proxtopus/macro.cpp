@@ -37,8 +37,8 @@ template <typename SS> void __repl(SS& s, size_t from, size_t to, const str::xst
 
 template<typename CC> bool handle_macro(macro_context* ctx, const str::xstr_view<CC>& w, str::xstr<CC>& rslt)
 {
-    str::token<char, str::sep_onechar<char, ':'>> tkn(w);
-    if (*tkn == ASTR("v"))
+    str::token<CC, str::sep_onechar<CC, ':'>> tkn(w);
+    if (*tkn == XSTR(CC,"v"))
     {
         tkn();
         signed_t vi = str::parse_int(*tkn, 0);
@@ -47,15 +47,15 @@ template<typename CC> bool handle_macro(macro_context* ctx, const str::xstr_view
             rslt.clear();
             return true;
         }
-        rslt = ctx->vars[vi];
+        str::__assign(rslt, ctx->vars[vi]);
         return true;
 
-    } else if (*tkn == ASTR("rn"))
+    } else if (*tkn == XSTR(CC,"rn"))
     {
         tkn();
-        str::astr_view fn = *tkn;
+        str::xstr_view<CC> fn = *tkn;
         tkn();
-        str::astr_view sn = *tkn;
+        str::xstr_view<CC> sn = *tkn;
 
         signed_t n1 = str::parse_int(fn, -1);
         if (n1 < 0)
@@ -68,10 +68,10 @@ template<typename CC> bool handle_macro(macro_context* ctx, const str::xstr_view
         rslt.clear();
         str::append_num(rslt, rnum, fn.length());
         return true;
-    } else if (*tkn == ASTR("rw"))
+    } else if (*tkn == XSTR(CC,"rw"))
     {
         tkn();
-        str::astr_view rgs = *tkn;
+        str::xstr_view<CC> rgs = *tkn;
         tkn();
         signed_t numl1 = str::parse_int(*tkn, 0);
         tkn();
@@ -89,11 +89,11 @@ template<typename CC> bool handle_macro(macro_context* ctx, const str::xstr_view
         if (0 != (cnt & 1))
             return false;
 
-        str::astr rrc;
+        str::xstr<CC> rrc;
 
         for (signed_t i = 0; i < cnt; i += 2)
         {
-            for (char c1 = rgs[i], c2 = rgs[i + 1]; c1 <= c2; ++c1)
+            for (CC c1 = rgs[i], c2 = rgs[i + 1]; c1 <= c2; ++c1)
                 rrc.push_back(c1);
         }
 
@@ -178,4 +178,5 @@ template<typename SS> void macro_expand(macro_context* ctx, SS& s)
 
 }
 
-template void macro_expand<str::astr>(macro_context* ctx, str::astr &);
+template void macro_expand<str::wstr>(macro_context* ctx, str::wstr&);
+template void macro_expand<str::astr>(macro_context* ctx, str::astr&);

@@ -68,11 +68,38 @@ std::string to_string(ErrorType type) {
    return "Unrecognized Botan error";
 }
 
-Exception::Exception(std::string_view msg) : m_msg(msg) {}
+Exception::Exception(std::string_view msg) : m_msg(msg) {
+#ifdef _DEBUG
+#ifdef _WIN32
+    __debugbreak();
+#endif
+#ifdef __GNUC__
+    __builtin_trap();
+#endif
+#endif
+}
 
-Exception::Exception(std::string_view msg, const std::exception& e) : m_msg(fmt("{} failed with {}", msg, e.what())) {}
+Exception::Exception(std::string_view msg, const std::exception& e) : m_msg(fmt("{} failed with {}", msg, e.what())) {
+#ifdef _DEBUG
+#ifdef _WIN32
+    __debugbreak();
+#endif
+#ifdef __GNUC__
+    __builtin_trap();
+#endif
+#endif
+}
 
-Exception::Exception(const char* prefix, std::string_view msg) : m_msg(fmt("{} {}", prefix, msg)) {}
+Exception::Exception(const char* prefix, std::string_view msg) : m_msg(fmt("{} {}", prefix, msg)) {
+#ifdef _DEBUG
+#ifdef _WIN32
+    __debugbreak();
+#endif
+#ifdef __GNUC__
+    __builtin_trap();
+#endif
+#endif
+}
 
 Invalid_Argument::Invalid_Argument(std::string_view msg) : Exception(msg) {}
 
@@ -98,7 +125,7 @@ Lookup_Error::Lookup_Error(std::string_view type, std::string_view algo, std::st
 
 Internal_Error::Internal_Error(std::string_view err) : Exception("Internal error:", err) {}
 
-Unknown_PK_Field_Name::Unknown_PK_Field_Name(std::string_view algo_name, std::string_view field_name) :
+Unknown_PK_Field_Name::Unknown_PK_Field_Name(ALG algo_name, std::string_view field_name) :
       Invalid_Argument(fmt("Unknown field '{}' for algorithm {}", field_name, algo_name)) {}
 
 Invalid_Key_Length::Invalid_Key_Length(std::string_view name, size_t length) :
@@ -114,8 +141,7 @@ PRNG_Unseeded::PRNG_Unseeded(std::string_view algo) : Invalid_State(fmt("PRNG {}
 Algorithm_Not_Found::Algorithm_Not_Found(std::string_view name) :
       Lookup_Error(fmt("Could not find any algorithm named '{}'", name)) {}
 
-Provider_Not_Found::Provider_Not_Found(std::string_view algo, std::string_view provider) :
-      Lookup_Error(fmt("Could not find provider '{}' for algorithm '{}'", provider, algo)) {}
+/// PROXTOPUS : provider removed
 
 Invalid_Algorithm_Name::Invalid_Algorithm_Name(std::string_view name) :
       Invalid_Argument(fmt("Invalid algorithm name: '{}'", name)) {}

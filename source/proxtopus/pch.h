@@ -6,7 +6,6 @@
 #pragma once
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
-#define _ALLOW_RTCc_IN_STL
 
 #define LOGGER 2
 
@@ -58,7 +57,19 @@
 #include <charconv>
 #include <array>
 
-#include "botan/botan.h"
+#include <botan/exceptn.h>
+#include <botan/hmac_drbg.h>
+#include <botan/entropy_src.h>
+#include <botan/internal/hkdf.h>
+#include <botan/internal/hmac.h>
+#include <botan/internal/sha1.h>
+#include <botan/internal/tls_server_impl_12.h>
+#include <botan/cipher_mode.h>
+#include <botan/filter.h>
+#include <botan/tls_session_manager_memory.h>
+
+
+
 #include "base.h"
 #include "str_helpers.h"
 
@@ -81,6 +92,7 @@ extern bool g_single_core;
 #include "icpt.h"
 #include "main.h"
 #include "resource.h"
+#include "tls.h"
 
 #include "cmdline.h"
 #include "loader.h"
@@ -90,5 +102,12 @@ extern bool g_single_core;
 #include "engine.h"
 #include "connect.h"
 #include "dnsq.h"
+#include "os_tools.h"
+#include "watchdog.h"
+
 
 // reference additional headers your program requires here
+
+#ifndef _NIX
+//#define DO_SPEED_TESTS
+#endif

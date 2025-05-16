@@ -8,6 +8,7 @@
 
 #include <botan/internal/hmac.h>
 
+#include <botan/mem_ops.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/fmt.h>
 
@@ -55,8 +56,8 @@ void HMAC::key_schedule(std::span<const uint8_t> key) {
 
    m_hash->clear();
 
-   m_ikey.resize(m_hash_block_size);
-   m_okey.resize(m_hash_block_size);
+   m_ikey.resize(m_hash_block_size, true);
+   m_okey.resize(m_hash_block_size, true);
 
    clear_mem(m_ikey.data(), m_ikey.size());
    clear_mem(m_okey.data(), m_okey.size());
@@ -81,6 +82,10 @@ void HMAC::key_schedule(std::span<const uint8_t> key) {
    if(key.size() > m_hash_block_size) {
       m_hash->update(key);
       m_hash->final(m_ikey.data());
+   } else if(key.size() >= 20) {
+      // For long keys we just leak the length either it is a cryptovariable
+      // or a long enough password that just the length is not a useful signal
+      copy_mem(std::span{m_ikey}.first(key.size()), key);
    } else if(!key.empty()) {
       for(size_t i = 0, i_mod_length = 0; i != m_hash_block_size; ++i) {
          /*
@@ -114,12 +119,7 @@ void HMAC::clear() {
    zap(m_okey);
 }
 
-/*
-* Return the name of this type
-*/
-std::string HMAC::name() const {
-   return fmt("HMAC({})", m_hash->name());
-}
+/// PROXTOPUS : name removed
 
 /*
 * Return a new_object of this object

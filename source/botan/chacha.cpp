@@ -8,10 +8,13 @@
 #include <botan/internal/chacha.h>
 
 #include <botan/exceptn.h>
-#include <botan/internal/cpuid.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
 #include <botan/internal/rotate.h>
+
+#if defined(BOTAN_HAS_CPUID)
+   #include <botan/internal/cpuid.h>
+#endif
 
 namespace Botan {
 
@@ -72,13 +75,13 @@ ChaCha::ChaCha(size_t rounds) : m_rounds(rounds) {
 
 size_t ChaCha::parallelism() {
 #if defined(BOTAN_HAS_CHACHA_AVX512)
-   if(CPUID::has_avx512()) {
+   if(CPUID::has(CPUID::Feature::AVX512)) {
       return 16;
    }
 #endif
 
 #if defined(BOTAN_HAS_CHACHA_AVX2)
-   if(CPUID::has_avx2()) {
+   if(CPUID::has(CPUID::Feature::AVX2)) {
       return 8;
    }
 #endif
@@ -86,33 +89,13 @@ size_t ChaCha::parallelism() {
    return 4;
 }
 
-std::string ChaCha::provider() const {
-#if defined(BOTAN_HAS_CHACHA_AVX512)
-   if(CPUID::has_avx512()) {
-      return "avx512";
-   }
-#endif
-
-#if defined(BOTAN_HAS_CHACHA_AVX2)
-   if(CPUID::has_avx2()) {
-      return "avx2";
-   }
-#endif
-
-#if defined(BOTAN_HAS_CHACHA_SIMD32)
-   if(CPUID::has_simd_32()) {
-      return "simd32";
-   }
-#endif
-
-   return "base";
-}
+/// PROXTOPUS : provider removed
 
 void ChaCha::chacha(uint8_t output[], size_t output_blocks, uint32_t state[16], size_t rounds) {
    BOTAN_ASSERT(rounds % 2 == 0, "Valid rounds");
 
 #if defined(BOTAN_HAS_CHACHA_AVX512)
-   if(CPUID::has_avx512()) {
+   if(CPUID::has(CPUID::Feature::AVX512)) {
       while(output_blocks >= 16) {
          ChaCha::chacha_avx512_x16(output, state, rounds);
          output += 16 * 64;
@@ -122,7 +105,7 @@ void ChaCha::chacha(uint8_t output[], size_t output_blocks, uint32_t state[16], 
 #endif
 
 #if defined(BOTAN_HAS_CHACHA_AVX2)
-   if(CPUID::has_avx2()) {
+   if(CPUID::has(CPUID::Feature::AVX2)) {
       while(output_blocks >= 8) {
          ChaCha::chacha_avx2_x8(output, state, rounds);
          output += 8 * 64;
@@ -132,7 +115,7 @@ void ChaCha::chacha(uint8_t output[], size_t output_blocks, uint32_t state[16], 
 #endif
 
 #if defined(BOTAN_HAS_CHACHA_SIMD32)
-   if(CPUID::has_simd_32()) {
+   if(CPUID::has_simd_4x32()) {
       while(output_blocks >= 4) {
          ChaCha::chacha_simd32_x4(output, state, rounds);
          output += 4 * 64;
@@ -325,7 +308,7 @@ void ChaCha::set_iv_bytes(const uint8_t iv[], size_t length) {
    assert_key_material_set();
 
    if(!valid_iv_length(length)) {
-      throw Invalid_IV_Length(name(), length);
+      throw Invalid_IV_Length("", length);
    }
 
    initialize_state();
@@ -375,9 +358,7 @@ void ChaCha::clear() {
    m_position = 0;
 }
 
-std::string ChaCha::name() const {
-   return fmt("ChaCha({})", m_rounds);
-}
+/// PROXTOPUS : name removed
 
 void ChaCha::seek(uint64_t offset) {
    assert_key_material_set();

@@ -14,15 +14,44 @@ handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::soc
 
 void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 {
-	DL(DLCH_THREADS, "ss worker in (%u)", glb.numtcp);
+	DL(DLCH_THREADS, "ss worker in ($)", glb.numtcp);
 
 	netkit::pipe_ptr p(raw_pipe);
-	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(p, std::move(core.cb()), core.masterKey, core.cp));
+	netkit::pipe_ptr p_enc;
+	auto mkr = core.masterkeys.lock_read();
+	if (mkr().size() == 0)
+		return; // inactive
 
-	u8 packet[512];
-	signed_t rb = p_enc->recv(packet, -2);
-	if (rb != 2)
-		return;
+    u8 packet[512];
+
+	if (mkr().size() == 1)
+	{
+		str::astr k = mkr()[0].key;
+        mkr.unlock();
+		p_enc = NEW ss::core::crypto_pipe(p, std::move(core.cb()), k, core.cp);
+
+        if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
+            return;
+
+	}
+	else
+	{
+		mkr.unlock();
+
+		/*
+		p_enc = NEW ss::core::multipass_crypto_pipe(p, std::move(core.cb()), core.masterkeys, core.cp);
+        if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
+            return;
+			*/
+
+		ss::core::multipass_crypto_pipe multipass(p, std::move(core.cb()), core.masterkeys, core.cp);
+
+        if (signed_t rb = multipass.recv(packet, -2); rb != 2)
+            return;
+
+        p_enc = NEW ss::core::crypto_pipe(multipass);
+
+	}
 
 	netkit::endpoint ep;
 	signed_t len;
@@ -30,8 +59,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	switch (packet[0])
 	{
 	case 1: // ip4
-		rb = p_enc->recv(packet + 2, -3);
-		if (rb != 3)
+		if (signed_t rb = p_enc->recv(packet + 2, -3); rb != 3)
 			return;
 
 		ep.set_ipap(netkit::ipap::build(packet + 1, 4));
@@ -39,14 +67,14 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	case 3: // domain name
 
 		len = packet[1]; // len of domain
-		rb = p_enc->recv(packet, -len);
-		if (rb != len)
+		if (signed_t rb = p_enc->recv(packet, -len); rb != len)
 			return;
 		ep.set_domain(std::string((const char*)packet, len));
 		break;
 
 	case 4: // ipv6
-		p_enc->recv(packet+2, -15); // read 15 of 16 bytes of ipv6 address (1st byte already read)
+		if (signed_t rb = p_enc->recv(packet + 2, -15); rb != 15)// read 15 of 16 bytes of ipv6 address (1st byte already read)
+			return;
 		ep.set_ipap(netkit::ipap::build(packet + 1, 16));
         break;
 	}
@@ -54,8 +82,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
         return;
 
-	rb = p_enc->recv(packet, -2);
-	if (rb != 2)
+	if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
 		return;
 
 	signed_t port = ((signed_t)packet[0]) << 8 | packet[1];
@@ -64,7 +91,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	if (netkit::pipe_ptr outcon = connect(ep, false))
 		bridge(/*ep,*/ std::move(p_enc), std::move(outcon));
 
-	DL(DLCH_THREADS, "ss worker out (%u)", glb.numtcp);
+	DL(DLCH_THREADS, "ss worker out ($)", glb.numtcp);
 }
 
 namespace
@@ -74,6 +101,7 @@ namespace
 		std::unique_ptr<ss::core::cryptor> crypto;
         randomgen rng;
 		buffer buf2s;
+		signed_t password_index = -1;
 
 		udp_cipher(std::unique_ptr<ss::core::cryptor>&& c)
 		{
@@ -86,16 +114,54 @@ namespace
 {
 	// decipher and extract endpoint
 
+    if (ctx.data == nullptr)
+        ctx.data.reset(NEW udp_cipher(std::move(core.cb())));
+    udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
+
     u8 skey[ss::core::maximum_key_size];
     std::span<u8> subkey(skey, core.cp.KeySize);
-    core.deriveAeadSubkey(subkey, std::span<const u8>(p.packet, core.cp.KeySize));
 
-	if (ctx.data == nullptr)
-		ctx.data.reset(NEW udp_cipher( std::move(core.cb()) ));
-	udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
+    ss::outbuffer buf2r;
+	auto mkr = core.masterkeys.lock_read();
+	signed_t pwdi = context->password_index;
+	if (pwdi < 0)
+	{
+		pwdi = 0;
+        i64 cur_sec = chrono::now();
+		for (signed_t pwdi_end = mkr().size(); pwdi < pwdi_end; ++pwdi)
+        {
+			const ss::core::masterkey& k = mkr()[pwdi];
+            if (k.expired < 0)
+                continue;
+            if (k.expired > 0 && k.expired < cur_sec)
+            {
+                const_cast<ss::core::masterkey&>(k).expired = -1; // acceptable hack due it final state of masterkey
+                continue;
+            }
 
-	ss::outbuffer buf2r;
-	context->crypto->decipher(buf2r, std::span<const u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), &subkey);
+            ss::deriveAeadSubkey(skey, k.key, std::span<const u8>(p.packet, core.cp.KeySize));
+            bool ok = context->crypto->decipher(buf2r, std::span<const u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), &subkey);
+			if (ok)
+			{
+				mkr.unlock();
+				context->password_index = pwdi;
+				break;
+			}
+        }
+	}
+	else
+	{
+		const ss::core::masterkey& k = mkr()[pwdi];
+		if (k.expired < 0)
+			return false;
+
+        ss::deriveAeadSubkey(skey, k.key, std::span<const u8>(p.packet, core.cp.KeySize));
+		mkr.unlock();
+        bool ok = context->crypto->decipher(buf2r, std::span<const u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), &subkey);
+		if (!ok)
+			return false;
+	}
+
     auto decp = buf2r.get_1st_chunk();
     if (decp.size() == 0)
         return false;
@@ -119,7 +185,10 @@ namespace
 	context->rng.random_vec(context->buf2s);
     u8 skey[ss::core::maximum_key_size];
     std::span<u8> subkey(skey, core.cp.KeySize);
-    core.deriveAeadSubkey(subkey, context->buf2s);
+
+	auto mkr = core.masterkeys.lock_read();
+    ss::deriveAeadSubkey(subkey, mkr()[context->password_index].key, context->buf2s);
+	mkr.unlock();
 
 	netkit::endpoint ep(from);
     signed_t presize = proxy_socks5::atyp_size(ep);
@@ -147,5 +216,5 @@ namespace
 
 /*virtual*/ void handler_ss::log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to)
 {
-	LOG_N("new UDP ss-stream (%s <-> %s) via listener [%s]", from.to_string(true).c_str(), to.desc().c_str(), str::printable(owner->get_name()));
+	LOG_N("new UDP ss-stream ($ <-> $) via listener [$]", from.to_string(true), to.desc(), str::clean(owner->get_name()));
 }

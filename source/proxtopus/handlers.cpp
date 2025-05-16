@@ -2,13 +2,13 @@
 
 #define BRIDGE_BUFFER_SIZE 65536
 
-handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st)
+handler* handler::new_handler(loader& ldr, listener *owner, const asts& bb, netkit::socket_type_e st)
 {
 	const str::astr &t = bb.get_string(ASTR("type"), glb.emptys);
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for handler of listener [%s]; type {proxtopus help handler} for more information", str::printable(owner->get_name()));
+		LOG_E("{type} not defined for handler of listener [$]^", str::clean(owner->get_name()));
 		return nullptr;
 	}
 
@@ -23,7 +23,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
         {
 		//err:
 			ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
-            LOG_E("{%s} handler can only be used with TCP type of listener [%s]", t.c_str(), str::printable(owner->get_name()));
+            LOG_E("{$} handler can only be used with TCP type of listener [$]", t, str::clean(owner->get_name()));
             return nullptr;
 		}
 
@@ -55,7 +55,7 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 		return h;
 	}
 
-	LOG_E("unknown {type} [%s] for handler of lisnener [%s]; type {proxtopus help handler} for more information", str::printable(t), str::printable(owner->get_name()));
+	LOG_E("unknown {type} [$] for handler of lisnener [$]^", str::clean(t), str::clean(owner->get_name()));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 	return nullptr;
 }
@@ -63,14 +63,14 @@ handler* handler::build(loader& ldr, listener *owner, const asts& bb, netkit::so
 handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 {
 	const proxy* p = nullptr;
-	str::astr pch = bb.get_string(ASTR("udp-proxy"), glb.emptys);
+	str::astr_view pch = str::view(bb.get_string(ASTR("udp-proxy"), glb.emptys));
     if (!pch.empty())
     {
         p = ldr.find_proxy(pch);
         if (p == nullptr)
         {
         per:
-            LOG_E("unknown {proxy} [%s] for handler of lisnener [%s]", pch.c_str(), str::printable(owner->get_name()));
+            LOG_E("unknown {proxy} [$] for handler of lisnener [$]", pch, str::clean(owner->get_name()));
             ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
             return;
         }
@@ -78,17 +78,17 @@ handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
         if (!p->support(netkit::ST_UDP))
         {
             ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
-            LOG_E("upstream {proxy} [%s] does not support UDP protocol (listener: [%s])", pch.c_str(), str::printable(owner->get_name()));
+            LOG_E("upstream {proxy} [$] does not support UDP protocol (listener: [$])", pch, str::clean(owner->get_name()));
             return;
         }
 
         udp_proxy = p;
     }
 
-	pch = bb.get_string(ASTR("proxychain"), glb.emptys);
+	pch = str::view(bb.get_string(ASTR("proxychain"), glb.emptys));
 	if (!pch.empty())
 	{
-		TFORa(tkn, pch, ',')
+		enum_tokens_a(tkn, pch, ',')
 		{
 			p = ldr.find_proxy(*tkn);
 			if (p == nullptr)
@@ -427,9 +427,9 @@ signed_t handler::tcp_processing_thread::tick(u8* data)
 
 void handler::bridge(tcp_processing_thread *npt)
 {
-	DL(DLCH_THREADS, "bridge in (%u)", glb.numtcp);
+	DL(DLCH_THREADS, "bridge in ($)", glb.numtcp);
 
-	stats::tick_collector collector("tcp");
+	stats::tick_collector collector(ASTR("tcp"));
 
 	u8 data[BRIDGE_BUFFER_SIZE];
 	netkit::pipe_waiter::mask mask(false);
@@ -466,7 +466,7 @@ void handler::bridge(tcp_processing_thread *npt)
 		}
 	}
 
-	DL(DLCH_THREADS, "bridge out (%u)", glb.numtcp);
+	DL(DLCH_THREADS, "bridge out ($)", glb.numtcp);
 }
 
 void handler::release_udps()
@@ -516,7 +516,7 @@ netkit::pipe_ptr handler::connect( netkit::endpoint& addr, bool direct)
 		{
 			if (proxychain.size() == 0)
 			{
-				LOG_N("connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->get_name()));
+				LOG_N("connected to ($) via listener [$]", addr.desc(), str::clean(owner->get_name()));
 			}
 
 			netkit::pipe_ptr pp(pipe);
@@ -525,7 +525,7 @@ netkit::pipe_ptr handler::connect( netkit::endpoint& addr, bool direct)
 
 		if (proxychain.size() == 0)
 		{
-			LOG_N("not connected to (%s) via listener [%s]", addr.desc().c_str(), str::printable(owner->get_name()));
+			LOG_N("not connected to ($) via listener [$]", addr.desc(), str::clean(owner->get_name()));
 		}
 
 		return netkit::pipe_ptr();
@@ -542,16 +542,16 @@ netkit::pipe_ptr handler::connect( netkit::endpoint& addr, bool direct)
 		stag.append(s);
 	};
 
-	//LOG_N("listener {%s} has been started (bind ip: %s, port: %i)", str::printable(name), bind2.to_string().c_str(), port);
+	//LOG_N("listener {$} has been started (bind ip: $, port: $)", str::printable(name), bind2.to_string(), port);
 
 	if (proxychain.size() == 1)
 	{
-		ps("connecting to upstream proxy (%s) via listener [%s]"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str(), str::printable(owner->get_name()));
+		ps("connecting to upstream proxy ($) via listener [$]"); LOG_N(stag.c_str(), proxychain[0]->desc(), str::clean(owner->get_name()));
 	}
 	else
 	{
-		ps("connecting through proxy chain via listener [%s]"); LOG_N(stag.c_str(), str::printable(owner->get_name()));
-		ps("connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[0]->desc().c_str());
+		ps("connecting through proxy chain via listener [$]"); LOG_N(stag.c_str(), str::clean(owner->get_name()));
+		ps("connecting to proxy ($)"); LOG_N(stag.c_str(), proxychain[0]->desc());
 	}
 
 	netkit::endpoint prx_ep;
@@ -569,11 +569,11 @@ netkit::pipe_ptr handler::connect( netkit::endpoint& addr, bool direct)
 		netkit::endpoint &na = finala ? addr : get_proxy_addr(i + 1);
 		if (finala)
 		{
-			ps("connecting to address (%s)"); LOG_N(stag.c_str(), na.desc().c_str());
+			ps("connecting to address ($)"); LOG_N(stag.c_str(), na.desc());
 		}
 		else
 		{
-			ps("connecting to proxy (%s)"); LOG_N(stag.c_str(), proxychain[i + 1]->desc().c_str());
+			ps("connecting to proxy ($)"); LOG_N(stag.c_str(), proxychain[i + 1]->desc());
 		}
 
 		pp = proxychain[i]->prepare(pp, na);
@@ -641,10 +641,10 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 		if (!pipe)
 			return;
 
-		LOG_N("UDP connection from %s via proxy %s established", hashkey.to_string(true).c_str(), prx->desc().c_str());
+		LOG_N("UDP connection from $ via proxy $ established", hashkey.to_string(true), prx->desc());
 	}
 
-    stats::tick_collector collector("udp");
+    stats::tick_collector collector(ASTR("udp"));
 	collector.tag = "udp-pre";
 
     for(;;)
@@ -780,7 +780,7 @@ void handler::udp_dispatch(netkit::socket& lstnr, netkit::udp_packet& p)
 	netkit::thread_storage* hs = wt ? wt->geths() : &hss;
 	if (!handle_packet(*hs, p, ep, pg))
 	{
-		DL(DLCH_THREADS, "udp handle packet fail (%s, %i)", p.from.to_string(true).c_str(), p.sz);
+		DL(DLCH_THREADS, "udp handle packet fail ($, $)", p.from.to_string(true), p.sz);
 		return;
 	}
 
@@ -830,7 +830,7 @@ handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, net
 	if (!conn::is_valid_addr(to_addr))
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("{to} field of direct handler not defined or invalid (listener: [%s])", str::printable(owner->get_name()));
+		LOG_E("{to} field of direct handler not defined or invalid (listener: [$])", str::clean(owner->get_name()));
 		return;
 	}
 
@@ -854,7 +854,7 @@ void handler_direct::handle_pipe(netkit::pipe* pipe)
 
 /*virtual*/ void handler_direct::log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to)
 {
-    LOG_N("new UDP mapping (%s <-> %s) via listener [%s]", from.to_string(true).c_str(), to.desc().c_str(), str::printable(owner->get_name()));
+    LOG_N("new UDP mapping ($ <-> $) via listener [$]", from.to_string(true), to.desc(), str::clean(owner->get_name()));
 }
 
 /*virtual*/ bool handler_direct::handle_packet(netkit::thread_storage& /*ctx*/, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg)
@@ -877,7 +877,7 @@ void handler_direct::handle_pipe(netkit::pipe* pipe)
                 {
                 cant:
                     ep = netkit::endpoint();
-                    LOG_E("failed UDP mapping: can't use endpoint %s (listener [%s])", to_addr.c_str(), str::printable(owner->get_name()));
+                    LOG_E("failed UDP mapping: can't use endpoint $ (listener [$])", to_addr, str::clean(owner->get_name()));
                     return false;
                 }
             }
@@ -957,7 +957,7 @@ handler_socks::handler_socks(loader& ldr, listener* owner, const asts& bb, const
 
 		allow_udp_assoc = bb.get_bool(ASTR("udp-assoc"), true);
 
-        str::astr bs = bb.get_string(ASTR("udp-bind"), glb.emptys);
+        const str::astr &bs = bb.get_string(ASTR("udp-bind"), glb.emptys);
 		udp_bind = netkit::ipap::parse(bs);
 
         allow_private = bb.get_bool(ASTR("allow-private"), true);

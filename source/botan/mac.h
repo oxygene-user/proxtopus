@@ -42,10 +42,7 @@ class BOTAN_PUBLIC_API(2, 0) MessageAuthenticationCode : public Buffered_Computa
       static std::unique_ptr<MessageAuthenticationCode> create_or_throw(std::string_view algo_spec,
                                                                         std::string_view provider = "");
 
-      /**
-      * @return list of available providers for this algorithm, empty if not available
-      */
-      static std::vector<std::string> providers(std::string_view algo_spec);
+      /// PROXTOPUS : provider removed
 
       ~MessageAuthenticationCode() override = default;
 
@@ -53,7 +50,7 @@ class BOTAN_PUBLIC_API(2, 0) MessageAuthenticationCode : public Buffered_Computa
       * Prepare for processing a message under the specified nonce
       *
       * Most MACs neither require nor support a nonce; for these algorithms
-      * calling `start_msg` is optional and calling it with anything other than
+      * calling start() is optional and calling it with anything other than
       * an empty string is an error. One MAC which *requires* a per-message
       * nonce be specified is GMAC.
       *
@@ -101,11 +98,7 @@ class BOTAN_PUBLIC_API(2, 0) MessageAuthenticationCode : public Buffered_Computa
       */
       MessageAuthenticationCode* clone() const { return this->new_object().release(); }
 
-      /**
-      * @return provider information about this implementation. Default is "base",
-      * might also return "sse2", "avx2", "openssl", or some other arbitrary string.
-      */
-      virtual std::string provider() const { return "base"; }
+      /// PROXTOPUS : provider removed
 
       /**
       * @return if a fresh key must be set for each message that is processed.

@@ -8,16 +8,23 @@
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/bswap.h>
-#include <botan/internal/cpuid.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/loadstor.h>
 #include <botan/internal/rotate.h>
 
-namespace Botan {
+#if defined(BOTAN_HAS_CPUID)
+   #include <botan/internal/cpuid.h>
+#endif
 
 #if defined(BOTAN_HAS_AES_POWER8) || defined(BOTAN_HAS_AES_ARMV8) || defined(BOTAN_HAS_AES_NI)
    #define BOTAN_HAS_HW_AES_SUPPORT
 #endif
+
+#if defined(BOTAN_HAS_HW_AES_SUPPORT)
+   #include <bit>
+#endif
+
+namespace Botan {
 
 /*
 * One of three AES implementation strategies are used to get a constant time
@@ -408,43 +415,43 @@ inline void ks_expand(uint32_t B[8], const uint32_t K[], size_t r) {
 
 inline void shift_rows(uint32_t B[8]) {
    // 3 0 1 2 7 4 5 6 10 11 8 9 14 15 12 13 17 18 19 16 21 22 23 20 24 25 26 27 28 29 30 31
-#if defined(BOTAN_TARGET_CPU_HAS_NATIVE_64BIT)
-   for(size_t i = 0; i != 8; i += 2) {
-      uint64_t x = (static_cast<uint64_t>(B[i]) << 32) | B[i + 1];
-      x = bit_permute_step<uint64_t>(x, 0x0022331100223311, 2);
-      x = bit_permute_step<uint64_t>(x, 0x0055005500550055, 1);
-      B[i] = static_cast<uint32_t>(x >> 32);
-      B[i + 1] = static_cast<uint32_t>(x);
+   if constexpr(HasNative64BitRegisters) {
+      for(size_t i = 0; i != 8; i += 2) {
+         uint64_t x = (static_cast<uint64_t>(B[i]) << 32) | B[i + 1];
+         x = bit_permute_step<uint64_t>(x, 0x0022331100223311, 2);
+         x = bit_permute_step<uint64_t>(x, 0x0055005500550055, 1);
+         B[i] = static_cast<uint32_t>(x >> 32);
+         B[i + 1] = static_cast<uint32_t>(x);
+      }
+   } else {
+      for(size_t i = 0; i != 8; ++i) {
+         uint32_t x = B[i];
+         x = bit_permute_step<uint32_t>(x, 0x00223311, 2);
+         x = bit_permute_step<uint32_t>(x, 0x00550055, 1);
+         B[i] = x;
+      }
    }
-#else
-   for(size_t i = 0; i != 8; ++i) {
-      uint32_t x = B[i];
-      x = bit_permute_step<uint32_t>(x, 0x00223311, 2);
-      x = bit_permute_step<uint32_t>(x, 0x00550055, 1);
-      B[i] = x;
-   }
-#endif
 }
 
 inline void inv_shift_rows(uint32_t B[8]) {
    // Inverse of shift_rows, just inverting the steps
 
-#if defined(BOTAN_TARGET_CPU_HAS_NATIVE_64BIT)
-   for(size_t i = 0; i != 8; i += 2) {
-      uint64_t x = (static_cast<uint64_t>(B[i]) << 32) | B[i + 1];
-      x = bit_permute_step<uint64_t>(x, 0x0055005500550055, 1);
-      x = bit_permute_step<uint64_t>(x, 0x0022331100223311, 2);
-      B[i] = static_cast<uint32_t>(x >> 32);
-      B[i + 1] = static_cast<uint32_t>(x);
+   if constexpr(HasNative64BitRegisters) {
+      for(size_t i = 0; i != 8; i += 2) {
+         uint64_t x = (static_cast<uint64_t>(B[i]) << 32) | B[i + 1];
+         x = bit_permute_step<uint64_t>(x, 0x0055005500550055, 1);
+         x = bit_permute_step<uint64_t>(x, 0x0022331100223311, 2);
+         B[i] = static_cast<uint32_t>(x >> 32);
+         B[i + 1] = static_cast<uint32_t>(x);
+      }
+   } else {
+      for(size_t i = 0; i != 8; ++i) {
+         uint32_t x = B[i];
+         x = bit_permute_step<uint32_t>(x, 0x00550055, 1);
+         x = bit_permute_step<uint32_t>(x, 0x00223311, 2);
+         B[i] = x;
+      }
    }
-#else
-   for(size_t i = 0; i != 8; ++i) {
-      uint32_t x = B[i];
-      x = bit_permute_step<uint32_t>(x, 0x00550055, 1);
-      x = bit_permute_step<uint32_t>(x, 0x00223311, 2);
-      B[i] = x;
-   }
-#endif
 }
 
 inline void mix_columns(uint32_t B[8]) {
@@ -740,6 +747,12 @@ void aes_key_schedule(const uint8_t key[],
 }
 
 size_t aes_parallelism() {
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return 8;  // pipelined
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return 4;  // pipelined
@@ -747,7 +760,7 @@ size_t aes_parallelism() {
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return 2;  // pipelined
    }
 #endif
@@ -756,35 +769,11 @@ size_t aes_parallelism() {
    return 2;
 }
 
-const char* aes_provider() {
-#if defined(BOTAN_HAS_HW_AES_SUPPORT)
-   if(CPUID::has_hw_aes()) {
-      return "cpu";
-   }
-#endif
-
-#if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
-      return "vperm";
-   }
-#endif
-
-   return "base";
-}
+/// PROXTOPUS : provider removed
 
 }  // namespace
 
-std::string AES_128::provider() const {
-   return aes_provider();
-}
-
-std::string AES_192::provider() const {
-   return aes_provider();
-}
-
-std::string AES_256::provider() const {
-   return aes_provider();
-}
+/// PROXTOPUS : provider removed
 
 size_t AES_128::parallelism() const {
    return aes_parallelism();
@@ -813,6 +802,12 @@ bool AES_256::has_keying_material() const {
 void AES_128::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const {
    assert_key_material_set();
 
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return x86_vaes_encrypt_n(in, out, blocks);
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return hw_aes_encrypt_n(in, out, blocks);
@@ -820,7 +815,7 @@ void AES_128::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_encrypt_n(in, out, blocks);
    }
 #endif
@@ -831,6 +826,12 @@ void AES_128::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 void AES_128::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const {
    assert_key_material_set();
 
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return x86_vaes_decrypt_n(in, out, blocks);
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return hw_aes_decrypt_n(in, out, blocks);
@@ -838,7 +839,7 @@ void AES_128::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_decrypt_n(in, out, blocks);
    }
 #endif
@@ -848,19 +849,26 @@ void AES_128::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 
 void AES_128::key_schedule(std::span<const uint8_t> key) {
 #if defined(BOTAN_HAS_AES_NI)
-   if(CPUID::has_aes_ni()) {
+   if(CPUID::has(CPUID::Feature::AESNI)) {
       return aesni_key_schedule(key.data(), key.size());
+   }
+#endif
+
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, true);
    }
 #endif
 
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
-      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, CPUID::is_little_endian());
+      constexpr bool is_little_endian = std::endian::native == std::endian::little;
+      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, is_little_endian);
    }
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_key_schedule(key.data(), key.size());
    }
 #endif
@@ -876,6 +884,12 @@ void AES_128::clear() {
 void AES_192::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const {
    assert_key_material_set();
 
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return x86_vaes_encrypt_n(in, out, blocks);
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return hw_aes_encrypt_n(in, out, blocks);
@@ -883,7 +897,7 @@ void AES_192::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_encrypt_n(in, out, blocks);
    }
 #endif
@@ -894,6 +908,12 @@ void AES_192::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 void AES_192::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const {
    assert_key_material_set();
 
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return x86_vaes_decrypt_n(in, out, blocks);
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return hw_aes_decrypt_n(in, out, blocks);
@@ -901,7 +921,7 @@ void AES_192::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_decrypt_n(in, out, blocks);
    }
 #endif
@@ -911,19 +931,26 @@ void AES_192::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 
 void AES_192::key_schedule(std::span<const uint8_t> key) {
 #if defined(BOTAN_HAS_AES_NI)
-   if(CPUID::has_aes_ni()) {
+   if(CPUID::has(CPUID::Feature::AESNI)) {
       return aesni_key_schedule(key.data(), key.size());
+   }
+#endif
+
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, true);
    }
 #endif
 
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
-      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, CPUID::is_little_endian());
+      constexpr bool is_little_endian = std::endian::native == std::endian::little;
+      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, is_little_endian);
    }
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_key_schedule(key.data(), key.size());
    }
 #endif
@@ -939,6 +966,12 @@ void AES_192::clear() {
 void AES_256::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const {
    assert_key_material_set();
 
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return x86_vaes_encrypt_n(in, out, blocks);
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return hw_aes_encrypt_n(in, out, blocks);
@@ -946,7 +979,7 @@ void AES_256::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_encrypt_n(in, out, blocks);
    }
 #endif
@@ -957,6 +990,12 @@ void AES_256::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 void AES_256::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const {
    assert_key_material_set();
 
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return x86_vaes_decrypt_n(in, out, blocks);
+   }
+#endif
+
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
       return hw_aes_decrypt_n(in, out, blocks);
@@ -964,7 +1003,7 @@ void AES_256::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_decrypt_n(in, out, blocks);
    }
 #endif
@@ -974,19 +1013,26 @@ void AES_256::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const 
 
 void AES_256::key_schedule(std::span<const uint8_t> key) {
 #if defined(BOTAN_HAS_AES_NI)
-   if(CPUID::has_aes_ni()) {
+   if(CPUID::has(CPUID::Feature::AESNI)) {
       return aesni_key_schedule(key.data(), key.size());
+   }
+#endif
+
+#if defined(BOTAN_HAS_AES_VAES)
+   if(CPUID::has(CPUID::Feature::AVX2_AES)) {
+      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, true);
    }
 #endif
 
 #if defined(BOTAN_HAS_HW_AES_SUPPORT)
    if(CPUID::has_hw_aes()) {
-      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, CPUID::is_little_endian());
+      constexpr bool is_little_endian = std::endian::native == std::endian::little;
+      return aes_key_schedule(key.data(), key.size(), m_EK, m_DK, is_little_endian);
    }
 #endif
 
 #if defined(BOTAN_HAS_AES_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return vperm_key_schedule(key.data(), key.size());
    }
 #endif

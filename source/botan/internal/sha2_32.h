@@ -18,7 +18,7 @@ namespace Botan {
 */
 class SHA_224 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint32_t>;
+      using digest_type = hash_digest<uint32_t, 8>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Big;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -30,7 +30,8 @@ class SHA_224 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "SHA-224"; }
+       /// PROXTOPUS : name removed
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_224); }
 
       size_t output_length() const override { return output_bytes; }
 
@@ -42,7 +43,7 @@ class SHA_224 final : public HashFunction {
 
       void clear() override { m_md.clear(); }
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
    private:
       void add_data(std::span<const uint8_t> input) override;
@@ -58,7 +59,7 @@ class SHA_224 final : public HashFunction {
 */
 class SHA_256 final : public HashFunction {
    public:
-      using digest_type = secure_vector<uint32_t>;
+      using digest_type = hash_digest<uint32_t, 8>;
 
       static constexpr MD_Endian byte_endianness = MD_Endian::Big;
       static constexpr MD_Endian bit_endianness = MD_Endian::Big;
@@ -70,7 +71,8 @@ class SHA_256 final : public HashFunction {
       static void init(digest_type& digest);
 
    public:
-      std::string name() const override { return "SHA-256"; }
+       /// PROXTOPUS : name removed
+       /*virtual*/ Hash_Algo alg() const override { return Hash_Algo(ALG::SHA_256); }
 
       size_t output_length() const override { return output_bytes; }
 
@@ -82,7 +84,7 @@ class SHA_256 final : public HashFunction {
 
       void clear() override { m_md.clear(); }
 
-      std::string provider() const override;
+      /// PROXTOPUS : provider removed
 
    public:
       static void compress_digest(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
@@ -91,8 +93,12 @@ class SHA_256 final : public HashFunction {
       static void compress_digest_armv8(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
 #endif
 
-#if defined(BOTAN_HAS_SHA2_32_X86_BMI2)
-      static void compress_digest_x86_bmi2(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
+#if defined(BOTAN_HAS_SHA2_32_SIMD)
+      static void compress_digest_x86_simd(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
+#endif
+
+#if defined(BOTAN_HAS_SHA2_32_X86_AVX2)
+      static void compress_digest_x86_avx2(digest_type& digest, std::span<const uint8_t> input, size_t blocks);
 #endif
 
 #if defined(BOTAN_HAS_SHA2_32_X86)
