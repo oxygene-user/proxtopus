@@ -5,12 +5,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/der_enc.h>
 
 #include <botan/asn1_obj.h>
 #include <botan/bigint.h>
 #include <botan/internal/bit_ops.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
 #include <algorithm>
 
@@ -26,7 +27,7 @@ void encode_tag(std::vector<uint8_t>& encoded_tag, ASN1_Type type_tag_e, ASN1_Cl
    const uint32_t class_tag = static_cast<uint32_t>(class_tag_e);
 
    if((class_tag | 0xE0) != 0xE0) {
-      throw Encoding_Error(fmt("DER_Encoder: Invalid class tag {}", std::to_string(class_tag)));
+      throw Encoding_Error(str::build_string("DER_Encoder: Invalid class tag $", class_tag));
    }
 
    if(type_tag <= 30) {

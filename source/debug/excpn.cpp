@@ -9,7 +9,7 @@
 
 namespace dbg
 {
-	void append_crush_log(const str::astr_view& msg)
+	void append_crash_log(const str::astr_view& msg)
 	{
 		if (file_appender fa(glb.cfg.crash_log_file); fa)
 		{
@@ -31,7 +31,7 @@ namespace dbg
 
         str::asstr<2048> sout;
         str::impl_build_string(sout, s, args...);
-		append_crush_log(str::view(sout));
+		append_crash_log(str::view(sout));
     }
 
 
@@ -184,12 +184,12 @@ void (*CheckMemCorrupt)() = nullptr;
 
 LONG WINAPI exceptions_best_friend::exception_filter(EXCEPTION_POINTERS* pExp)
 {
-    Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "crush! (See config.txt -> settings -> crash_log_file for stack trace)\n");
+    Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "crash! (See config.txt -> settings -> crash_log_file for stack trace)\n");
 	Print();
     
 	SIMPLELOCK(self.lock);
     self.m_buf.clear();
-	self.m_buf.append(ASTR("crush!\r\n"));
+	self.m_buf.append(ASTR("crash!\r\n"));
 
 	if (pExp->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW){
 		self.trace_info(pExp);

@@ -30,31 +30,38 @@ template <size_t _Size> consteval inline size_t strsize(const wchar(&)[_Size]) n
 #define DEC(d,n) dec<d, std::decay_t<decltype(n)>>(n)
 #define HEX(d,n) hex<d, std::decay_t<decltype(n)>>(n)
 
-namespace str
-{
-    template <size_t sz> struct sztype;
-    template <> struct sztype<1> { using type = u8; };
-    template <> struct sztype<2> { using type = u16; };
-    template <> struct sztype<4> { using type = u32; };
-    template <> struct sztype<8> { using type = u64; };
-}
-
 struct PTR
 {
 	uintptr_t val;
 	PTR(const void* p) :val(reinterpret_cast<uintptr_t>(p)) {}
 };
 
-template<int min_digits, typename N> struct dec
+template<int min_digits, typename N> struct dec;
+template<int min_digits, native N> struct dec<min_digits, N>
 {
+	constexpr const static bool native1 = true;
     N n;
     dec(N n) :n(n) {}
 };
-
-template<int min_digits, typename N> struct hex
+template<int min_digits, not_native N> struct dec<min_digits, N>
 {
-	N n;
-	hex(N n) :n(n) {}
+    constexpr const static bool native1 = false;
+    const N &n;
+    dec(const N &n) :n(n) {}
+};
+
+template<int min_digits, typename N> struct hex;
+template<int min_digits, native N> struct hex<min_digits, N>
+{
+    constexpr const static bool native = true;
+    N n;
+    hex(N n) :n(n) {}
+};
+template<int min_digits, not_native N> struct hex<min_digits, N>
+{
+	constexpr const static bool native = false;
+	const N &n;
+    hex(const N& n) :n(n) {}
 };
 
 struct filename {
@@ -70,17 +77,6 @@ template <typename S> struct crlf
 
 namespace str
 {
-	consteval size_t min_integral_size_for_value(size_t val, size_t minsize)
-	{
-		if (val < 256)
-			return minsize > 1 ? minsize : 1;
-		if (val < 65536)
-			return minsize > 2 ? minsize : 2;
-        if (val < (0xffffffffull + 1ull))
-            return minsize > 4 ? minsize : 4;
-		return 8;
-	}
-
     template <typename CC> using xstr = std::basic_string<CC>;
     template <typename CC> using xstr_view = std::basic_string_view<CC>;
     using astr = xstr<char>;
@@ -97,7 +93,7 @@ namespace str
     {
         template<typename CC, size_t maxchars, typename flusher> struct core
         {
-            using sizetype = sztype<min_integral_size_for_value(maxchars, sizeof(CC))>::type;
+            using sizetype = sztype<tools::min_integral_size_for_value(maxchars, sizeof(CC))>::type;
             enum {
 			    maxsize = maxchars - 1 // keep one char for zero end
 		    };
@@ -135,7 +131,7 @@ namespace str
 			}
 		};
 		template <typename CC, size_t maxchars> struct core<CC, maxchars, hollow_flusher> {
-            using sizetype = sztype<min_integral_size_for_value(maxchars, sizeof(CC))>::type;
+            using sizetype = sztype<tools::min_integral_size_for_value(maxchars, sizeof(CC))>::type;
             enum {
 			    maxsize = maxchars - 1 // keep one char for zero end
 		    };
@@ -156,7 +152,7 @@ namespace str
 	template<typename CC, size_t maxchars, typename flusher = hollow_flusher> class xsstr
 	{
 	public:
-		using sizetype = sztype<min_integral_size_for_value(maxchars, sizeof(CC))>::type;
+		using sizetype = sztype<tools::min_integral_size_for_value(maxchars, sizeof(CC))>::type;
 		enum {
 			maxsize = maxchars - 1 // keep one char for zero end
 		};
@@ -510,10 +506,10 @@ namespace str
         sout.append(std::to_string(e));
     }
 
-	template<typename SS> void __append(SS& sout, size_t x);
+	template<typename SS, std::integral N> void __append(SS& sout, N x);
 	template<typename SS> void __append(SS& sout, const PTR& x);
-	template<typename SS, int MD, typename N> void __append(SS& sout, const hex<MD, N>& x);
-	template<typename SS, int MD, typename N> void __append(SS& sout, const dec<MD, N>& x);
+	template<typename SS, int MD, uints::flat N> void __append(SS& sout, const hex<MD, N>& x);
+	template<typename SS, int MD, uints::flat N> void __append(SS& sout, const dec<MD, N>& x);
 	inline void __append(astr& sout, const filename& x)
 	{
 		for (size_t i = 0; i < x.csz; ++i)
@@ -960,37 +956,47 @@ namespace str
 
 namespace str
 {
-    template<typename T> struct is_signed
-    {
-        static const bool value = (((T)-1) < 0);
-    };
+	template <size_t typesz> consteval inline size_t decimal_str_size()
+	{
+		return (typesz*3+4) & ~(3u); // at least 3 characters per byte
+	}
 
-    template<typename T, bool s = is_signed<T>::value, bool too_huge = (sizeof(T) > sizeof(size_t)) > struct as_native_1
-    {
-        typedef T type;
-    };
-
-    template<typename T, bool sgn = is_signed<T>::value > struct invert
-    {
-        void operator()(T&) { UNREACHABLE(); }
-    };
-    template<typename T> struct invert<T, true>
-    {
-        void operator()(T& t) { t = -t; }
-    };
-
-    template <class CH, typename I> __inline CH* make_str_unsigned(CH* buf, size_t& szbyte, I i)
-    {
-		signed_t idx = (sizeof(I) * 4 - 1);
-        buf[idx--] = 0;
-        while (i >= 10)
+	template <class CH, uints::flat T> size_t fill_str_unsigned(CH* buf, size_t idx, T& t)
+	{
+		if constexpr (sztype<sizeof(T)>::native)
+		{
+            T i = t;
+            while (i >= 10)
+            {
+                u8 remainder = uints::divbyconst<T,10>(i);
+                buf[idx--] = static_cast<CH>(remainder + '0');
+            }
+            buf[idx] = static_cast<CH>(i + '0');
+			return idx;
+		}
+		else
         {
-            I d = i / 10;
-            buf[idx--] = (CH)(i - ((d << 3) + (d << 1)) + 48);
-            i = d;
-        }
-        buf[idx] = (CH)((CH)i + 48);
-        szbyte = static_cast<size_t>(((sizeof(I) * 4) - idx) * sizeof(CH));
+            if (uints::is_zero(uints::high(t)))
+                return fill_str_unsigned<CH>(buf, idx, uints::low(t));
+
+            do
+            {
+                u8 remainder = uints::divbyconst<T, 10>(t);
+                buf[idx--] = static_cast<CH>(remainder + '0');
+            } while (!uints::is_zero(uints::high(t)));
+
+			return fill_str_unsigned<CH>(buf, idx, uints::low(t));
+		}
+
+	}
+
+    template <class CH, uints::flat T> CH* make_str_unsigned(CH* buf, size_t& szbyte, const T &t)
+    {
+        signed_t idx = (decimal_str_size<sizeof(T)>() - 1);
+        buf[idx--] = 0;
+		T tt = t;
+		idx = fill_str_unsigned<CH, T>(buf, idx, tt);
+        szbyte = static_cast<size_t>((decimal_str_size<sizeof(T)>() - idx) * sizeof(CH));
         return buf + idx;
     }
 
@@ -1028,17 +1034,18 @@ namespace str
             s.data()[i] = filler;
     }
 
-	template<typename SS, std::integral N> SS& append_num(SS& s, N n, size_t minimum_digits)
+	template<typename SS, uints::flat T> SS& append_num(SS& s, const T &n, size_t minimum_digits)
 	{
         using CH = typename chartype<SS>::type;
-        CH buf[sizeof(N) * 4];
+        CH buf[decimal_str_size<sizeof(T)>()];
 
-        if constexpr (is_signed<N>::value)
+        if constexpr (sztype<sizeof(T)>::native && std::is_signed_v<T>)
         {
 			if (n < 0)
 			{
 				s += '-';
-				invert<N>()(n);
+				T nn = -n;
+				return append_num(s, nn, minimum_digits);
 			}
         }
 
@@ -1050,70 +1057,106 @@ namespace str
         return __append(s, xstr_view<CH>(tcalced, digits));
 	}
 
-    template<size_t typesize> struct low_part_mask;
-    template<> struct low_part_mask<2> { static const u16 mask = 0x00ff; };
-    template<> struct low_part_mask<4> { static const u32 mask = 0x0000ffff; };
-    template<> struct low_part_mask<8> { static const u64 mask = 0x00000000ffffffffull; };
-
-	template<size_t typesize> struct hi_part_mask;
-	template<> struct hi_part_mask<2> { static const u16 mask = 0xff00; };
-	template<> struct hi_part_mask<4> { static const u32 mask = 0xffff0000; };
-	template<> struct hi_part_mask<8> { static const u64 mask = 0xffffffff00000000ull; };
-
-	template<size_t typesz> struct calc_left_zeros
+	template<size_t typesize> requires (typesize >= 2) struct low_part_mask
 	{
-		signed operator()(auto v)
+		consteval static sztype<typesize>::type build_mask()
 		{
-			if ((v & hi_part_mask<typesz>::mask) == 0) return typesz + calc_left_zeros<typesz / 2>()(static_cast<sztype<typesz / 2>::type>(v));
-			return calc_left_zeros<typesz / 2>()(static_cast<sztype<typesz / 2>::type>(v >> (4 * typesz)));
+			typename sztype<typesize>::type rv = 0xff;
+
+			for (size_t b = typesize - 1; b > (typesize/2); --b)
+				rv |= (rv << 8);
+
+			return rv;
 		}
+
+		constexpr static const sztype<typesize>::type mask = build_mask();
 	};
-	template<> struct calc_left_zeros<1> {
-		signed operator()(auto v)
+
+
+	template<size_t typesize> requires (typesize >= 2) struct hi_part_mask
+    {
+        consteval static sztype<typesize>::type build_mask()
         {
-            if (v == 0) return 2;
-            if ((v & 0xf0) == 0) return 1;
-            return 0;
-		}
+            typename sztype<typesize>::type rv = 0xff;
+
+            for (size_t b = typesize - 1; b > 0; --b)
+                rv |= (rv << 8);
+
+            return rv ^ low_part_mask<typesize>::mask;
+        }
+
+        constexpr static const sztype<typesize>::type mask = build_mask();
 	};
 
-#if 0
-    inline signed calc_left_zeros(u16 v)
-    {
-        if ((v & 0xff00) == 0) return 2 + calc_left_zeros(static_cast<u8>(v));
-        return calc_left_zeros(static_cast<u8>(v >> 8));
-    }
-    inline signed calc_left_zeros(u32 v)
-    {
-        if ((v & 0xffff0000) == 0) return 4 + calc_left_zeros(static_cast<u16>(v));
-        return calc_left_zeros(static_cast<u16>(v >> 16));
-    }
-    inline signed calc_left_zeros(u64 v)
-    {
-        if ((v & 0xffffffff00000000ull) == 0) return 8 + calc_left_zeros(static_cast<u32>(v));
-        return calc_left_zeros(static_cast<u32>(v >> 32));
-    }
-#endif
+	template<size_t skip, uints::flat T> size_t calc_high_zeros_impl(const T& t)
+	{
+        if constexpr (sizeof(T) == 1)
+        {
+            if (t == 0) return 2;
+            if ((t & 0xf0) == 0) return 1;
+            return 0;
+        }
+        else if constexpr (sztype<sizeof(T)>::native)
+        {
+            if ((t & hi_part_mask<sizeof(T)>::mask) == 0)
+                return sizeof(T) + calc_high_zeros_impl<0>(uints::aslow<sizeof(T) / 2>(t));
+            return calc_high_zeros_impl<0>(uints::ashigh<sizeof(T) / 2>(t));
+        }
+		else
+		{
+			if constexpr (skip == 0)
+			{
+				return calc_high_zeros_impl<0>(uints::aslow<sizeof(size_t)>(t));
+			}
+			else
+            {
+                size_t mp = (const size_t&)uints::mid<skip, sizeof(size_t)>(t);
+                if (mp == 0)
+                    return sizeof(size_t) * 2 + calc_high_zeros_impl<skip - sizeof(size_t)>(t);
+                return calc_high_zeros_impl<0>(mp);
+			}
+		}
 
-    template<typename SS, typename V, int min_digits = -1> inline void append_hex(SS& s, V v) {
+	}
+
+	template<uints::flat T> size_t calc_high_zeros(const T&t)
+	{
+		static_assert(sztype<sizeof(T)>::native || (sizeof(T) % sizeof(size_t)) == 0 );
+		return calc_high_zeros_impl<sizeof(T) - sizeof(size_t)>(t);
+	}
+
+	template<typename T> u8 extract_hex(const T& t, signed_t index)
+	{
+		if constexpr (Endian::little)
+		{
+            bool hipart = (index & 1) != 0;
+			const std::array<u8, sizeof(T)>& bytes = ref_cast<const std::array<u8, sizeof(T)>>(t);
+			u8 hexi = bytes[index >> 1];
+			return hipart ? (hexi >> 4) : (hexi & 0xf);
+		}
+		else {
+			static_assert(sizeof(T) == 123123, "Implement big endian yourself");
+		}
+	}
+
+    template<typename SS, uints::flat V, int min_digits = -1> inline void append_hex(SS& s, const V &v) {
 
         static char cc[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-        const unsigned N = 2 * sizeof(v);
-		unsigned fromd = 0;
-		if constexpr (min_digits > 0)
-		{
-			signed digits = N - calc_left_zeros<sizeof(v)>()(v);
+        constexpr const unsigned N = 2 * sizeof(v);
+        size_t fromd = 0;
+        if constexpr (min_digits > 0)
+        {
+            size_t digits = N - calc_high_zeros(v);
             if (digits < min_digits)
                 append(s, min_digits - digits, '0');
-			fromd = N - digits;
-		}
+            fromd = N - digits;
+        }
 
-		bool skipz = min_digits < 0;
-        for (unsigned i = fromd; i < N; ++i)
+        bool skipz = min_digits < 0;
+        for (size_t i = fromd; i < N; ++i)
         {
-            unsigned shiftr = 4 * (N - i - 1);
-            V hexi = (v >> shiftr) & 0xf;
+            u8 hexi = extract_hex<V>(v, N - i - 1);
             if (skipz && hexi == 0)
                 continue;
             s += cc[hexi];
@@ -1184,7 +1227,7 @@ namespace str
         s.append_to(sout);
     }
 
-    template<typename SS> void __append(SS& sout, size_t x) {
+    template<typename SS, std::integral N> void __append(SS& sout, N x) {
         append_num(sout, x, 0);
     }
 	template<typename SS> void __append(SS& sout, const PTR& x)
@@ -1192,11 +1235,11 @@ namespace str
 		//__append(sout, ASTR("0x"));
 		append_hex<SS, decltype(x.val), 0>(sout, x.val);
 	}
-	template<typename SS, int MD, typename N> void __append(SS& sout, const hex<MD, N>& x)
+	template<typename SS, int MD, uints::flat N> void __append(SS& sout, const hex<MD, N>& x)
 	{
 		append_hex<SS, N, MD>(sout, x.n);
 	}
-	template<typename SS, int MD, typename N> void __append(SS& sout, const dec<MD, N>& x)
+	template<typename SS, int MD, uints::flat N> void __append(SS& sout, const dec<MD, N>& x)
 	{
 		append_num(sout, x.n, MD);
 	}

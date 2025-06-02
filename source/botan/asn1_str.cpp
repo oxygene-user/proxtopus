@@ -5,13 +5,14 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/asn1_obj.h>
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
 #include <botan/internal/charset.h>
 #include <botan/internal/ct_utils.h>
-#include <botan/internal/fmt.h>
 
 namespace Botan {
 
@@ -90,7 +91,7 @@ void ASN1_String::decode_from(BER_Decoder& source) {
 
    if(!is_asn1_string_type(obj.type())) {
       auto typ = static_cast<uint32_t>(obj.type());
-      throw Decoding_Error(fmt("ASN1_String: Unknown string type {}", typ));
+      throw Decoding_Error(str::build_string("ASN1_String: Unknown string type $", typ));
    }
 
    m_tag = obj.type();

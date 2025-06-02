@@ -649,10 +649,6 @@ OID_core g_oids[] = {
 
     }
 
-    inline void __append(str::astr& sout, Algo_Group g) {
-        sout += g.to_string();
-    }
-
     //static
     OID OID::from_ag(Algo_Group ag)
     {

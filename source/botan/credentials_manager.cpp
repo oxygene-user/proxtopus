@@ -5,10 +5,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/credentials_manager.h>
 
 #include <botan/pkix_types.h>
-#include <botan/internal/fmt.h>
 
 namespace Botan {
 
@@ -31,7 +32,7 @@ SymmetricKey Credentials_Manager::psk(const std::string& type,
       } else if(type == "tls-server") {
          return TLS::Connection_Side::Server;
       } else {
-         throw Internal_Error(fmt("No PSK set for type {}", type));
+         throw Internal_Error(str::build_string("No PSK set for type $", type));
       }
    }();
 
@@ -56,7 +57,7 @@ SymmetricKey Credentials_Manager::psk(const std::string& type,
       }
    }
 
-   throw Internal_Error(fmt("No PSK set for identity {}", identity));
+   throw Internal_Error(str::build_string("No PSK set for identity $", identity));
 }
 
 std::vector<TLS::ExternalPSK> Credentials_Manager::find_preshared_keys(std::string_view /* host */,

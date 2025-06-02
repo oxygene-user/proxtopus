@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/pkcs8.h>
 
 #include <botan/asn1_obj.h>
@@ -14,7 +16,6 @@
 #include <botan/pem.h>
 #include <botan/pk_algs.h>
 #include <botan/rng.h>
-#include <botan/internal/fmt.h>
 
 #if defined(BOTAN_HAS_PKCS5_PBES2)
    #include <botan/internal/pbes2.h>
@@ -70,7 +71,7 @@ secure_vector<uint8_t> PKCS8_decode(DataSource& source,
             DataSource_Memory key_source(key_data);
             key_data = PKCS8_extract(key_source, pbe_alg_id);
          } else {
-            throw PKCS8_Exception(fmt("Unknown PEM label '{}'", label));
+            throw PKCS8_Exception(str::build_string("Unknown PEM label '$'", label));
          }
       }
 
@@ -85,7 +86,7 @@ secure_vector<uint8_t> PKCS8_decode(DataSource& source,
       if(is_encrypted) {
          //if(pbe_alg_id.oid().to_formatted_string() != "PBE-PKCS5v20") {
           if (true) { /// PROXTOPUS : not support encrypted for now
-            throw PKCS8_Exception(fmt("Unknown PBE type {}", pbe_alg_id.oid()));
+            throw PKCS8_Exception(str::build_string("Unknown PBE type $", pbe_alg_id.oid()));
          }
 
 #if defined(BOTAN_HAS_PKCS5_PBES2)
@@ -308,7 +309,7 @@ std::unique_ptr<Private_Key> load_key(DataSource& source,
 
    //const std::string alg_name = alg_id.oid().human_name_or_empty();
    if(alg_id.oid().empty()) {
-      throw PKCS8_Exception(fmt("Unknown algorithm OID {}", alg_id.oid()));
+      throw PKCS8_Exception(str::build_string("Unknown algorithm OID $", alg_id.oid()));
    }
 
    return load_private_key(alg_id, pkcs8_key);

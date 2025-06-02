@@ -10,14 +10,14 @@ enum AppExitCode
 	EXIT_FAIL_NOLISTENERS = 3,			// config has no \"listeners\" block
 	// "empty (or not loaded) \"listeners\" block
 	EXIT_FAIL_NOHANDLER = 4,			// handler not defined for listener [$]
-	EXIT_FAIL_PROXY_NOTFOUND = 5,		// unknown {proxy} [$] for handler of lisnener [$].
+	EXIT_FAIL_PROXY_NOTFOUND = 5,		// unknown {proxy} [$] for handler of listener [$].
 	EXIT_FAIL_INCOMPATIBLE_HANDLER = 6,	// handler not compatible
 
 	EXIT_FAIL_PORT_UNDEFINED = 10,		// port not defined for listener [$]
-	EXIT_FAIL_TYPE_UNDEFINED = 11,      // {type} not defined for lisnener / handler / transport
-	// unknown {type} [$] for lisnener [$].
+	EXIT_FAIL_TYPE_UNDEFINED = 11,      // {type} not defined for listener / handler / transport
+	// unknown {type} [$] for listener [$].
 	// {type} not defined for handler of listener [$]
-	// unknown {type} [$] for handler of lisnener [$].
+	// unknown {type} [$] for handler of listener [$].
 	// {type} not defined for proxy [$].
 	// unknown {type} [$] for proxy [$].
 	EXIT_FAIL_ADDR_UNDEFINED = 12,		// addr not defined for proxy [$]
@@ -41,9 +41,11 @@ enum AppExitCode
 	EXIT_FAIL_CHILD_CREATE = 52,
 
 	EXIT_FAIL_OVERLOAD = 53,
-	EXIT_FAIL_WATCHDOG = 97,
-	EXIT_FAIL_ELEVATION = 98,
-	EXIT_FAIL_CTLHANDLE = 99,
+	EXIT_FAIL_WATCHDOG = 96,
+	EXIT_FAIL_ELEVATION = 97,
+	EXIT_FAIL_CTLHANDLE = 98,
+
+	EXIT_OK_EXIT_SIGNAL = 99,
 
 #ifdef _WIN32
 	EXIT_FAIL_OPENMGR = 100,

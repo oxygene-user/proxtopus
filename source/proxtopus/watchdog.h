@@ -6,8 +6,8 @@
 
 class watchdog
 {
-    signed_t next_time_query = 0;
-    signed_t overload_event = 0;
+    time_t next_time_query = 0;
+    time_t overload_event = 0;
 #ifdef _WIN32
     ULARGE_INTEGER lastTotalTimeInt = { 0, 0 };
     ULARGE_INTEGER lastNowInt = { 0, 0 };

@@ -10,7 +10,6 @@
 #include <botan/internal/cbc.h>
 
 #include <botan/mem_ops.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/mode_pad.h>
 #include <botan/internal/rounding.h>
 

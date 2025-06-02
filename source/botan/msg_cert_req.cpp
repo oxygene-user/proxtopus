@@ -7,6 +7,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/tls_messages.h>
 
 #include <botan/ber_dec.h>
@@ -43,7 +45,7 @@ uint8_t cert_type_name_to_code(std::string_view name) {
       return 64;
    }
 
-   throw Invalid_Argument(fmt("Unknown/unhandled TLS cert type {}", name));
+   throw Invalid_Argument(str::build_string("Unknown/unhandled TLS cert type $", name));
 }
 
 }  // namespace

@@ -252,7 +252,7 @@ namespace netkit
 		sockaddr_in6 addr = {};
 
 		addr.sin6_family = AF_INET6;
-		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
+		tools::memcopy<sizeof(ipv6)>(&addr.sin6_addr, &ipv6);
 		ref_cast<u16be&>(addr.sin6_port) = port;
 
 		bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
@@ -296,7 +296,7 @@ namespace netkit
 
 		sockaddr_in6 addr = {};
 		addr.sin6_family = AF_INET6;
-		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
+		tools::memcopy<sizeof(ipv6)>(&addr.sin6_addr, &ipv6);
 		ref_cast<u16be&>(addr.sin6_port) = port;
 		return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
 
@@ -315,7 +315,7 @@ namespace netkit
 
 		sockaddr_in6 addr = {};
 		addr.sin6_family = AF_INET6;
-		memcpy(&addr.sin6_addr, &ipv6, sizeof(ipv6));
+		tools::memcopy<sizeof(ipv6)>(&addr.sin6_addr, &ipv6);
 		ref_cast<u16be&>(addr.sin6_port) = port;
 		return SOCKET_ERROR != ::sendto(s, (const char *)p.data(), (int)p.size(), 0, (const sockaddr*)&addr, sizeof(addr));
 	}
@@ -1336,7 +1336,7 @@ namespace netkit
 	{
         mask m(readymask);
 
-        for (int i = 0; i < numw; ++i)
+        for (size_t i = 0; i < numw; ++i)
         {
             WAITABLE w = pipes[i]->get_waitable();
             u_long rb = 0;
@@ -1377,7 +1377,7 @@ namespace netkit
 
 			if (rslt >= WSA_WAIT_EVENT_0 && (rslt - WSA_WAIT_EVENT_0) < numw)
 			{
-				signed_t i = (rslt - WSA_WAIT_EVENT_0);
+				size_t i = (rslt - WSA_WAIT_EVENT_0);
 
 				mask m(readymask);
 
@@ -1439,7 +1439,7 @@ namespace netkit
 
 		if (rslt >= WSA_WAIT_EVENT_0 && (rslt-WSA_WAIT_EVENT_0) < numw)
 		{
-			signed_t i = (rslt - WSA_WAIT_EVENT_0);
+			size_t i = (rslt - WSA_WAIT_EVENT_0);
 
 			mask m;
 			WSANETWORKEVENTS e;
@@ -1484,7 +1484,7 @@ namespace netkit
 		polls[numw].fd = evt[0];
 		polls[numw].events = POLLIN;
 
-		for (signed_t i = 0; i < numw; ++i)
+		for (size_t i = 0; i < numw; ++i)
         {
             WAITABLE w = pipes[i]->get_waitable();
             if (w->bufferfull)
@@ -1500,7 +1500,7 @@ namespace netkit
             return checkall();
 
         mask m;
-        for (signed_t i = 0; i < numw; ++i)
+        for (size_t i = 0; i < numw; ++i)
         {
             if (0 != (polls[i].revents & (POLLHUP|POLLERR|POLLNVAL)))
             {

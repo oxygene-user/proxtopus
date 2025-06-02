@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/dl_group.h>
 
 #include <botan/ber_dec.h>
@@ -13,7 +15,6 @@
 #include <botan/pem.h>
 #include <botan/reducer.h>
 #include <botan/internal/divide.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/mod_inv.h>
 #include <botan/internal/monty.h>
 #include <botan/internal/monty_exp.h>
@@ -102,7 +103,7 @@ class DL_Group_Data final {
 
       void assert_q_is_set(std::string_view function) const {
          if(q_is_set() == false) {
-            throw Invalid_State(fmt("DL_Group::{}: q is not set for this group", function));
+            throw Invalid_State(str::build_string("DL_Group::$: q is not set for this group", function));
          }
       }
 
@@ -208,7 +209,7 @@ DL_Group::DL_Group(Algo_Group str) {
 #endif
 
    if(m_data == nullptr) {
-      throw Invalid_Argument(fmt("DL_Group: Unknown group '{}'", str));
+      throw Invalid_Argument(str::build_string("DL_Group: Unknown group '$'", str));
    }
 }
 

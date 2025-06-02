@@ -12,4 +12,6 @@ namespace ostools
 
     signed_t execute(const FNARR &cmdl WINONLY(, bool from_sevice)); // and wait; also modified glb.actual_proc; [0] - executable path
     void terminate(); // force terminate self
+
+    void set_current_thread_name(const str::astr_view& name);
 }

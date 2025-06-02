@@ -1,8 +1,19 @@
 #include "pch.h"
 #include <botan/internal/os_utils.h>
+#ifdef _WIN32
+#include <processthreadsapi.h>
+#endif
 #ifdef _NIX
 #include <sys/wait.h>
 #include <spawn.h>
+#include <sys/ptrace.h>
+bool is_debugger_present()
+{
+    if (ptrace(PTRACE_TRACEME, 0, NULL, 0) == -1)
+        return true; // under debugging: ptrace failed
+    ptrace(PTRACE_DETACH, 0, NULL, 0); // no need self debugging
+    return false;
+}
 #endif // _NIX
 
 namespace ostools
@@ -118,16 +129,61 @@ namespace ostools
             argv[i] = cmdl[i].c_str();
         argv[pcnt] = nullptr;
 
-
         posix_spawn(&glb.actual_proc.pid, argv[0], nullptr, nullptr, (char * const*)argv, nullptr);
-        int status;
-        waitpid(glb.actual_proc.pid, &status, 0);
-        exit_code = WEXITSTATUS(status);
-        LOG_I("Child process has been terminated with code $", exit_code);
+
+
+        pid_t r;
+        int status = 0;
+        do
+        {
+            r = waitpid(glb.actual_proc.pid, &status, 0);
+        } while (r == -1 && errno == EINTR);
+
+        if (WIFEXITED(status)) {
+            exit_code = WEXITSTATUS(status);
+            LOG_I("Child process has been terminated with code $", exit_code);
+        } else if (WIFSIGNALED(status)) {
+            exit_code = EXIT_OK_EXIT_SIGNAL;
+            int s = WTERMSIG(status);
+            LOG_I("Child process has been terminated by signal $", s);
+        }
         Print();
 
 #endif
         return exit_code;
+    }
+
+    void set_current_thread_name(const str::astr_view& name)
+    {
+#ifdef _WIN32
+
+        typedef HRESULT(WINAPI* SetThreadDescriptionFunc)( HANDLE hThread, PCWSTR lpThreadDescription );
+        static SetThreadDescriptionFunc pSetThreadDescription = nullptr;
+        static bool tried = false;
+        if (!tried)
+        {
+            HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+            if (hKernel32)
+                pSetThreadDescription = (SetThreadDescriptionFunc) GetProcAddress(hKernel32, "SetThreadDescription");
+            if (!pSetThreadDescription)
+            {
+                hKernel32 = GetModuleHandleW(L"KernelBase.dll");
+                if (hKernel32)
+                    pSetThreadDescription = (SetThreadDescriptionFunc)GetProcAddress(hKernel32, "SetThreadDescription");
+            }
+            tried = true;
+        }
+        if (pSetThreadDescription)
+            pSetThreadDescription(GetCurrentThread(), str::from_utf8(name).c_str());
+#endif
+#if defined(__linux__)
+        char buf[16];
+        size_t sl = math::minv(sizeof(buf),name.length());
+        memcpy(buf, name.data(), sl);
+        buf[15] = 0;
+        static_cast<void>(pthread_setname_np(pthread_self(), buf));
+#endif
+
     }
 
 } // namespace ostools

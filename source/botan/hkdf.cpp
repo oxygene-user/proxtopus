@@ -10,7 +10,6 @@
 #include <botan/internal/hkdf.h>
 
 #include <botan/exceptn.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
 #include <botan/internal/stl_util.h>
 

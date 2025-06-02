@@ -50,8 +50,8 @@ protected:
 	{
 		netkit::pipe_ptr pipe1;
 		netkit::pipe_ptr pipe2;
-		size_t mask1 = 0;
-		size_t mask2 = 0;
+		u64 mask1 = 0;
+		u64 mask2 = 0;
 
 #ifdef LOG_TRAFFIC
 		traffic_logger loger;
@@ -97,7 +97,7 @@ protected:
 
 	class tcp_processing_thread
 	{
-		//volatile spinlock::long3264 sync = 0;
+		str::astr name;
 		spinlock::syncvar<signed_t> numslots;
 		netkit::pipe_waiter waiter;
 		std::array<bridged, MAXIMUM_SLOTS> slots;

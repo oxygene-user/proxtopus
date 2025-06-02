@@ -6,12 +6,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/internal/gcm.h>
 
 #include <botan/block_cipher.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/ctr.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/ghash.h>
 
 #include <array>
@@ -30,7 +31,7 @@ GCM_Mode::GCM_Mode(std::unique_ptr<BlockCipher> cipher, size_t tag_size) :
    /* We allow any of the values 128, 120, 112, 104, or 96 bits as a tag size */
    /* 64 bit tag is still supported but deprecated and will be removed in the future */
    if(m_tag_size != 8 && (m_tag_size < 12 || m_tag_size > 16)) {
-      throw Invalid_Argument(fmt("{} cannot use a tag of {} bytes", "", m_tag_size));
+      throw Invalid_Argument(str::build_string("GCM_Mode cannot use a tag of $ bytes", m_tag_size));
    }
 
    m_ctr = std::make_unique<CTR_BE>(std::move(cipher), 4);

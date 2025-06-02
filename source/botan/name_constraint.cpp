@@ -10,7 +10,6 @@
 
 #include <botan/ber_dec.h>
 #include <botan/x509cert.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/int_utils.h>
 #include <botan/internal/loadstor.h>
 #include <functional>

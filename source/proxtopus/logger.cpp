@@ -12,7 +12,7 @@ void logger::log2file(const FN &logfn, const str::astr_view& msg)
         const tm& t = *localtime(&curtime);
 
         str::astr sout;
-        str::impl_build_string(sout, "$-$-$ $:$:$ : $", t.tm_year + 1900, dec<2, int>(t.tm_mon + 1), dec<2, int>(t.tm_mday), dec<2, int>(t.tm_hour), dec<2, int>(t.tm_min), (t.tm_sec), crlf(msg));
+        str::impl_build_string(sout, "$-$-$ $:$:$ : $", t.tm_year + 1900, DEC(2, t.tm_mon + 1), DEC(2, t.tm_mday), DEC(2, t.tm_hour), DEC(2, t.tm_min), DEC(2, t.tm_sec), crlf(msg));
 		apndr << sout;
 	}
 
@@ -89,7 +89,7 @@ void logger::newline(int sev, const str::astr_view& s)
 		}
 		break;
 	case SEV_ERROR:
-        
+
 		if (!glb.log_muted || !glb.cfg.log_file.empty())
         {
             if (s[s.length() - 1] == '^')

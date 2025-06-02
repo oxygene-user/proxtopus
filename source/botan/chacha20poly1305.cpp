@@ -5,19 +5,17 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
+#include "../proxtopus/pch.h" /// PROXTOPUS
 
 #include <botan/internal/chacha20poly1305.h>
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/loadstor.h>
 
-#include <botan/internal/chacha.h> /// PROXTOPUS
-#include <botan/internal/poly1305.h> /// PROXTOPUS
-
 namespace Botan {
 
 ChaCha20Poly1305_Mode::ChaCha20Poly1305_Mode() :
-    m_chacha(std::make_unique<ChaCha>(20)), m_poly1305(std::make_unique<Poly1305>()) {} /// PROXTOPUS
+    m_chacha(std::make_unique<BotanChaCha20>()), m_poly1305(std::make_unique<BotanPoly1305>()) {} /// PROXTOPUS
 
 #if 0 /// PROXTOPUS
       m_chacha(StreamCipher::create("ChaCha")), m_poly1305(MessageAuthenticationCode::create("Poly1305")) {
@@ -36,7 +34,7 @@ size_t ChaCha20Poly1305_Mode::update_granularity() const {
 }
 
 size_t ChaCha20Poly1305_Mode::ideal_granularity() const {
-   return 128;
+   return 512;
 }
 
 void ChaCha20Poly1305_Mode::clear() {

@@ -19,8 +19,35 @@
 #include <botan/internal/eme_pkcs.h>
 #include <botan/internal/rounding.h>
 
+namespace str
+{
+    void __append(std::string& sout, Botan::ALG alg) {
+        sout.append(alg.to_string());
+    }
+
+    void __append(std::string& sout, Botan::Algo_Group alg) {
+        sout.append(alg.to_string());
+    }
+    void __append(std::string& sout, Botan::Any_Algo alg) {
+        sout.append(alg.to_string());
+    }
+    void __append(std::string& sout, Botan::Auth_Method alg) {
+        sout.append(alg.to_string());
+    }
+
+    void __append(std::string& sout, Botan::ALG::alg alg) {
+        sout.append(Botan::Any_Algo(alg).to_string());
+    }
+
+    void __append(std::string& sout, const Botan::OID& oid) {
+        sout.append(oid.to_string());
+    }
+
+}
+
 namespace Botan
 {
+
 	std::unique_ptr<AEAD_Mode> AEAD_Mode::create_or_throw(Cipher_Algo algo, Cipher_Dir direction)
 	{
 		bool enc = direction == Cipher_Dir::Encryption;
@@ -1011,7 +1038,7 @@ namespace Botan
             return {};
 
         u32 ipv4 = 0;
-        tools::from_low_to_high<u32, Endian::big> dst(ipv4);
+        uints::from_low_to_high<u32, Endian::big> dst(ipv4);
 
         signed_t index = 0;
         for (str::token<char, str::sep_onechar<char, '.'>> tkn(s); tkn; tkn(), ++index, ++dst)
@@ -1038,7 +1065,7 @@ namespace Botan
 
     std::string ipv4_to_string(uint32_t ip)
     {
-        tools::from_low_to_high<u32, Endian::big> octs(ip);
+        uints::from_low_to_high<u32, Endian::big> octs(ip);
 
         str::astr s;
         str::append_num(s, octs[0], 0);

@@ -3,18 +3,24 @@
 #ifdef _WIN32
 #define BOTAN_TARGET_OS_HAS_WIN32
 #define BOTAN_BUILD_COMPILER_IS_MSVC
-#define BOTAN_TARGET_OS_IS_WINDOWS
-#define BOTAN_TARGET_OS_HAS_THREAD_LOCAL
 #define BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK
 #define BOTAN_TARGET_OS_HAS_RTLGENRANDOM
 #define BOTAN_TARGET_OS_HAS_RTLSECUREZEROMEMORY
+#define BOTAN_TARGET_CPU_IS_X86_FAMILY
 #else
 #define _NIX
 #define BOTAN_USE_GCC_INLINE_ASM
+#ifdef __linux__
 #define BOTAN_TARGET_OS_IS_LINUX
+#endif
 #define BOTAN_TARGET_OS_HAS_GETRANDOM
 #define BOTAN_TARGET_OS_HAS_POSIX1
 #define BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO
+
+#if defined(__i386__) || defined(__x86_64__)
+#define BOTAN_TARGET_CPU_IS_X86_FAMILY
+#endif
+
 #endif
 
 #define BOTAN_TARGET_OS_HAS_SYSTEM_CLOCK
@@ -32,6 +38,10 @@
 
 #if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
 #define BOTAN_MP_WORD_BITS 64
+#define MODE64
+#ifdef BOTAN_TARGET_CPU_IS_X86_FAMILY
+#define BOTAN_TARGET_ARCH_IS_X86_64
+#endif
 #else
 #define BOTAN_MP_WORD_BITS 32
 #endif
@@ -41,7 +51,6 @@
 #define BOTAN_HAS_CPUID
 #define BOTAN_HAS_CPUID_DETECTION
 #define BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN
-#define BOTAN_TARGET_CPU_IS_X86_FAMILY
 #define BOTAN_TARGET_CPU_SUPPORTS_SSSE3
 #define BOTAN_TARGET_CPU_SUPPORTS_AVX2
 #define BOTAN_HAS_GHASH_CLMUL_CPU
@@ -147,8 +156,6 @@
 #define BOTAN_HAS_RIPEMD_160
 #define BOTAN_HAS_SM3
 
-#define BOTAN_TARGET_CPU_HAS_NATIVE_64BIT
-#define BOTAN_TARGET_ARCH_IS_X86_64
 
 #define BOTAN_DLL
 #define BOTAN_IS_BEING_BUILT
@@ -167,6 +174,7 @@ struct IUnknown;
 #undef BOTAN_HAS_SHA2_64_X86
 #endif // defined
 
+#include <bit>
 #include <optional>
 #include <numbers>
 #include <string>
@@ -174,6 +182,52 @@ struct IUnknown;
 #include <cmath>
 #include <sstream>
 #include <proxtopus/secure_vector.h>
+
+#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY) && defined(MODE64)
+#define SSE2_SUPPORTED
+#include <emmintrin.h>
+#endif
+
+namespace tools
+{
+    template<size_t sz> void memcopy(void* tgt, const void* src)
+    {
+        if constexpr (sz == 2)
+        {
+            *reinterpret_cast<uint16_t*>(tgt) = *reinterpret_cast<const uint16_t*>(src);
+        } else if constexpr (sz == 4)
+        {
+            *reinterpret_cast<uint32_t*>(tgt) = *reinterpret_cast<const uint32_t*>(src);
+        }
+        else if constexpr (sz == 8)
+        {
+            static_assert(sizeof(size_t) == 8 || sizeof(size_t) == 4);
+            if constexpr (sizeof(size_t) == 8)
+            {
+                *reinterpret_cast<size_t*>(tgt) = *reinterpret_cast<const size_t*>(src);
+            }
+            else
+            {
+                *reinterpret_cast<size_t*>(tgt) = *reinterpret_cast<const size_t*>(src);
+                *(reinterpret_cast<size_t*>(tgt) + 1) = *(reinterpret_cast<const size_t*>(src) + 1);
+            }
+        } else
+#ifdef SSE2_SUPPORTED
+        if constexpr (sz == 16)
+        {
+            _mm_storeu_si128((__m128i*)tgt, _mm_loadu_si128((const __m128i*)src));
+        }
+        else if constexpr (sz == 32)
+        {
+            _mm_storeu_si128((__m128i*)tgt, _mm_loadu_si128((const __m128i*)src));
+            _mm_storeu_si128((__m128i*)tgt + 1, _mm_loadu_si128((const __m128i*)src + 1));
+        }
+        else
+#endif
+            memcpy(tgt, src, sz);
+    }
+
+}
 
 namespace Botan {
 
@@ -395,11 +449,6 @@ namespace Botan {
 	protected:
         ALG(alg aa) :a(aa) {}
 	};
-
-    inline std::ostream& operator <<(std::ostream& oss, ALG format) {
-        oss << format.to_string();
-		return oss;
-    }
 
 	struct Any_Algo;
     struct Auth_Method : public ALG {
@@ -806,25 +855,6 @@ namespace Botan {
 		return ag.present(val);
     }
 
-    inline std::ostream& operator<<(std::ostream& oss, Algo_Group format) {
-        oss << format.to_string();
-        return oss;
-    }
-
-    inline std::ostream& operator<<(std::ostream& oss, Any_Algo format) {
-        oss << format.to_string();
-		return oss;
-    }
-    inline std::ostream& operator<<(std::ostream& oss, Auth_Method format) {
-        oss << format.to_string();
-        return oss;
-    }
-
-    inline std::ostream& operator<<(std::ostream& oss, ALG::alg format) {
-        oss << Any_Algo(format).to_string();
-        return oss;
-    }
-
 	inline std::string operator+(const char* oss, Non_Algo format) {
         return oss + format.to_string();
     }
@@ -921,7 +951,7 @@ namespace Botan {
 
 		void assign(const std::array<W, n>& d)
 		{
-			memcpy(bits, d.data(), sizeof(bits));
+			tools::memcopy<sizeof(bits)>(bits, d.data());
 		}
 	};
 
@@ -1267,6 +1297,41 @@ namespace Botan {
 	inline const OID_core& oid_core(oid_index i) { return g_oids[static_cast<int>(i)]; }
 	oid_index oid_find_index(std::span<const uint8_t> id);
 } // namespace Botan
+
+namespace str
+{
+    void __append(std::string & sout, Botan::ALG alg);
+    void __append(std::string& sout, Botan::Algo_Group alg);
+    void __append(std::string& sout, Botan::Any_Algo alg);
+    void __append(std::string& sout, Botan::Auth_Method alg);
+    void __append(std::string& sout, Botan::ALG::alg alg);
+    void __append(std::string& sout, const Botan::OID &oid);
+
+}
+
+
+template<typename T> constexpr bool is_plain_old_struct_v =
+std::is_trivially_default_constructible_v<T> &&
+std::is_trivially_copy_constructible_v<T> &&
+std::is_trivially_move_constructible_v<T> &&
+std::is_trivially_destructible_v<T>;
+
+template<typename T, size_t align> requires(is_plain_old_struct_v<T>&& std::has_single_bit(align)) class aligned_data
+{
+    uint8_t data_space[sizeof(T) + align];
+public:
+    aligned_data()
+    {
+        size_t addr_ok = (reinterpret_cast<size_t>(data_space + 1) + align - 1) & ~(size_t)(align - 1);
+        size_t addr_cur = reinterpret_cast<size_t>(data_space + 0);
+        data_space[0] = static_cast<uint8_t>(addr_ok - addr_cur); // offset to aligned
+    }
+    T& operator->() { return *(T*)(data_space + data_space[0]); }
+    const T& operator->() const { return *(const T*)(data_space + data_space[0]); }
+
+    T& data() { return *(T*)(data_space + data_space[0]); }
+    const T& data() const { return *(T*)(data_space + data_space[0]); }
+};
 
 #define BOTAN_PUBLIC_API(...)
 #include <botan/exceptn.h>

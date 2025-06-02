@@ -8,6 +8,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/ec_group.h>
 
 #include <botan/ber_dec.h>
@@ -18,7 +20,6 @@
 #include <botan/reducer.h>
 #include <botan/rng.h>
 #include <botan/internal/ec_inner_data.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/primality.h>
 #include <vector>
 
@@ -222,7 +223,7 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
 
       auto data = ec_group_data().lookup(oid);
       if(!data) {
-         throw Decoding_Error(fmt("Unknown namedCurve OID '{}'", oid.to_string()));
+         throw Decoding_Error(str::build_string("Unknown namedCurve OID '$'", oid));
       }
 
       return std::make_pair(data, false);
@@ -327,7 +328,7 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
       throw Decoding_Error("Decoding ImplicitCA ECC parameters is not supported");
    } else {
       throw Decoding_Error(
-         fmt("Unexpected tag {} while decoding ECC domain params", asn1_tag_to_string(next_obj_type)));
+         str::build_string("Unexpected tag $ while decoding ECC domain params", asn1_tag_to_string(next_obj_type)));
    }
 }
 
@@ -363,7 +364,7 @@ EC_Group EC_Group::from_OID(const OID& oid) {
    auto data = ec_group_data().lookup(oid);
 
    if(!data) {
-      throw Invalid_Argument(fmt("No EC_Group associated with OID '{}'", oid.to_string()));
+      throw Invalid_Argument(str::build_string("No EC_Group associated with OID '$'", oid));
    }
 
    return EC_Group(std::move(data));

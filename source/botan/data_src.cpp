@@ -5,12 +5,10 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/data_src.h>
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
-#include <botan/internal/fmt.h>
 #include <algorithm>
 #include <istream>
 

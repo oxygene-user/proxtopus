@@ -114,7 +114,7 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
     bool do_recv = decrypted_data.is_empty();
     if (do_recv)
         netkit::clear_ready(get_waitable(), READY_PIPE);
-    else if (maxdatasz < 0 && !decrypted_data.enough_for(-maxdatasz))
+    else if (maxdatasz < 0 && !decrypted_data.enough(-maxdatasz))
         do_recv = true;
 
     for (;; do_recv = true)

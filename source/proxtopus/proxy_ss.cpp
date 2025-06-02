@@ -51,34 +51,9 @@ proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const a
 	if (addr.state() == netkit::EPS_EMPTY)
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("addr not defined for proxy [$]", str::clean(name));
+		LOG_FATAL("addr not defined for proxy [$]", str::clean(name));
 		return;
 	}
-
-
-	/*
-	netkit::pipe_ptr p1 = new jpipe();
-	netkit::pipe_ptr p2 = new jpipe((jpipe *)p1.get());
-	((jpipe *)p1.get())->opipe = (jpipe*)p2.get();
-
-	netkit::pipe_ptr pp1(new crypto_pipe(p1, std::move(cb()), masterKey, cp, botan_cifer));
-	netkit::pipe_ptr pp2(new crypto_pipe(p2, std::move(cb()), masterKey, cp, botan_cifer));
-
-	str::astr abc("aAbBcC777");
-	char rxc[1024] = {};
-	pp1->send((u8 *)abc.data(), abc.length());
-	pp2->recv((u8 *)rxc, 1024);
-
-	str::astr abcxx("Build shadowsocks-libev v3.0.8 with cygwin on Windows");
-	pp1->send((u8*)abcxx.data(), abcxx.length());
-	pp2->recv((u8*)rxc, 1024);
-
-	str::astr abc2("blablablatest");
-	pp2->send((u8*)abc2.data(), abc2.length());
-	pp1->recv((u8*)rxc, 1024);
-
-	__debugbreak();
-	*/
 }
 
 netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netkit::endpoint& addr2) const
@@ -86,7 +61,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
 
-	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, std::move(core.cb()), core.masterkeys.lock_read()()[0].key, core.cp));
+	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, core.masterkeys.lock_read()()[0].key, core.cp));
 
 	// just send connect request (shadowsocks 2012 protocol spec)
 	// no need to wait answer: stream mode just after request
@@ -101,7 +76,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 
 /*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_shadowsocks::prepare(netkit::udp_pipe* transport) const
 {
-	return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, std::move(core.cb()), core.masterkeys.lock_read()()[0].key, core.cp);
+	return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, core.masterkeys.lock_read()()[0].key, core.cp);
 }
 
 /*virtual*/ void proxy_shadowsocks::api(json_saver& j) const

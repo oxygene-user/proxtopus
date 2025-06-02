@@ -116,7 +116,7 @@ namespace netkit
 				r->ipv4 = *(in_addr*)packet;
 			}
 			else if (plen == 16) {
-				memcpy(&r->ipv6, packet, 16);
+				tools::memcopy<16>(&r->ipv6, packet);
 				r->v4 = false;
 			}
 			if (readport)
@@ -235,7 +235,7 @@ namespace netkit
 			else
 			{
 				const sockaddr_in6* a = (const sockaddr_in6*)aaaa;
-				memcpy(&ipv6, &a->sin6_addr, sizeof(a->sin6_addr));
+				tools::memcopy<sizeof(a->sin6_addr)>(&ipv6, &a->sin6_addr);
 				port = u16be::from_be(a->sin6_port);
 			}
 		};
@@ -248,7 +248,7 @@ namespace netkit
 				v4 = true;
 			}
 			else {
-				memcpy(&ipv6, &ip.ipv6, sizeof(ipv6));
+				tools::memcopy<sizeof(ipv6)>(&ipv6, &ip.ipv6);
 				v4 = false;
 			}
 #ifdef _DEBUG
@@ -265,7 +265,7 @@ namespace netkit
 			if (v4)
 				ipv4.s_addr = ip.ipv4.s_addr;
 			else
-				memcpy(&ipv6, &ip.ipv6, sizeof(ipv6));
+				tools::memcopy<sizeof(ipv6)>(&ipv6, &ip.ipv6);
 			if (useport)
 				port = ip.port;
 		}
@@ -359,7 +359,7 @@ namespace netkit
 					{
 						if (col)
 							needz = true;
-						str::append_hex(s, w);
+						str::append_hex(s, (u16)w);
 						if (i < 7)
 						{
 							clp = true;
@@ -488,6 +488,7 @@ namespace netkit
 	class pipe_waiter
 	{
 		using ppipe = pipe*;
+        u64 readymask = 0;
 		ppipe pipes[MAXIMUM_WAITABLES];
 #ifdef _WIN32
 		SOCKET soks[MAXIMUM_WAITABLES + 2];
@@ -498,8 +499,7 @@ namespace netkit
         pollfd polls[MAXIMUM_WAITABLES + 2];
         int evt[2] = {INVALID_SOCKET, INVALID_SOCKET}; // socketpair
 #endif // _NIX
-		signed_t numw = 0;
-		u64 readymask = 0;
+		size_t numw = 0;
 
 		static_assert(MAXIMUM_WAITABLES <= 64);
 
@@ -810,6 +810,13 @@ namespace netkit
 		tcp_pipe(const tcp_pipe&) = delete;
 		tcp_pipe(tcp_pipe&&) = delete;
 
+#ifdef _DEBUG
+		signed_t __rbsize() const
+		{
+			return rcvbuf.datasize();
+		}
+#endif // _DEBUG
+
 		/*virtual*/ ~tcp_pipe()
 		{
 			close(true);
@@ -853,28 +860,6 @@ namespace netkit
 		/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 		/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
 		/*virtual*/ bool unrecv(const u8* data, signed_t sz) override;
-
-		enum read_result : u8
-		{
-			OK,
-			NOT_YET_READY,
-			DEAD
-		};
-
-		template<signed_t N> using ret_t = std::tuple<vbv<N>, read_result>;
-
-		/*
-		template<signed_t N> ret_t<N> read(signed_t shift)
-		{
-			rcv_all();
-			if (rcvbuf.datasize() >= N + shift)
-			{
-				return { vbv<N>(rcvbuf + shift), OK };
-			}
-			return { vbv<N>(), connected() ? NOT_YET_READY : DEAD };
-		}
-		*/
-
 
 		bool rcv_all(); // receive all, but stops when buffer size reaches 64k
 		/*virtual*/ WAITABLE get_waitable() override;
@@ -1091,11 +1076,11 @@ namespace netkit
 		{
 			if (ip.v4)
 			{
-				memcpy(data + ptr, &ip.ipv4, 4);
+				tools::memcopy<4>(data + ptr, &ip.ipv4);
 				ptr += 4;
 			}
 			else {
-				memcpy(data + ptr, &ip.ipv6, 16);
+				tools::memcopy<16>(data + ptr, &ip.ipv6);
 				ptr += 16;
 			}
 			if (push_port)

@@ -5,13 +5,14 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/pk_keys.h>
 
 #include <botan/der_enc.h>
 #include <botan/hash.h>
 #include <botan/hex.h>
 #include <botan/pk_ops.h>
-#include <botan/internal/fmt.h>
 
 namespace Botan {
 
@@ -23,7 +24,7 @@ OID Asymmetric_Key::object_identifier() const {
    try {
       return OID::from_ag(Algo_Group(algo_name()));
    } catch(Lookup_Error&) {
-      throw Lookup_Error(fmt("Public key algorithm {} has no defined OIDs", algo_name()));
+      throw Lookup_Error(str::build_string("Public key algorithm {} has no defined OIDs", algo_name()));
    }
 }
 
@@ -98,46 +99,46 @@ std::string Private_Key::fingerprint_private(HashFunction* hash) const {
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::Encryption> Public_Key::create_encryption_op(RandomNumberGenerator& /*rng*/,
     Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support encryption", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support encryption", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::KEM_Encryption> Public_Key::create_kem_encryption_op(Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support KEM encryption", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support KEM encryption", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::Verification> Public_Key::create_verification_op(Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support verification", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support verification", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::Verification> Public_Key::create_x509_verification_op(const AlgorithmIdentifier& /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support X.509 verification", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support X.509 verification", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::Decryption> Private_Key::create_decryption_op(RandomNumberGenerator& /*rng*/,
     Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support decryption", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support decryption", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::KEM_Decryption> Private_Key::create_kem_decryption_op(RandomNumberGenerator& /*rng*/,
     Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support KEM decryption", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support KEM decryption", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::Signature> Private_Key::create_signature_op(RandomNumberGenerator& /*rng*/,
     Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support signatures", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support signatures", algo_name()));
 }
 
 /// PROXTOPUS : provider removed
 std::unique_ptr<PK_Ops::Key_Agreement> Private_Key::create_key_agreement_op(RandomNumberGenerator& /*rng*/,
     Algo_Group /*params*/) const {
-   throw Lookup_Error(fmt("{} does not support key agreement", algo_name()));
+   throw Lookup_Error(str::build_string("$ does not support key agreement", algo_name()));
 }
 
 }  // namespace Botan

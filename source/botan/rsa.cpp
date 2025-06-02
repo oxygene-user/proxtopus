@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/rsa.h>
 
 #include <botan/ber_dec.h>
@@ -15,7 +17,6 @@
 #include <botan/internal/blinding.h>
 #include <botan/internal/divide.h>
 #include <botan/internal/emsa.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/keypair.h>
 #include <botan/internal/mod_inv.h>
 #include <botan/internal/monty.h>
@@ -309,7 +310,7 @@ RSA_PrivateKey::RSA_PrivateKey(
 */
 RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng, size_t bits, size_t exp) {
    if(bits < 1024) {
-      throw Invalid_Argument(fmt("Cannot create an RSA key only {} bits long", bits));
+      throw Invalid_Argument(str::build_string("Cannot create an RSA key only $ bits long", bits));
    }
 
    if(exp < 3 || exp % 2 == 0) {

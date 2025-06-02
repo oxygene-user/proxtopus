@@ -10,7 +10,7 @@ transport_tls::transport_tls(loader& ldr, listener* owner, const asts& bb, netki
     if (kf.empty())
     {
         ldr.exit_code = EXIT_FAIL_KEY_MISSED;
-        LOG_E("{key} file not defined for tls transport of listener [$]^", str::clean(owner->get_name()));
+        LOG_FATAL("{key} file not defined for tls transport of listener [$]^", str::clean(owner->get_name()));
         return;
     }
 
@@ -19,7 +19,7 @@ transport_tls::transport_tls(loader& ldr, listener* owner, const asts& bb, netki
     if (crtf.empty())
     {
         ldr.exit_code = EXIT_FAIL_CRT_MISSED;
-        LOG_E("{crt} file not defined for tls transport of listener [$]^", str::clean(owner->get_name()));
+        LOG_FATAL("{crt} file not defined for tls transport of listener [$]^", str::clean(owner->get_name()));
         return;
     }
 
@@ -32,7 +32,7 @@ transport_tls::transport_tls(loader& ldr, listener* owner, const asts& bb, netki
     catch (const Botan::Exception &e)
     {
         ldr.exit_code = EXIT_FAIL_KEY_MISSED;
-        LOG_E("{key} file [$] not loaded ($) for tls transport of listener [$]^", kf, e, str::clean(owner->get_name()));
+        LOG_FATAL("{key} file [$] not loaded ($) for tls transport of listener [$]^", kf, e, str::clean(owner->get_name()));
         return;
     }
 
@@ -62,7 +62,7 @@ transport_tls::transport_tls(loader& ldr, listener* owner, const asts& bb, netki
     catch (std::exception &e)
     {
         ldr.exit_code = EXIT_FAIL_CRT_MISSED;
-        LOG_E("{crt} file [$] not loaded ($) for tls transport of listener [$]^", curcrt, e, str::clean(owner->get_name()));
+        LOG_FATAL("{crt} file [$] not loaded ($) for tls transport of listener [$]^", curcrt, e, str::clean(owner->get_name()));
         return;
     }
 

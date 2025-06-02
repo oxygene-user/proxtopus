@@ -44,7 +44,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)proxtopus</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,6 +136,7 @@
     <ClInclude Include="botan\x509_ext.h" />
     <ClInclude Include="botan\x509_key.h" />
     <ClInclude Include="botan\x509_obj.h" />
+    <ClInclude Include="proxtopus\chacha20.h" />
     <ClInclude Include="debug\handler_dbg.h" />
     <ClInclude Include="debug\memspy.h" />
     <ClInclude Include="proxtopus\arena.h" />
@@ -161,7 +162,6 @@
     <ClInclude Include="botan\internal\alignment_buffer.h" />
     <ClInclude Include="botan\internal\bit_ops.h" />
     <ClInclude Include="botan\internal\bswap.h" />
-    <ClInclude Include="botan\internal\chacha.h" />
     <ClInclude Include="botan\internal\chacha20poly1305.h" />
     <ClInclude Include="botan\internal\cpuid.h" />
     <ClInclude Include="botan\internal\ctr.h" />
@@ -182,7 +182,6 @@
     <ClInclude Include="botan\internal\mul128.h" />
     <ClInclude Include="botan\internal\os_utils.h" />
     <ClInclude Include="botan\internal\out_buf.h" />
-    <ClInclude Include="botan\internal\poly1305.h" />
     <ClInclude Include="botan\internal\rotate.h" />
     <ClInclude Include="botan\internal\salsa20.h" />
     <ClInclude Include="botan\internal\sha1.h" />
@@ -194,7 +193,6 @@
     <ClInclude Include="botan\internal\simd_avx2.h" />
     <ClInclude Include="botan\internal\simd_avx512.h" />
     <ClInclude Include="botan\internal\stl_util.h" />
-    <ClInclude Include="botan\internal\stream_mode.h" />
     <ClInclude Include="botan\kdf.h" />
     <ClInclude Include="botan\mac.h" />
     <ClInclude Include="botan\mem_ops.h" />
@@ -208,7 +206,9 @@
     <ClInclude Include="botan\types.h" />
     <ClInclude Include="debug\excpn.h" />
     <ClInclude Include="debug\stkwlk.h" />
+    <ClInclude Include="proxtopus\aead_chacha20poly1305.h" />
     <ClInclude Include="proxtopus\os_tools.h" />
+    <ClInclude Include="proxtopus\sodium_poly1305.h" />
     <ClInclude Include="proxtopus\secure_vector.h" />
     <ClInclude Include="proxtopus\dnsq.h" />
     <ClInclude Include="proxtopus\cipher_ss.h" />
@@ -242,6 +242,7 @@
     <ClInclude Include="proxtopus\tls.h" />
     <ClInclude Include="proxtopus\tools.h" />
     <ClInclude Include="proxtopus\main.h" />
+    <ClInclude Include="proxtopus\uints.h" />
     <ClInclude Include="proxtopus\watchdog.h" />
   </ItemGroup>
   <ItemGroup>
@@ -257,19 +258,7 @@
     <ClCompile Include="botan\aes_vaes.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="botan\chacha.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
     <ClCompile Include="botan\chacha20poly1305.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\chacha_avx2.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\chacha_avx512.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\chacha_simd32.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\cpuid.cpp">
@@ -324,9 +313,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\os_utils.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\poly1305.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\rng.cpp">
@@ -770,10 +756,10 @@
     <ClCompile Include="botan\sha1_simd.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="proxtopus\chacha20.cpp" />
     <ClCompile Include="debug\handler_dbg.cpp" />
     <ClCompile Include="debug\memspy.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="proxtopus\dnsq.cpp" />
     <ClCompile Include="proxtopus\cipher_ss.cpp" />
@@ -785,7 +771,9 @@
     <ClCompile Include="proxtopus\handlers.cpp" />
     <ClCompile Include="proxtopus\handler_http.cpp" />
     <ClCompile Include="proxtopus\handler_ss.cpp" />
+    <ClCompile Include="proxtopus\aead_chacha20poly1305.cpp" />
     <ClCompile Include="proxtopus\os_tools.cpp" />
+    <ClCompile Include="proxtopus\sodium_poly1305.cpp" />
     <ClCompile Include="proxtopus\transport.cpp" />
     <ClCompile Include="proxtopus\transport_tls.cpp" />
     <ClCompile Include="proxtopus\http_api.cpp" />
@@ -811,8 +799,17 @@
     <ClCompile Include="proxtopus\tools.cpp" />
     <ClCompile Include="proxtopus\watchdog.cpp" />
     <ClCompile Include="rasp\compile_oids.cpp" />
+    <ClCompile Include="proxtopus\sodium_chacha20_avx2.inl">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="proxtopus\sodium_chacha20_ref.inl">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="proxtopus\sodium_chacha20_ssse3.inl">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
-  <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <ItemGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile Include="debug\excpn.cpp" />
     <ClCompile Include="debug\stkwlk.cpp" />
   </ItemGroup>

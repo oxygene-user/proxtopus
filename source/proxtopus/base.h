@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PROXTOPUS_PCH
+#error "do not include this file without pch.h"
+#endif
+
 #ifdef _DEBUG
 //#define COUNT_ALLOCS
 //#define LOG_TRAFFIC
@@ -12,8 +16,19 @@
 #define ARCHBITS 32
 #endif
 
+#ifndef ALIGN
+# if defined(__INTEL_COMPILER) || defined(_MSC_VER)
+#  define ALIGN(x) __declspec(align(x))
+# else
+#  define ALIGN(x) __attribute__ ((aligned(x)))
+# endif
+#endif
+
 #include "mem.h"
 #include <bit>
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 class Endian
 {
@@ -36,12 +51,35 @@ static_assert(sizeof(u32) == 4);
 #if defined(_MSC_VER)
 typedef signed __int64		i64;
 typedef unsigned __int64	u64;
-#elif defined(__GNUC__)
+#elif defined(GCC_OR_CLANG)
 using i64 = int64_t;
-using u64 = uint64_t;
+using u64 = unsigned long long;
 using WORD = uint16_t;
 #endif
+#if defined(__SIZEOF_INT128__)
+__extension__ typedef unsigned __int128 u128;
+#define NATIVE_U128
+#endif
 
+static_assert(sizeof(u64) == 8);
+
+
+template <size_t sz> struct sztype { using type = std::array<u8, sz>; static constexpr bool native = false; };
+template <> struct sztype<1> { using type = u8; static constexpr bool native = true; };
+template <> struct sztype<2> { using type = u16; static constexpr bool native = true; };
+template <> struct sztype<4> { using type = u32; static constexpr bool native = true; };
+template <> struct sztype<8> { using type = u64; static constexpr bool native = true; };
+#if defined(NATIVE_U128)
+template <> struct sztype<16> { using type = u128; static constexpr bool native = true; };
+#endif
+
+static_assert(sizeof(sztype<4>::type) == 4);
+static_assert(sizeof(sztype<8>::type) == 8);
+static_assert(sizeof(sztype<16>::type) == 16);
+static_assert(sizeof(sztype<32>::type) == 32);
+
+template<typename T> concept native = sztype<sizeof(T)>::native;
+template<typename T> concept not_native = !native<T>;
 
 template<typename Tout, typename Tin> Tout& ref_cast(Tin& t)
 {
@@ -62,88 +100,88 @@ template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
 #define UNREACHABLE() __assume(0)
 #endif
 
-#ifdef __GNUC__
+#ifdef GCC_OR_CLANG
 #define UNREACHABLE() __builtin_unreachable()
 #define DEBUGBREAK() __builtin_trap()
 #define NOWARNING(n,...) __VA_ARGS__
 #endif
-
-
-#ifdef MODE64
-struct u128
+#if !defined(ARCH_X86) || !defined MODE64
+inline u8 _addcarry_u64( u8 carry_in, u64 a, u64 b, u64* out)
 {
-    u64 low;
-    u64 hi;
+    u32 a0 = static_cast<u32>(a & 0xffffffff);
+    u32 a1 = static_cast<u32>(a >> 32);
+    u32 b0 = static_cast<u32>(b & 0xffffffff);
+    u32 b1 = static_cast<u32>(b >> 32);
 
-    u128() {}
-    u128(u64 v) :low(v), hi(0)
-    {
-    }
+    u32 res_lo, res_hi;
+    u8 carry_hi = _addcarry_u32(_addcarry_u32(carry_in, a0, b0, &res_lo), a1, b1, &res_hi);
+    *out = (static_cast<u64>(res_hi) << 32) | res_lo;
+    return carry_hi;
+}
+inline u8 _subborrow_u64(u8 borrow_in, u64 a, u64 b, u64* out)
+{
+    u32 a0 = static_cast<u32>(a & 0xffffffff);
+    u32 a1 = static_cast<u32>(a >> 32);
+    u32 b0 = static_cast<u32>(b & 0xffffffff);
+    u32 b1 = static_cast<u32>(b >> 32);
 
-    operator u64() const
-    {
-        return low;
-    }
+    u32 res_lo, res_hi;
+    u8 borrow_hi = _subborrow_u32(_subborrow_u32(borrow_in, a0, b0, &res_lo), a1, b1, &res_hi);
 
-    bool operator >= (u64 v) const
-    {
-        return hi > 0 || low >= v;
-    }
-
-    u128& operator=(u64 v)
-    {
-        low = v;
-        hi = 0;
-        return *this;
-    }
-
-    u128& operator-=(u128 v)
-    {
-        if (low < v.low)
-        {
-            hi -= v.hi - 1;
-            low -= v.low;
-        }
-        else
-        {
-            hi -= v.hi;
-            low -= v.low;
-        }
-        return *this;
-    }
-    u128& operator+=(u64 v)
-    {
-#ifdef _MSC_VER
-        _addcarry_u64(_addcarry_u64(0, low, v, &low), hi, 0, &hi);
+    *out = (static_cast<u64>(res_hi) << 32) | res_lo;
+    return borrow_hi;
+}
 #endif
-#ifdef __GNUC__
-        DEBUGBREAK();
+#if !defined(_MSC_VER) || !defined(MODE64)
+inline u64 _umul128(u64 a, u64 b, u64* high)
+{
+    u32 a0 = static_cast<u32>(a & 0xffffffff);
+    u32 a1 = static_cast<u32>(a >> 32);
+    u32 b0 = static_cast<u32>(b & 0xffffffff);
+    u32 b1 = static_cast<u32>(b >> 32);
+
+    u64 p0 = (u64)a0 * b0;
+    u64 p1 = (u64)a0 * b1;
+    u64 p2 = (u64)a1 * b0;
+    u64 p3 = (u64)a1 * b1;
+
+    // this cannot overflow as (0xffffffff)^2 + 0xffffffff + 0xffffffff = 2^64-1
+    const u64 middle = p2 + (p0 >> 32) + (p1 & 0xffffffff);
+
+    // likewise these cannot overflow
+    *high = p3 + (middle >> 32) + (p1 >> 32);
+    return (middle << 32) + (p0 & 0xffffffff);
+
+}
 #endif
-        return *this;
-    }
-    u128& operator+=(const u128& v)
-    {
-#ifdef _MSC_VER
-        _addcarry_u64(_addcarry_u64(0, low, v.low, &low), hi, v.hi, &hi);
-#endif
-#ifdef __GNUC__
-        DEBUGBREAK();
-#endif
-        return *this;
-    }
-};
+
+#include "uints.h"
+
+#if !defined(NATIVE_U128)
+using u128 = uints::uint<128>;
 #endif
 
 template <> struct std::hash<u128>
 {
     std::size_t operator()(const u128& k) const
     {
-        return std::hash<u64>()(k.low) ^ std::hash<u64>()(k.hi);
+        return std::hash<u64>()((const u64&)uints::low(k)) ^ std::hash<u64>()((const u64&)uints::high(k));
     }
 };
 
+
 namespace tools
 {
+    consteval size_t min_integral_size_for_value(size_t val, size_t minsize)
+    {
+        if (val < 256)
+            return minsize > 1 ? minsize : 1;
+        if (val < 65536)
+            return minsize > 2 ? minsize : 2;
+        if (val < (0xffffffffull + 1ull))
+            return minsize > 4 ? minsize : 4;
+        return 8;
+    }
 
     template<class T> inline void swap(T& first, T& second)
     {
@@ -152,12 +190,19 @@ namespace tools
         second = std::move(temp);
     }
 
+#if 0
     u8 inline as_byte(signed_t b) { return static_cast<u8>(b & 0xFF); }
-    //u8 inline as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
     u8 inline as_byte(u64 b) { return static_cast<u8>(b & 0xFF); }
 #ifdef MODE64
-    u8 inline as_byte(u128 b) { return as_byte((u64)b); }
+    u8 inline as_byte(const u128 &b) { return uints::aslow<1>(b); }
+#else
+    u8 inline as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
 #endif
+#endif
+
+    template<uints::flat T> u8 inline as_byte(const T &b) { return uints::aslow<1>(b); }
+
+
 //    wchar inline as_wchar(size_t x) { return static_cast<wchar>(x & 0xFFFF); }
     u32 inline as_dword(size_t x) { return static_cast<u32>(x & 0xFFFFFFFF); }
     u16 inline as_word(size_t x) { return static_cast<u16>(x & 0xFFFF); }
@@ -200,14 +245,14 @@ namespace tools
 
 #define isizeof(s) ((signed_t)(sizeof(s)))
 
+#ifdef _WIN32
 inline bool is_debugger_present()
 {
-#ifdef _WIN32
 	return IsDebuggerPresent() != FALSE;
-#else
-    return false;
-#endif
 }
+#else
+bool is_debugger_present();
+#endif
 
 //using printfunc = void(const char *s, signed_t sl);
 //void GetPrint(printfunc pf);

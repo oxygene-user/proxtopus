@@ -5,10 +5,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/internal/dyn_load.h>
 
 #include <botan/exceptn.h>
-#include <botan/internal/fmt.h>
 #include <sstream>
 
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
@@ -75,7 +76,7 @@ void* Dynamically_Loaded_Library::resolve_symbol(const std::string& symbol) {
 #endif
 
    if(!addr) {
-      throw Invalid_Argument(fmt("Failed to resolve symbol {} in {}", symbol, m_lib_name));
+      throw Invalid_Argument(str::build_string("Failed to resolve symbol $ in $", symbol, m_lib_name));
    }
 
    return addr;

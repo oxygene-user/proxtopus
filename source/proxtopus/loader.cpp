@@ -6,7 +6,7 @@ bool loader::load_conf(const FN& cfp)
 	buffer cb;
 	if (!load_buf(cfp, cb))
 	{
-		LOG_E("no $ found", path_print_str(cfp));
+		LOG_FATAL("no $ found", path_print_str(cfp));
 		exit_code = EXIT_FAIL_NOCONFIG;
 		return false;
 	}
@@ -24,7 +24,7 @@ bool loader::load_conf(const FN& cfp)
 
         if (nullptr == listeners)
         {
-            LOG_E("config has no \"listeners\" block");
+			LOG_FATAL("config has no \"listeners\" block");
             exit_code = EXIT_FAIL_NOLISTENERS;
             return false;
         }
@@ -41,7 +41,7 @@ bool loader::load_conf(const FN& cfp)
 			if (ipv6 < 0) ipv6 = 0;
 			if (ipv4 == ipv6)
 			{
-				LOG_E("value of \"ipv4\" equal to value of \"ipv6\" (==$) (see \"settings\" block); these values must be different and greater/equal zero", ipv4);
+				LOG_FATAL("value of \"ipv4\" equal to value of \"ipv6\" (==$) (see \"settings\" block); these values must be different and greater/equal zero", ipv4);
 				exit_code = EXIT_FAIL_IPV46_VALS;
 				return false;
 			}

@@ -3,6 +3,7 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
+#include "../proxtopus/pch.h"
 
 #include <botan/pubkey.h>
 
@@ -14,7 +15,6 @@
 #include <botan/pss_params.h>
 #include <botan/rng.h>
 #include <botan/internal/ct_utils.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/stl_util.h>
 
 namespace Botan {
@@ -96,7 +96,7 @@ PK_Encryptor_EME::PK_Encryptor_EME(const Public_Key& key,
                                    Algo_Group padding) {
    m_op = key.create_encryption_op(rng, padding);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support encryption", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support encryption", key.algo_name()));
    }
 }
 
@@ -123,7 +123,7 @@ PK_Decryptor_EME::PK_Decryptor_EME(const Private_Key& key,
                                    Algo_Group padding) {
    m_op = key.create_decryption_op(rng, padding);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support decryption", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support decryption", key.algo_name()));
    }
 }
 
@@ -144,7 +144,7 @@ secure_vector<uint8_t> PK_Decryptor_EME::do_decrypt(uint8_t& valid_mask, const u
 PK_KEM_Encryptor::PK_KEM_Encryptor(const Public_Key& key, Algo_Group param) {
    m_op = key.create_kem_encryption_op(param);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support KEM encryption", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support KEM encryption", key.algo_name()));
    }
 }
 
@@ -196,7 +196,7 @@ PK_KEM_Decryptor::PK_KEM_Decryptor(const Private_Key& key,
                                    Algo_Group param) {
    m_op = key.create_kem_decryption_op(rng, param);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support KEM decryption", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support KEM decryption", key.algo_name()));
    }
 }
 
@@ -219,7 +219,7 @@ PK_Key_Agreement::PK_Key_Agreement(const Private_Key& key,
     Algo_Group kdf) {
    m_op = key.create_key_agreement_op(rng, kdf);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support key agreement", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support key agreement", key.algo_name()));
    }
 }
 
@@ -263,7 +263,7 @@ PK_Signer::PK_Signer(const Private_Key& key,
 
    m_op = key.create_signature_op(rng, emsa);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support signature generation", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support signature generation", key.algo_name()));
    }
 }
 
@@ -372,7 +372,7 @@ PK_Verifier::PK_Verifier(const Public_Key& key,
                          Signature_Format format) {
    m_op = key.create_verification_op(emsa);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support signature verification", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support signature verification", key.algo_name()));
    }
 
    m_sig_format = format;
@@ -389,7 +389,7 @@ PK_Verifier::PK_Verifier(const Public_Key& key,
    m_op = key.create_x509_verification_op(signature_algorithm);
 
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support X.509 signature verification", key.algo_name()));
+      throw Invalid_Argument(str::build_string("Key type $ does not support X.509 signature verification", key.algo_name()));
    }
 
    m_sig_format = key._default_x509_signature_format();

@@ -4,6 +4,7 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
+#include "../proxtopus/pch.h"
 
 #include <botan/hex.h>
 
@@ -11,7 +12,6 @@
 #include <botan/mem_ops.h>
 #include <botan/internal/charset.h>
 #include <botan/internal/ct_utils.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/int_utils.h>
 #include <botan/internal/loadstor.h>
 
@@ -84,7 +84,7 @@ size_t hex_decode(uint8_t output[], const char input[], size_t input_length, siz
             continue;
          }
 
-         throw Invalid_Argument(fmt("hex_decode: invalid character '{}'", format_char_for_display(input[i])));
+         throw Invalid_Argument(str::build_string("hex_decode: invalid character '$'", format_char_for_display(input[i])));
       }
 
       if(top_nibble) {

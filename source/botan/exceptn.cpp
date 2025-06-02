@@ -4,11 +4,17 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/exceptn.h>
 
-#include <botan/internal/fmt.h>
-
 namespace Botan {
+
+    static thread_local bool quiet_error = false;
+    void Exception::quiet(bool f)
+    {
+        quiet_error = f;
+    }
 
 std::string to_string(ErrorType type) {
    switch(type) {
@@ -69,89 +75,77 @@ std::string to_string(ErrorType type) {
 }
 
 Exception::Exception(std::string_view msg) : m_msg(msg) {
-#ifdef _DEBUG
-#ifdef _WIN32
-    __debugbreak();
-#endif
-#ifdef __GNUC__
-    __builtin_trap();
-#endif
-#endif
+    if (!quiet_error)
+    {
+        LOG_E("exception raised: $", m_msg);
+    }
 }
 
-Exception::Exception(std::string_view msg, const std::exception& e) : m_msg(fmt("{} failed with {}", msg, e.what())) {
-#ifdef _DEBUG
-#ifdef _WIN32
-    __debugbreak();
-#endif
-#ifdef __GNUC__
-    __builtin_trap();
-#endif
-#endif
+Exception::Exception(std::string_view msg, const std::exception& e) {
+
+    if (!quiet_error)
+    {
+        str::impl_build_string(m_msg, "$ failed with $", msg, e.what());
+        LOG_E("exception raised: $", m_msg);
+    }
 }
 
-Exception::Exception(const char* prefix, std::string_view msg) : m_msg(fmt("{} {}", prefix, msg)) {
-#ifdef _DEBUG
-#ifdef _WIN32
-    __debugbreak();
-#endif
-#ifdef __GNUC__
-    __builtin_trap();
-#endif
-#endif
+Exception::Exception(const char* prefix, std::string_view msg) {
+    if (!quiet_error)
+    {
+        str::impl_build_string(m_msg, "$ $", prefix, msg);
+        LOG_E("exception raised: $", m_msg);
+    }
 }
 
 Invalid_Argument::Invalid_Argument(std::string_view msg) : Exception(msg) {}
 
-Invalid_Argument::Invalid_Argument(std::string_view msg, std::string_view where) :
-      Exception(fmt("{} in {}", msg, where)) {}
+Invalid_Argument::Invalid_Argument(std::string_view msg, std::string_view where) : Exception(str::build_string("$ in $", msg, where))
+{
+}
 
 Invalid_Argument::Invalid_Argument(std::string_view msg, const std::exception& e) : Exception(msg, e) {}
 
 namespace {
 
-std::string format_lookup_error(std::string_view type, std::string_view algo, std::string_view provider) {
-   if(provider.empty()) {
-      return fmt("Unavailable {} {}", type, algo);
-   } else {
-      return fmt("Unavailable {} {} for provider {}", type, algo, provider);
-   }
+std::string format_lookup_error(std::string_view type, std::string_view algo) {
+    return str::build_string("Unavailable $ $", type, algo);
 }
 
 }  // namespace
 
-Lookup_Error::Lookup_Error(std::string_view type, std::string_view algo, std::string_view provider) :
-      Exception(format_lookup_error(type, algo, provider)) {}
+Lookup_Error::Lookup_Error(std::string_view type, std::string_view algo) :
+      Exception(format_lookup_error(type, algo)) {}
 
 Internal_Error::Internal_Error(std::string_view err) : Exception("Internal error:", err) {}
 
 Unknown_PK_Field_Name::Unknown_PK_Field_Name(ALG algo_name, std::string_view field_name) :
-      Invalid_Argument(fmt("Unknown field '{}' for algorithm {}", field_name, algo_name)) {}
+      Invalid_Argument(str::build_string("Unknown field '$' for algorithm $", field_name, algo_name)) {}
 
 Invalid_Key_Length::Invalid_Key_Length(std::string_view name, size_t length) :
-      Invalid_Argument(fmt("{} cannot accept a key of length {}", name, length)) {}
+      Invalid_Argument(str::build_string("$ cannot accept a key of length $", name, length)) {}
 
 Invalid_IV_Length::Invalid_IV_Length(std::string_view mode, size_t bad_len) :
-      Invalid_Argument(fmt("IV length {} is invalid for {}", bad_len, mode)) {}
+      Invalid_Argument(str::build_string("IV length $ is invalid for $", bad_len, mode)) {}
 
-Key_Not_Set::Key_Not_Set(std::string_view algo) : Invalid_State(fmt("Key not set in {}", algo)) {}
+Key_Not_Set::Key_Not_Set(std::string_view algo) : Invalid_State(str::build_string("Key not set in $", algo)) {}
 
-PRNG_Unseeded::PRNG_Unseeded(std::string_view algo) : Invalid_State(fmt("PRNG {} not seeded", algo)) {}
+PRNG_Unseeded::PRNG_Unseeded(std::string_view algo) : Invalid_State(str::build_string("PRNG $ not seeded", algo)) {}
 
 Algorithm_Not_Found::Algorithm_Not_Found(std::string_view name) :
-      Lookup_Error(fmt("Could not find any algorithm named '{}'", name)) {}
+      Lookup_Error(str::build_string("Could not find any algorithm named '$'", name)) {}
 
 /// PROXTOPUS : provider removed
 
 Invalid_Algorithm_Name::Invalid_Algorithm_Name(std::string_view name) :
-      Invalid_Argument(fmt("Invalid algorithm name: '{}'", name)) {}
+      Invalid_Argument(str::build_string("Invalid algorithm name: '$'", name)) {}
 
 Encoding_Error::Encoding_Error(std::string_view name) : Exception("Encoding error:", name) {}
 
 Decoding_Error::Decoding_Error(std::string_view name) : Exception(name) {}
 
 Decoding_Error::Decoding_Error(std::string_view category, std::string_view err) :
-      Exception(fmt("{}: {}", category, err)) {}
+      Exception(str::build_string("$: $", category, err)) {}
 
 Decoding_Error::Decoding_Error(std::string_view msg, const std::exception& e) : Exception(msg, e) {}
 
@@ -161,7 +155,7 @@ Invalid_Authentication_Tag::Invalid_Authentication_Tag(std::string_view msg) :
 Stream_IO_Error::Stream_IO_Error(std::string_view err) : Exception("I/O error:", err) {}
 
 System_Error::System_Error(std::string_view msg, int err_code) :
-      Exception(fmt("{} error code {}", msg, err_code)), m_error_code(err_code) {}
+      Exception(str::build_string("$ error code $", msg, err_code)), m_error_code(err_code) {}
 
 Not_Implemented::Not_Implemented(std::string_view err) : Exception("Not implemented", err) {}
 

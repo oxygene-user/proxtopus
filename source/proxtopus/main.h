@@ -126,9 +126,9 @@ struct global_data
 	{
 		char* data = nullptr;
 		signed_t data_len = 0;
-		unsigned color : 16 = 0;
-		unsigned use_color : 1 = 0;
-		WINONLY(unsigned oem_convert : 1 = 0; )
+		u16 color = 0;
+		bool use_color = false;
+		WINONLY(bool oem_convert = false;)
 		print_line(const char *s, signed_t sl, bool nl = false);
 		print_line(const print_line&) = delete;
 		print_line(print_line&& pl)
@@ -180,6 +180,11 @@ public:
 };
 
 extern global_data glb;
+
+inline bool log_enabled()
+{
+    return !glb.log_muted || !glb.cfg.log_file.empty();
+}
 
 #if USE_ARENAS
 inline void* alloc_arena64(size_t x)

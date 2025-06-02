@@ -5,13 +5,14 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/x25519.h>
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
 #include <botan/rng.h>
 #include <botan/internal/ct_utils.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/pk_ops_impl.h>
 
 namespace Botan {
@@ -25,7 +26,7 @@ namespace {
 
 void size_check(size_t size, const char* thing) {
    if(size != 32) {
-      throw Decoding_Error(fmt("Invalid size {} for X25519 {}", size, thing));
+      throw Decoding_Error(str::build_string("Invalid size $ for X25519 $", size, thing));
    }
 }
 

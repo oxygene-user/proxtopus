@@ -56,7 +56,7 @@ icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):na
             prx = eng->find_proxy(tkn->substr(dv + 1));
             if (prx == nullptr)
             {
-                LOG_E("unknown {proxy} [$] for icpt-rule [$]", tkn->substr(dv + 1), str::clean(name));
+                LOG_FATAL("unknown {proxy} [$] for icpt-rule [$]", tkn->substr(dv + 1), str::clean(name));
                 eng->exit_code = EXIT_FAIL_PROXY_NOTFOUND;
                 return;
             }
@@ -78,7 +78,7 @@ icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):na
             if (!prx->support(netkit::ST_UDP))
             {
                 eng->exit_code = EXIT_FAIL_SOCKET_TYPE;
-                LOG_E("upstream {proxy} [$] does not support UDP protocol (icpt-rule: [$])", prx->get_name(), str::clean(name));
+                LOG_FATAL("upstream {proxy} [$] does not support UDP protocol (icpt-rule: [$])", prx->get_name(), str::clean(name));
                 return;
             }
         }
@@ -87,7 +87,7 @@ icpt_rule::icpt_rule(engine *eng, const str::astr& name,  const str::astr& s):na
             if (!prx->support(netkit::ST_TCP))
             {
                 eng->exit_code = EXIT_FAIL_SOCKET_TYPE;
-                LOG_E("upstream {proxy} [$] does not support TCP protocol (icpt-rule: [$])", prx->get_name(), str::clean(name));
+                LOG_FATAL("upstream {proxy} [$] does not support TCP protocol (icpt-rule: [$])", prx->get_name(), str::clean(name));
                 return;
             }
         }
@@ -196,7 +196,7 @@ void interceptor::hand_pair::nthread()
 
             LOG_I("src $ : $", info.UDPHeader->SrcPort, pid);
         }
-        
+
 
     }
 
@@ -290,7 +290,7 @@ bool interceptor::load(engine* e, const asts* s)
         if (!udp.open())
         {
             HRESULT err = GetLastError();
-            LOG_E("packet interception driver load error: $", (u32)err);
+            LOG_FATAL("packet interception driver load error: $", (u32)err);
             e->exit_code = EXIT_FAIL_ICPT_INIT_ERROR;
             return false;
         }
@@ -299,7 +299,7 @@ bool interceptor::load(engine* e, const asts* s)
         return true;
 #endif
 #ifdef _NIX
-        LOG_E("packet interception not yet supported in current system");
+        LOG_FATAL("packet interception not yet supported in current system");
         e->exit_code = EXIT_FAIL_ICPT_NOT_SUPPORTED;
 #endif
     }

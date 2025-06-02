@@ -9,7 +9,6 @@
 #define BOTAN_TLS_READER_H_
 
 #include <botan/exceptn.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
 #include <span>
 #include <string>
@@ -27,7 +26,7 @@ class TLS_Data_Reader final {
 
       void assert_done() const {
          if(has_remaining()) {
-            throw_decode_error("Extra bytes at end of message");
+                throw Decoding_Error(str::build_string("Invalid $: Extra bytes at end of message", m_typename));
          }
       }
 
@@ -137,20 +136,20 @@ class TLS_Data_Reader final {
             return get_uint24_t();
          }
 
-         throw_decode_error("Bad length size");
+         throw Decoding_Error(str::build_string("Invalid $: Bad length size", m_typename));
       }
 
       size_t get_num_elems(size_t len_bytes, size_t T_size, size_t min_elems, size_t max_elems) {
          const size_t byte_length = get_length_field(len_bytes);
 
          if(byte_length % T_size != 0) {
-            throw_decode_error("Size isn't multiple of T");
+            throw Decoding_Error(str::build_string("Invalid $: Size isn't multiple of T ($)", m_typename, T_size));
          }
 
          const size_t num_elems = byte_length / T_size;
 
          if(num_elems < min_elems || num_elems > max_elems) {
-            throw_decode_error("Length field outside parameters");
+            throw Decoding_Error(str::build_string("Invalid $: Length field outside parameters", m_typename));
          }
 
          return num_elems;
@@ -158,13 +157,8 @@ class TLS_Data_Reader final {
 
       void assert_at_least(size_t n) const {
          if(m_buf.size() - m_offset < n) {
-            throw_decode_error("Expected " + std::to_string(n) + " bytes remaining, only " +
-                               std::to_string(m_buf.size() - m_offset) + " left");
+            throw Decoding_Error(str::build_string("Invalid $: Expected $ bytes remaining, only $ left", m_typename, n, m_buf.size() - m_offset));
          }
-      }
-
-      [[noreturn]] void throw_decode_error(std::string_view why) const {
-         throw Decoding_Error(fmt("Invalid {}: {}", m_typename, why));
       }
 
       const char* m_typename;

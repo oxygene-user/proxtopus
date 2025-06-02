@@ -4,12 +4,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/internal/xmd.h>
 
 #include <botan/exceptn.h>
 #include <botan/hash.h>
 #include <botan/mem_ops.h>
-#include <botan/internal/fmt.h>
 #include <vector>
 
 namespace Botan {
@@ -28,7 +29,7 @@ void expand_message_xmd(Hash_Algo hash_fn,
    auto hash = HashFunction::create_or_throw(hash_fn);
    const size_t block_size = hash->hash_block_size();
    if(block_size == 0) {
-      throw Invalid_Argument(fmt("expand_message_xmd cannot be used with {}", hash_fn));
+      throw Invalid_Argument(str::build_string("expand_message_xmd cannot be used with $", hash_fn));
    }
 
    const size_t hash_output_size = hash->output_length();

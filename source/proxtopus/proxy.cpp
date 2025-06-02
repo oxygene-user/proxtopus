@@ -7,7 +7,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for proxy [$]^", str::clean(name));
+		LOG_FATAL("{type} not defined for proxy [$]^", str::clean(name));
 		return nullptr;
 	}
 
@@ -56,13 +56,10 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
     }
 
 
-	LOG_E("unknown {type} [$] for proxy [$]^", t, str::clean(name));
+	LOG_FATAL("unknown {type} [$] for proxy [$]^", t, str::clean(name));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 
 	return nullptr;
-
-
-
 }
 
 proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required):name(name)
@@ -73,7 +70,7 @@ proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_requi
 		if (addr_required)
 		{
 			ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-			LOG_E("addr not defined for proxy [$]", str::clean(name));
+			LOG_FATAL("addr not defined for proxy [$]", str::clean(name));
 			return;
 		}
 	} else

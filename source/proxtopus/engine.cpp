@@ -76,7 +76,7 @@ engine::engine()
 
 	if (listners.empty())
 	{
-		LOG_E("empty (or not loaded) \"listeners\" block");
+		LOG_FATAL("empty (or not loaded) \"listeners\" block");
 		exit_code = EXIT_FAIL_NOLISTENERS;
 		glb.stop();
 		return;
@@ -134,7 +134,7 @@ signed_t engine::working()
 
 	if (glb.numlisteners <= 0)
 	{
-		LOG_E("there are no active listeners");
+		LOG_FATAL("there are no active listeners");
 		Print();
 		return -1;
 	}

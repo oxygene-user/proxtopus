@@ -75,7 +75,7 @@ bool watchdog::operator()()
 
         if (nowDiff > 0)
         {
-            cpu_usage = 100 * timeDiff / nowDiff;
+            cpu_usage = static_cast<signed_t>(100 * timeDiff / nowDiff);
         }
         else
             cpu_usage = 100;
@@ -141,19 +141,25 @@ bool watchdog::operator()()
         } else
         if (now > overload_event)
         {
-            // so, watchdog is activated
-            LOG_I("it seems that one or more threads are freeze; proxtopus is now exit");
-            //glb.restart();
+#ifdef _DEBUG
+            if (!is_debugger_present()) {
+#endif
+                // so, watchdog is activated
+                LOG_I("it seems that one or more threads are freeze; proxtopus is now exit");
+                //glb.restart();
 
-            glb.e->exit_code = EXIT_FAIL_OVERLOAD;
-            glb.stop();
+                glb.e->exit_code = EXIT_FAIL_OVERLOAD;
+                glb.stop();
 
-            // start FORCE SELF KILLER
-            std::thread th([]() {
-                spinlock::sleep(10000);
-                ostools::terminate();
-                });
-            th.detach();
+                // start FORCE SELF KILLER
+                std::thread th([]() {
+                    spinlock::sleep(10000);
+                    ostools::terminate();
+                    });
+                th.detach();
+#ifdef _DEBUG
+            }
+#endif
 
         }
         else

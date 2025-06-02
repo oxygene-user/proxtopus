@@ -5,10 +5,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/pk_algs.h>
 
 #include <botan/assert.h>
-#include <botan/internal/fmt.h>
 
 #if defined(BOTAN_HAS_RSA)
    #include <botan/rsa.h>
@@ -267,7 +268,7 @@ std::unique_ptr<Public_Key> load_public_key(const AlgorithmIdentifier& alg_id,
    }
 #endif
 
-   throw Decoding_Error(fmt("Unknown or unavailable public key algorithm '{}'", alg));
+   throw Decoding_Error(str::build_string("Unknown or unavailable public key algorithm '$'", alg));
 }
 
 std::unique_ptr<Private_Key> load_private_key(const AlgorithmIdentifier& alg_id,
@@ -416,7 +417,7 @@ std::unique_ptr<Private_Key> load_private_key(const AlgorithmIdentifier& alg_id,
    }
 #endif
 
-   throw Decoding_Error(fmt("Unknown or unavailable public key algorithm '{}'", alg));
+   throw Decoding_Error(str::build_string("Unknown or unavailable public key algorithm '$'", alg));
 }
 
 std::unique_ptr<Private_Key> create_ec_private_key(std::string_view alg_name,

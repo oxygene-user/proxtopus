@@ -10,7 +10,6 @@
 
 #include <botan/mem_ops.h>
 #include <botan/internal/ct_utils.h>
-#include <botan/internal/fmt.h>
 
 namespace Botan {
 

@@ -5,11 +5,12 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/pem.h>
 
 #include <botan/data_src.h>
 #include <botan/exceptn.h>
-#include <botan/internal/fmt.h>
 
 namespace Botan::PEM_Code {
 
@@ -51,7 +52,7 @@ secure_vector<uint8_t> decode_check_label(DataSource& source, std::string_view l
    std::string label_got;
    secure_vector<uint8_t> ber = decode(source, label_got);
    if(label_got != label_want) {
-      throw Decoding_Error(fmt("PEM: Label mismatch, wanted '{}' got '{}'", label_want, label_got));
+      throw Decoding_Error(str::build_string("PEM: Label mismatch, wanted '$' got '$'", label_want, label_got));
    }
 
    return ber;
@@ -101,7 +102,7 @@ secure_vector<uint8_t> decode(DataSource& source, std::string& label) {
 
    std::vector<char> b64;
 
-   const std::string PEM_TRAILER = fmt("-----END {}-----", label);
+   const std::string PEM_TRAILER = str::build_string("-----END $-----", label);
    position = 0;
    while(position != PEM_TRAILER.length()) {
       uint8_t b;
@@ -136,7 +137,7 @@ secure_vector<uint8_t> decode(std::string_view pem, std::string& label) {
 * Search for a PEM signature
 */
 bool matches(DataSource& source, std::string_view extra, size_t search_range) {
-   const std::string PEM_HEADER = fmt("-----BEGIN {}", extra);
+   const std::string PEM_HEADER = str::build_string("-----BEGIN $", extra);
 
    secure_vector<uint8_t> search_buf(search_range);
    const size_t got = source.peek(search_buf.data(), search_buf.size(), 0);

@@ -8,6 +8,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/tls_extensions.h>
 
 #include <botan/tls_exceptn.h>

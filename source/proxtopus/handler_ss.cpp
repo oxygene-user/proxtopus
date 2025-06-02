@@ -14,8 +14,6 @@ handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::soc
 
 void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 {
-	DL(DLCH_THREADS, "ss worker in ($)", glb.numtcp);
-
 	netkit::pipe_ptr p(raw_pipe);
 	netkit::pipe_ptr p_enc;
 	auto mkr = core.masterkeys.lock_read();
@@ -28,7 +26,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	{
 		str::astr k = mkr()[0].key;
         mkr.unlock();
-		p_enc = NEW ss::core::crypto_pipe(p, std::move(core.cb()), k, core.cp);
+		p_enc = NEW ss::core::crypto_pipe(p, k, core.cp);
 
         if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
             return;
@@ -39,12 +37,12 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 		mkr.unlock();
 
 		/*
-		p_enc = NEW ss::core::multipass_crypto_pipe(p, std::move(core.cb()), core.masterkeys, core.cp);
+		p_enc = NEW ss::core::multipass_crypto_pipe(p, std::move(core.build_crypto(false)), core.masterkeys, core.cp);
         if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
             return;
 			*/
 
-		ss::core::multipass_crypto_pipe multipass(p, std::move(core.cb()), core.masterkeys, core.cp);
+		ss::core::multipass_crypto_pipe multipass(p, core.masterkeys, core.cp);
 
         if (signed_t rb = multipass.recv(packet, -2); rb != 2)
             return;
@@ -91,7 +89,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	if (netkit::pipe_ptr outcon = connect(ep, false))
 		bridge(/*ep,*/ std::move(p_enc), std::move(outcon));
 
-	DL(DLCH_THREADS, "ss worker out ($)", glb.numtcp);
 }
 
 namespace
@@ -103,9 +100,9 @@ namespace
 		buffer buf2s;
 		signed_t password_index = -1;
 
-		udp_cipher(std::unique_ptr<ss::core::cryptor>&& c)
+		udp_cipher(ss::core::crypto_par cp)
 		{
-			crypto = std::move(c);
+			crypto = cp.build_crypto(true);
 		}
 	};
 }
@@ -115,7 +112,7 @@ namespace
 	// decipher and extract endpoint
 
     if (ctx.data == nullptr)
-        ctx.data.reset(NEW udp_cipher(std::move(core.cb())));
+        ctx.data.reset(NEW udp_cipher(core.cp));
     udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
 
     u8 skey[ss::core::maximum_key_size];
@@ -148,6 +145,8 @@ namespace
 				break;
 			}
         }
+		if (context->password_index < 0)
+			return false;
 	}
 	else
 	{

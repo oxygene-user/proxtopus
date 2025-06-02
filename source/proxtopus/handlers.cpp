@@ -8,7 +8,7 @@ handler* handler::new_handler(loader& ldr, listener *owner, const asts& bb, netk
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for handler of listener [$]^", str::clean(owner->get_name()));
+		LOG_FATAL("{type} not defined for handler of listener [$]^", str::clean(owner->get_name()));
 		return nullptr;
 	}
 
@@ -23,7 +23,7 @@ handler* handler::new_handler(loader& ldr, listener *owner, const asts& bb, netk
         {
 		//err:
 			ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
-            LOG_E("{$} handler can only be used with TCP type of listener [$]", t, str::clean(owner->get_name()));
+			LOG_FATAL("{$} handler can only be used with TCP type of listener [$]", t, str::clean(owner->get_name()));
             return nullptr;
 		}
 
@@ -55,7 +55,7 @@ handler* handler::new_handler(loader& ldr, listener *owner, const asts& bb, netk
 		return h;
 	}
 
-	LOG_E("unknown {type} [$] for handler of lisnener [$]^", str::clean(t), str::clean(owner->get_name()));
+	LOG_FATAL("unknown {type} [$] for handler of listener [$]^", str::clean(t), str::clean(owner->get_name()));
 	ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 	return nullptr;
 }
@@ -70,7 +70,7 @@ handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
         if (p == nullptr)
         {
         per:
-            LOG_E("unknown {proxy} [$] for handler of lisnener [$]", pch, str::clean(owner->get_name()));
+			LOG_FATAL("unknown {proxy} [$] for handler of listener [$]", pch, str::clean(owner->get_name()));
             ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
             return;
         }
@@ -78,7 +78,7 @@ handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
         if (!p->support(netkit::ST_UDP))
         {
             ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
-            LOG_E("upstream {proxy} [$] does not support UDP protocol (listener: [$])", pch, str::clean(owner->get_name()));
+			LOG_FATAL("upstream {proxy} [$] does not support UDP protocol (listener: [$])", pch, str::clean(owner->get_name()));
             return;
         }
 
@@ -157,7 +157,7 @@ void handler::bridge(netkit::pipe_ptr &&pipe1, netkit::pipe_ptr&& pipe2)
 	npt->get_next_ptr()->reset(tcps.get());
 	tcps.release();
 	tcps.reset(npt);
-	
+
 	spinlock::unlock_write(lock_tcp_list); //<< UNLOCK b
 
 	npt->try_add_bridge(pipe1, pipe2);
@@ -358,11 +358,26 @@ signed_t handler::tcp_processing_thread::tick(u8* data)
 
 	if (ns() <= 0)
 	{
+        auto n = ASTR("tcp-wrk empty");
+        if (name != n)
+        {
+            name = n;
+            ostools::set_current_thread_name(n);
+        }
+
 		ns() = -1;
 		return -1;
 	}
-
+	auto nscount = ns();
 	ns.unlock();
+
+	str::astr n;
+	str::impl_build_string(n, "tcp-wrk [$]", nscount);
+    if (name != n)
+    {
+        name = n;
+        ostools::set_current_thread_name(n);
+    }
 
 	auto mask = waiter.wait(10 * 1000 * 1000 /*10 sec*/);
 
@@ -427,16 +442,10 @@ signed_t handler::tcp_processing_thread::tick(u8* data)
 
 void handler::bridge(tcp_processing_thread *npt)
 {
-	DL(DLCH_THREADS, "bridge in ($)", glb.numtcp);
-
-	stats::tick_collector collector(ASTR("tcp"));
-
 	u8 data[BRIDGE_BUFFER_SIZE];
 	netkit::pipe_waiter::mask mask(false);
 	for (; !need_stop ;)
 	{
-        collector.collect();
-
 		signed_t r = npt->tick(data);
 		if (r < 0)
 			break;
@@ -465,8 +474,6 @@ void handler::bridge(tcp_processing_thread *npt)
 			*/
 		}
 	}
-
-	DL(DLCH_THREADS, "bridge out ($)", glb.numtcp);
 }
 
 void handler::release_udps()
@@ -644,13 +651,8 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 		LOG_N("UDP connection from $ via proxy $ established", hashkey.to_string(true), prx->desc());
 	}
 
-    stats::tick_collector collector(ASTR("udp"));
-	collector.tag = "udp-pre";
-
-    for(;;)
+    for(auto loopstart = chrono::ms();;)
     {
-		collector.collect();
-
         auto x = sendb.lock_write();
         sdptr b;
         if (x().get(b))
@@ -667,6 +669,14 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
             {
                 // wait for send and init thread storage for pipe
 				spinlock::sleep(0);
+
+				auto ct = chrono::ms();
+				if ((ct - loopstart) > 1000)
+				{
+					// no data too long
+					return;
+				}
+
                 continue;
             }
 
@@ -675,13 +685,9 @@ void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
 		}
     }
 
-	collector.tag = "udp";
-
 	netkit::ipap from;
 	for (;;)
 	{
-		collector.collect();
-
 		pg.set_extra(32);
 		auto ior = pipe->recv(from, pg, 65535-32);
 		if (ior != netkit::ior_ok)
@@ -757,8 +763,6 @@ void handler::stop()
 
 void handler::udp_dispatch(netkit::socket& lstnr, netkit::udp_packet& p)
 {
-	DL(DLCH_THREADS, "udp_dispatch in");
-
     ptr::shared_ptr<udp_processing_thread> wt;
 
     release_udps();
@@ -779,15 +783,10 @@ void handler::udp_dispatch(netkit::socket& lstnr, netkit::udp_packet& p)
 	netkit::thread_storage hss;
 	netkit::thread_storage* hs = wt ? wt->geths() : &hss;
 	if (!handle_packet(*hs, p, ep, pg))
-	{
-		DL(DLCH_THREADS, "udp handle packet fail ($, $)", p.from.to_string(true), p.sz);
 		return;
-	}
 
     if (wt == nullptr)
     {
-		DL(DLCH_THREADS, "new udp thread");
-
         wt = NEW udp_processing_thread(this, std::move(hss), p.from);
         rslt.first->second = wt;
 
@@ -801,19 +800,17 @@ void handler::udp_dispatch(netkit::socket& lstnr, netkit::udp_packet& p)
 	if (new_thread)
 		log_new_udp_thread(p.from, ep);
 
-	DL(DLCH_THREADS, "udp_dispatch out");
 }
 
 void handler::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
 {
-	DL(DLCH_THREADS, "udp worker in");
+	ostools::set_current_thread_name(str::build_string("udp-wrk $", udp_wt->key().to_string(true)));
 
     ptr::shared_ptr<udp_processing_thread> lock(udp_wt); // lock
     // handle answers
     udp_wt->udp_bridge(lstnr->s);
     release_udp(udp_wt);
 
-	DL(DLCH_THREADS, "udp worker out");
 }
 
 
@@ -830,7 +827,7 @@ handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, net
 	if (!conn::is_valid_addr(to_addr))
 	{
 		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_E("{to} field of direct handler not defined or invalid (listener: [$])", str::clean(owner->get_name()));
+		LOG_FATAL("{to} field of direct handler not defined or invalid (listener: [$])", str::clean(owner->get_name()));
 		return;
 	}
 

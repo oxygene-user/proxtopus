@@ -39,6 +39,9 @@ public:
         netkit::ipap src;
         volatile u32 processid = 0;
         flow_desc* next = nullptr;
+#ifndef MODE64
+        u32 dummy;
+#endif
     };
     static_assert(sizeof(flow_desc) == 32);
 

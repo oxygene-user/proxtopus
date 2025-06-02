@@ -60,7 +60,6 @@ public:
 		return sss != nullptr;
 	}
 
-
     sts_t& operator=(sts_t &&oth) noexcept
     {
         value = oth.value;

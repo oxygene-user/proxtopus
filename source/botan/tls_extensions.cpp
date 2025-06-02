@@ -10,6 +10,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/tls_extensions.h>
 
 #include <botan/ber_dec.h>
@@ -480,7 +482,7 @@ void Certificate_Type_Base::validate_selection(const Certificate_Type_Base& from
    //    extension sent in the client hello.
    if(!value_exists(m_certificate_types, from_server.selected_certificate_type())) {
       throw TLS_Exception(Alert::IllegalParameter,
-                          Botan::fmt("Selected certificate type was not offered: {}",
+                          str::build_string("Selected certificate type was not offered: $",
                                      certificate_type_to_string(from_server.selected_certificate_type())));
    }
 }

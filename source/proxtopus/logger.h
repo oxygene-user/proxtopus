@@ -34,10 +34,11 @@ enum dlchnl_e
 
 #define DL(chnl, ...) if (0 != (glb.cfg.debug_log_mask & (1ull << (chnl)))) logger::log2file(glb.cfg.debug_log_file, str::build_string(__VA_ARGS__).c_str())
 
-#define LOG_N(...) logger::newline(SEV_NOTE, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
-#define LOG_I(...) logger::newline(SEV_IMPORTANT, glb.log_muted ? glb.emptys : str::build_string(__VA_ARGS__))
-#define LOG_W(...) logger::newline(SEV_WARNING, str::build_string(__VA_ARGS__))
-#define LOG_E(...) logger::newline(SEV_ERROR, str::build_string(__VA_ARGS__))
+#define LOG_N(...) if (log_enabled()) logger::newline(SEV_NOTE, str::build_string(__VA_ARGS__))
+#define LOG_I(...) if (log_enabled()) logger::newline(SEV_IMPORTANT, str::build_string(__VA_ARGS__))
+#define LOG_W(...) if (log_enabled()) logger::newline(SEV_WARNING, str::build_string(__VA_ARGS__))
+#define LOG_E(...) if (log_enabled()) logger::newline(SEV_ERROR, str::build_string(__VA_ARGS__))
+#define LOG_FATAL(...) logger::unmute(); logger::newline(SEV_ERROR, str::build_string(__VA_ARGS__))
 #ifdef _DEBUG
 #define LOG_D(...) logger::newline(SEV_DEBUG, str::build_string(__VA_ARGS__))
 #else

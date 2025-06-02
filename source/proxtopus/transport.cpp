@@ -6,7 +6,7 @@ transport* transport::new_transport(loader& ldr, listener* owner, const asts& bb
     if (typ.empty())
     {
         ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-        LOG_E("{type} not defined for transport of listener [$]^", str::clean(owner->get_name()));
+        LOG_FATAL("{type} not defined for transport of listener [$]^", str::clean(owner->get_name()));
         return nullptr;
     }
 
@@ -26,7 +26,7 @@ transport* transport::new_transport(loader& ldr, listener* owner, const asts& bb
         return t;
     }
 
-    LOG_E("unknown {type} [$] for transport of lisnener [$]^", typ, str::clean(owner->get_name()));
+    LOG_FATAL("unknown {type} [$] for transport of listener [$]^", typ, str::clean(owner->get_name()));
     ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
     return nullptr;
 }

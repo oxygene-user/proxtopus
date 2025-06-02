@@ -225,7 +225,7 @@ void Print()
 #ifdef _WIN32
         if (s.oem_convert)
         {
-            s.oem_convert = 0;
+            s.oem_convert = false;
             CharToOemBuffA(s.data, s.data, tools::as_dword(s.data_len));
         }
 #endif
@@ -258,7 +258,7 @@ void Print(signed_t color, const std::string_view& stroke)
 
 	auto wr = glb.prints.lock_write();
 	auto &ln = wr().emplace_back(stroke.data(), stroke.length());
-	ln.use_color = 1;
+	ln.use_color = true;
 	ln.color = tools::as_word(color);
 #ifdef _WIN32
 	ln.oem_convert = oem_convert;

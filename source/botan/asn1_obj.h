@@ -351,12 +351,6 @@ inline std::optional<PrimeOrderCurveId> PrimeOrderCurveId::from_oid(const OID& o
 
 }
 
-
-inline std::ostream& operator<<(std::ostream& out, const OID& oid) {
-   out << oid.to_string();
-   return out;
-}
-
 /**
 * Compare two OIDs.
 * @param a the first OID

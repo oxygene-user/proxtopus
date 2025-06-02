@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/tls_messages.h>
 
 #include <botan/rng.h>

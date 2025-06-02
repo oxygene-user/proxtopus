@@ -7,13 +7,14 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/ecc_key.h>
 
 #include <botan/assert.h>
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
 #include <botan/internal/ec_key_data.h>
-#include <botan/internal/fmt.h>
 
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
    #include <botan/ec_point.h>
@@ -206,7 +207,7 @@ bool EC_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const {
 
 const BigInt& EC_PublicKey::get_int_field(std::string_view field) const {
    if(field == "public_x" || field == "public_y") {
-      throw Not_Implemented(fmt("EC_PublicKey::get_int_field no longer implements getter for {}", field));
+      throw Not_Implemented(str::build_string("EC_PublicKey::get_int_field no longer implements getter for $", field));
    } else if(field == "base_x") {
       return this->domain().get_g_x();
    } else if(field == "base_y") {

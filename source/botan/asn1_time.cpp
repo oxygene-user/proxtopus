@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/asn1_obj.h>
 
 #include <botan/assert.h>
@@ -12,7 +14,6 @@
 #include <botan/der_enc.h>
 #include <botan/exceptn.h>
 #include <botan/internal/calendar.h>
-#include <botan/internal/fmt.h>
 #include <iomanip>
 
 namespace Botan {
@@ -65,7 +66,7 @@ std::string ASN1_Time::to_string() const {
 
    if(m_tag == ASN1_Type::UtcTime) {
       if(m_year < 1950 || m_year >= 2050) {
-         throw Encoding_Error(fmt("ASN_Time: The time {} cannot be encoded as UTCTime", readable_string()));
+         throw Encoding_Error(str::build_string("ASN_Time: The time $ cannot be encoded as UTCTime", readable_string()));
       }
 
       full_year = (m_year >= 2000) ? (m_year - 2000) : (m_year - 1900);
@@ -193,7 +194,7 @@ void ASN1_Time::set_to(std::string_view t_spec, ASN1_Type spec_tag) {
    }
 
    if(!passes_sanity_check()) {
-      throw Invalid_Argument(fmt("ASN1_Time string '{}' does not seem to be valid", t_spec));
+      throw Invalid_Argument(str::build_string("ASN1_Time string '$' does not seem to be valid", t_spec));
    }
 }
 

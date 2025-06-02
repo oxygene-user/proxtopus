@@ -4,13 +4,11 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/asn1_obj.h>
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
 #include <botan/internal/bit_ops.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/int_utils.h>
 #include <botan/internal/stl_util.h>
 #include <algorithm>

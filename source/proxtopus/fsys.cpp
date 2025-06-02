@@ -372,11 +372,13 @@ void path_append(FN& path, const FNview& fn)
 str::astr path_print_str(const FN& path)
 {
 	str::astr p = str::to_utf8(path);
+	#ifdef _WIN32
 	for (signed_t i = p.length() - 1; i >= 0; --i)
 	{
 		if (__is_slash(p[i]))
 			p.insert(p.begin() + i, NATIVE_SLASH);
 	}
+	#endif
 	return p;
 }
 
@@ -389,10 +391,10 @@ bool load_buf(const FN& fn, buffer& b)
 		b.clear();
 		return false;
 	}
-	signed_t fnl = GetFileSize(h, nullptr);
+	size_t fnl = GetFileSize(h, nullptr);
 	b.resize(fnl, true);
 	DWORD r;
-	ReadFile(h, b.data(), (DWORD)fnl, &r, nullptr);
+	ReadFile(h, b.data(), static_cast<DWORD>(fnl), &r, nullptr);
 
 	CloseHandle(h);
 #endif

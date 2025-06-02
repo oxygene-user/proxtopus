@@ -37,27 +37,6 @@ template<typename T> const T* makeptr(const T& t) { return &t; }
 #define ONEBIT(x) (static_cast<size_t>(1)<<(x))
 
 #define PTR_TO_UNSIGNED( p ) ((size_t)p)
-#define ALIGN(n) __declspec( align( n ) )
-
-
-
-#ifdef MODE64
-typedef u64 usingle;
-typedef u128 udouble;
-typedef u32 uhalf;
-#else
-typedef u16 uhalf;
-typedef u32 usingle;
-typedef u64 udouble;
-#endif
-
-template<signed_t N> struct vbv;
-template<> struct vbv<1> { u8 v; };
-template<> struct vbv<2> { u16 v; };
-template<> struct vbv<4> { u32 v; };
-
-typedef unsigned long Color;
-
 
 #ifdef _NIX
 inline int timeGetTime()
@@ -73,6 +52,66 @@ inline int timeGetTime()
 }
 #define _time64 time
 #endif
+
+namespace tools
+{
+	template<size_t sz> struct flags
+	{
+		using type = sztype<sz>::type;
+		type f = 0;
+		flags() {}
+		flags(type x) :f(x) {}
+
+		void clear()
+		{
+			f = 0;
+		}
+
+		template<type mask> consteval static size_t lowbit()
+		{
+			static_assert(mask != 0);
+			type m = 1;
+			for (size_t i = 0; i < sizeof(type) * 8; ++i, m <<= 1)
+			{
+				if (m & mask)
+					return i;
+			}
+			UNREACHABLE();
+		}
+
+		template<type mask> bool is() const
+		{
+			return 0 != (f & mask);
+		}
+        template<type mask> void set()
+        {
+            f |= mask;
+        }
+        template<type mask> void unset()
+        {
+            f &= ~mask;
+        }
+        template<type mask> bool invert() // return prev
+        {
+			bool prev = is<mask>();
+            f ^= mask;
+			return prev;
+        }
+		template<type mask> size_t getn() const
+		{
+			return (f & mask) >> lowbit<mask>();
+		}
+        template<type mask> void setn(size_t v)
+        {
+			f = (f & (~mask)) | ((v << lowbit<mask>()) & mask);
+        }
+        template<type mask_set, type mask_clear> void setup()
+        {
+            f = (f & ~mask_clear) | mask_set;
+        }
+	};
+
+}
 
 namespace chrono
 {
@@ -114,9 +153,18 @@ namespace math
 	{
 		static const NUM value = 0x7F;
 	};
+    template<typename NUM, int shiftval> struct makemaxuint
+    {
+        static const NUM value = (makemaxuint<NUM, shiftval - 1>::value << 8) | 0xFF;
+    };
+    template<typename NUM> struct makemaxuint < NUM, 0 >
+    {
+        static const NUM value = 0xFF;
+    };
+
 	template<typename NUM> struct maximum
 	{
-		static const NUM value = is_signed<NUM>::value ? makemaxint<NUM, sizeof(NUM) - 1>::value : (NUM)(-1);
+		static const NUM value = is_signed<NUM>::value ? makemaxint<NUM, sizeof(NUM) - 1>::value : makemaxuint<NUM, sizeof(NUM) - 1>::value;
 	};
 	template<typename NUM> struct minimum
 	{
@@ -322,6 +370,63 @@ namespace str
 
 namespace tools
 {
+    static inline u32 load32_le(const u8* src)
+    {
+		if constexpr (Endian::little)
+        {
+            return *(u32*)src;
+		}
+        else
+		{
+			return (static_cast<u32>(src[0]) << 24) | (static_cast<u32>(src[1]) << 16) | (static_cast<u32>(src[2]) << 8) | static_cast<u32>(src[3]);
+        }
+    }
+    static inline u64 load64_le(const u8* src)
+    {
+        if constexpr (Endian::little)
+        {
+            return *(u64*)src;
+        }
+        else
+        {
+            return (static_cast<u64>(src[0]) << 56) | (static_cast<u64>(src[1]) << 48) | (static_cast<u64>(src[2]) << 40) | (static_cast<u64>(src[3]) << 32) |
+				(static_cast<u64>(src[4]) << 24) | (static_cast<u64>(src[5]) << 16) | (static_cast<u64>(src[6]) << 8) | static_cast<u64>(src[7]);
+        }
+    }
+    static inline void store32_le(uint8_t* dst, u32 w)
+    {
+        if constexpr (Endian::little)
+        {
+            *(u32*)dst = w;
+		}
+        else
+        {
+			dst[0] = as_byte(w >> 24);
+			dst[1] = as_byte(w >> 16);
+			dst[2] = as_byte(w >> 8);
+			dst[3] = as_byte(w);
+        }
+    }
+
+    static inline void store64_le(uint8_t* dst, u64 w)
+    {
+        if constexpr (Endian::little)
+        {
+            *(u64*)dst = w;
+        }
+        else
+        {
+            dst[0] = as_byte(w >> 56);
+            dst[1] = as_byte(w >> 48);
+            dst[2] = as_byte(w >> 40);
+            dst[3] = as_byte(w >> 32);
+            dst[4] = as_byte(w >> 24);
+            dst[5] = as_byte(w >> 16);
+            dst[6] = as_byte(w >> 8);
+            dst[7] = as_byte(w);
+        }
+    }
+
 
 	template<typename T> class deferred_init
 	{
@@ -359,6 +464,26 @@ namespace tools
 
 	};
 
+    template<typename T> constexpr bool is_plain_old_struct_v =
+        std::is_trivially_default_constructible_v<T> &&
+        std::is_trivially_copy_constructible_v<T> &&
+        std::is_trivially_move_constructible_v<T> &&
+        std::is_trivially_destructible_v<T>;
+
+	template<typename T, size_t align> requires(is_plain_old_struct_v<T> && std::has_single_bit(align)) class aligned_data
+	{
+		u8 data[sizeof(T) + align];
+	public:
+		aligned_data()
+		{
+			size_t addr_ok = (reinterpret_cast<size_t>(data + 1) + align - 1) & ~(size_t)(align - 1);
+			size_t addr_cur = reinterpret_cast<size_t>(data + 0);
+			data[0] = static_cast<u8>(addr_ok - addr_cur); // offset to aligned
+		}
+		T& operator->() { return *(T*)(data + data[0]); }
+		const T& operator->() const { return *(const T*)(data + data[0]); }
+	};
+
 
     struct skip_buf : public buffer
     {
@@ -388,6 +513,40 @@ namespace tools
         }
     };
 
+	struct memory_pair
+	{
+		std::span<u8> p0, p1;
+		template<typename T> memory_pair(T& t)
+		{
+			p0 = std::span(reinterpret_cast<uint8_t *>(&t), sizeof(T));
+		}
+		memory_pair(uint8_t* p, size_t sz) :p0(p, sz) {}
+		memory_pair(uint8_t* p0, size_t sz0, uint8_t* p1, size_t sz1) :p0(p0, sz0), p1(p1, sz1) {}
+
+		size_t size() const
+		{
+			return p0.size() + p1.size();
+		}
+
+		void copy(size_t offset, const u8* data, size_t sz)
+		{
+			if (offset < p0.size())
+			{
+				// some space in 1st buf
+				size_t ost = math::minv(p0.size() - offset, sz);
+				memcpy(p0.data() + offset, data, ost);
+				sz -= ost;
+				offset += ost;
+				data += ost;
+			}
+			if (sz > 0)
+			{
+				offset -= p0.size();
+				ASSERT(p1.size() >= (sz+offset));
+				memcpy(p1.data() + offset, data, sz);
+			}
+		}
+	};
 
 	template<signed_t size> class chunk_buffer
 	{
@@ -511,6 +670,32 @@ namespace tools
 			}
 		}
 
+		memory_pair alloc(signed_t siz)
+		{
+            if (!first)
+            {
+                first.reset(NEW chunk());
+                last = first.get();
+                last_size = 0;
+            }
+			signed_t ost = SIZE - last_size;
+            ASSERT(siz <= SIZE+ost);
+			if (siz <= ost)
+			{
+				u8 *rv = last->data + last_size;
+                last_size += siz;
+				return memory_pair(rv, siz);
+			}
+
+			u8* p0 = last->data + last_size;
+
+            last_size = siz - ost;
+            last->next.reset(NEW chunk());
+            last = last->next.get();
+
+			return memory_pair(p0, ost, last->data, last_size);
+		}
+
 		void append(std::span<const u8> data)
 		{
 			if (!first)
@@ -625,7 +810,7 @@ namespace tools
 			return csz >= sz;
 		}
 
-		bool enough_for(signed_t sz) const // is sz bytes enough to fit current buffer data
+		bool enough_for(signed_t sz) const // is sz bytes enough to fit whole buffer data
 		{
 			signed_t csz = -first_skip;
 			for (chunk* ch = first.get(); ch; ch = ch->next.get())
@@ -917,80 +1102,6 @@ namespace tools
         return cmp == std::strong_ordering::equal;
     }
 
-	template<bool is_const> struct octets;
-	template<> struct octets<true>
-	{
-		const u8* p;
-		template <typename T> octets(T& t) :p(reinterpret_cast<const u8*>(&t)) {}
-	};
-	template<> struct octets<false>
-	{
-		u8* p;
-		template <typename T> octets(T& t) :p(reinterpret_cast<u8*>(&t)) {}
-	};
-
-	template<typename T, bool is_little_endian = Endian::little> struct from_low_to_high
-	{
-		octets< std::is_const_v<T> > octet; // point to low byte if num
-
-		from_low_to_high(T& num):octet(num) {
-            if constexpr (!is_little_endian)
-            {
-				octet.p += sizeof(T)-1;
-            }
-		}
-
-		u8 operator[](size_t index) const
-		{
-            if constexpr (is_little_endian)
-            {
-                return octet.p[index];
-            }
-            else
-            {
-				return octet.p[-index];
-            }
-		}
-        u8& operator[](size_t index)
-        {
-			if constexpr (std::is_const_v<T>)
-			{
-				UNREACHABLE();
-			}
-			else
-			{
-                if constexpr (is_little_endian)
-                {
-                    return octet.p[index];
-                }
-                else
-                {
-                    return octet.p[-(signed_t)index];
-                }
-			}
-
-        }
-
-		from_low_to_high& operator++() {
-            if constexpr (is_little_endian)
-            {
-                ++octet.p;
-            }
-            else
-            {
-                --octet.p;
-            }
-            return *this;
-        }
-		u8 operator *() const
-		{
-			return *octet.p;
-		}
-        u8 &operator *()
-        {
-            return *octet.p;
-        }
-	};
 
 
 } // namespace tools

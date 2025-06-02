@@ -15,7 +15,7 @@ void listener::build(lcoll& arr, loader &ldr, const str::astr& name, const asts&
 	if (t.empty())
 	{
 		ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
-		LOG_E("{type} not defined for lisnener [$]^", str::clean(name));
+		LOG_FATAL("{type} not defined for listener [$]^", str::clean(name));
 		return;
 	}
 
@@ -45,7 +45,7 @@ void listener::build(lcoll& arr, loader &ldr, const str::astr& name, const asts&
 		}
 		else
         {
-            LOG_E("unknown {type} [$] for lisnener [$]^", *tkn, str::clean(name));
+			LOG_FATAL("unknown {type} [$] for listener [$]^", *tkn, str::clean(name));
             ldr.exit_code = EXIT_FAIL_TYPE_UNDEFINED;
 			return;
 		}
@@ -63,7 +63,7 @@ socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts&
 	if (nullptr == hnd)
 	{
 		ldr.exit_code = EXIT_FAIL_NOHANDLER;
-		LOG_E("handler not defined for listener [$]", str::clean(name));
+		LOG_FATAL("handler not defined for listener [$]", str::clean(name));
 		return;
 	}
 
@@ -99,7 +99,7 @@ socket_listener::socket_listener(loader& ldr, const str::astr& name, const asts&
 		if (0 == port)
 		{
 			ldr.exit_code = EXIT_FAIL_PORT_UNDEFINED;
-			LOG_E("port not defined for listener [$]", str::clean(name));
+			LOG_FATAL("port not defined for listener [$]", str::clean(name));
 			hand.reset();
 			return;
 		}
@@ -175,7 +175,7 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 	if (!hand->compatible(netkit::ST_TCP))
 	{
 		ldr.exit_code = EXIT_FAIL_INCOMPATIBLE_HANDLER;
-		LOG_E("handler $ is not compatible with listener [$] (TCP not supported)", hand->desc(), str::clean(name));
+		LOG_FATAL("handler $ is not compatible with listener [$] (TCP not supported)", hand->desc(), str::clean(name));
 		return;
 	}
 }
@@ -208,6 +208,8 @@ void pipe_worker(handler* h, netkit::pipe* p)
 
 /*virtual*/ void tcp_listener::accept_impl()
 {
+	ostools::set_current_thread_name(str::build_string("tcp-lstnr $", bind.port));
+
     if (sock.listen(name, bind))
     {
 #ifdef _DEBUG
@@ -251,7 +253,7 @@ udp_listener::udp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 	if (!hand->compatible(netkit::ST_UDP))
 	{
 		ldr.exit_code = EXIT_FAIL_INCOMPATIBLE_HANDLER;
-		LOG_E("handler $ is not compatible with listener [$] (UDP not supported)", hand->desc(), str::clean(name));
+		LOG_FATAL("handler $ is not compatible with listener [$] (UDP not supported)", hand->desc(), str::clean(name));
 		return;
 	}
 }
@@ -286,6 +288,8 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
 
 /*virtual*/ void udp_listener::accept_impl()
 {
+	ostools::set_current_thread_name(str::build_string("udp-lstnr $", bind.port));
+
 	signed_t port = sock.listen_udp(name, bind);
 	if (port > 0)
 	{

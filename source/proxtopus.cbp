@@ -12,6 +12,7 @@
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Compiler>
+					<Add option="-m64" />
 					<Add option="-g" />
 					<Add option="-rdynamic" />
 					<Add option="-D_DEBUG" />
@@ -19,6 +20,7 @@
 					<Add directory="proxtopus" />
 				</Compiler>
 				<Linker>
+					<Add option="-m64" />
 					<Add option="-g -rdynamic" />
 				</Linker>
 			</Target>
@@ -80,11 +82,7 @@
 		<Unit filename="botan/calendar.cpp" />
 		<Unit filename="botan/cbc.cpp" />
 		<Unit filename="botan/certstor.cpp" />
-		<Unit filename="botan/chacha.cpp" />
 		<Unit filename="botan/chacha20poly1305.cpp" />
-		<Unit filename="botan/chacha_avx2.cpp" />
-		<Unit filename="botan/chacha_avx512.cpp" />
-		<Unit filename="botan/chacha_simd32.cpp" />
 		<Unit filename="botan/charset.cpp" />
 		<Unit filename="botan/cipher_mode.h" />
 		<Unit filename="botan/compiler.h" />
@@ -145,14 +143,12 @@
 		<Unit filename="botan/internal/alignment_buffer.h" />
 		<Unit filename="botan/internal/bit_ops.h" />
 		<Unit filename="botan/internal/bswap.h" />
-		<Unit filename="botan/internal/chacha.h" />
 		<Unit filename="botan/internal/chacha20poly1305.h" />
 		<Unit filename="botan/internal/cpuid.h" />
 		<Unit filename="botan/internal/ct_utils.h" />
 		<Unit filename="botan/internal/ctr.h" />
 		<Unit filename="botan/internal/donna128.h" />
 		<Unit filename="botan/internal/dyn_load.h" />
-		<Unit filename="botan/internal/fmt.h" />
 		<Unit filename="botan/internal/gcm.h" />
 		<Unit filename="botan/internal/ghash.h" />
 		<Unit filename="botan/internal/hkdf.h" />
@@ -167,7 +163,6 @@
 		<Unit filename="botan/internal/os_utils.h" />
 		<Unit filename="botan/internal/out_buf.h" />
 		<Unit filename="botan/internal/parsing.h" />
-		<Unit filename="botan/internal/poly1305.h" />
 		<Unit filename="botan/internal/rotate.h" />
 		<Unit filename="botan/internal/salsa20.h" />
 		<Unit filename="botan/internal/sha1.h" />
@@ -180,7 +175,6 @@
 		<Unit filename="botan/internal/simd_avx2.h" />
 		<Unit filename="botan/internal/simd_avx512.h" />
 		<Unit filename="botan/internal/stl_util.h" />
-		<Unit filename="botan/internal/stream_mode.h" />
 		<Unit filename="botan/kdf.h" />
 		<Unit filename="botan/keccak_perm.cpp" />
 		<Unit filename="botan/keccak_perm_bmi2.cpp" />
@@ -227,7 +221,6 @@
 		<Unit filename="botan/pk_keys.cpp" />
 		<Unit filename="botan/pk_ops.cpp" />
 		<Unit filename="botan/pkcs8.cpp" />
-		<Unit filename="botan/poly1305.cpp" />
 		<Unit filename="botan/prf_tls.cpp" />
 		<Unit filename="botan/primality.cpp" />
 		<Unit filename="botan/primes.cpp" />
@@ -311,9 +304,11 @@
 		<Unit filename="debug/handler_dbg.h">
 			<Option target="Debug" />
 		</Unit>
+		<Unit filename="proxtopus/aead_chacha20poly1305.cpp" />
 		<Unit filename="proxtopus/arena.h" />
 		<Unit filename="proxtopus/base.h" />
 		<Unit filename="proxtopus/botan.cpp" />
+		<Unit filename="proxtopus/chacha20.cpp" />
 		<Unit filename="proxtopus/cipher_ss.cpp" />
 		<Unit filename="proxtopus/cipher_ss.h" />
 		<Unit filename="proxtopus/cmdline.cpp" />
@@ -368,6 +363,7 @@
 		<Unit filename="proxtopus/rndgen.cpp" />
 		<Unit filename="proxtopus/rndgen.h" />
 		<Unit filename="proxtopus/secure_vector.h" />
+		<Unit filename="proxtopus/sodium_poly1305.cpp" />
 		<Unit filename="proxtopus/spinlock.h" />
 		<Unit filename="proxtopus/str_helpers.h" />
 		<Unit filename="proxtopus/sts.cpp" />

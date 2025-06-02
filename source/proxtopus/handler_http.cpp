@@ -49,10 +49,10 @@ handler_http::handler_http(loader& ldr, listener* owner, const asts& bb, netkit:
                 ldr.exit_code = EXIT_FAIL_MODE_UNDEFINED;
                 if (ms.empty())
                 {
-                    LOG_E("{mode} not defined for http host of listener [$]^", str::clean(owner->get_name()));
+                    LOG_FATAL("{mode} not defined for http host of listener [$]^", str::clean(owner->get_name()));
                     return;
                 }
-                LOG_E("unknown {mode} [$] for http host of listener [$]^", ms, str::clean(owner->get_name()));
+                LOG_FATAL("unknown {mode} [$] for http host of listener [$]^", ms, str::clean(owner->get_name()));
                 return;
             }
             if (!h.m->load(*it))

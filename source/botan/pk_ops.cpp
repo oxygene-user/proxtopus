@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/internal/pk_ops_impl.h>
 
 #include <botan/hash.h>
@@ -12,7 +14,6 @@
 #include <botan/rng.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/eme.h>
-#include <botan/internal/fmt.h>
 
 #if defined(BOTAN_HAS_RAW_HASH_FN)
    #include <botan/internal/raw_hash.h>
@@ -154,16 +155,16 @@ PK_Ops::Verification_with_Hash::Verification_with_Hash(const AlgorithmIdentifier
 
    if(oid_info.size() != 2 || oid_info.first() != pk_algo) {
       throw Decoding_Error(
-         fmt("Unexpected AlgorithmIdentifier OID {} in association with {} key", alg_id.oid(), pk_algo));
+         str::build_string("Unexpected AlgorithmIdentifier OID $ in association with $ key", alg_id.oid(), pk_algo));
    }
 
    if(!alg_id.parameters_are_empty()) {
       if(alg_id.parameters_are_null()) {
          if(!allow_null_parameters) {
-            throw Decoding_Error(fmt("Unexpected NULL AlgorithmIdentifier parameters for {}", pk_algo));
+            throw Decoding_Error(str::build_string("Unexpected NULL AlgorithmIdentifier parameters for $", pk_algo));
          }
       } else {
-         throw Decoding_Error(fmt("Unexpected AlgorithmIdentifier parameters for {}", pk_algo));
+         throw Decoding_Error(str::build_string("Unexpected AlgorithmIdentifier parameters for $", pk_algo));
       }
    }
 

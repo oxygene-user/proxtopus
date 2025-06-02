@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "botan/internal/cpuid.h"
 
 global_data glb;
 
@@ -6,16 +7,16 @@ global_data glb;
 global_data::global_data()
 {
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
-    cfg.crash_log_file = FN(MAKEFN("proxtopus.crush.log"));
+    cfg.crash_log_file = FN(MAKEFN("proxtopus.crash.log"));
     cfg.dump_file = FN(MAKEFN("proxtopus.dmp"));
 #endif
 }
 
 void global_data::stop()
 {
+    exit = true;
     logger::unmute();
     Print();
-    exit = true;
     if (!actual)
         actual_proc.terminate();
 }
@@ -44,6 +45,7 @@ static BOOL WINAPI consoleHandler(DWORD signal)
 		{
 			logger::unmute();
 			LOG_I("proxtopus has been received stop signal");
+			glb.e->exit_code = EXIT_OK_EXIT_SIGNAL;
 			glb.stop();
 		}
 	}
@@ -101,8 +103,13 @@ static void handle_signal(int sig) {
     {
         case SIGINT:
         case SIGTERM:
+        if (glb.is_stop())
+            return;
+
+        glb.e->exit_code = EXIT_OK_EXIT_SIGNAL;
+
         logger::unmute();
-		LOG_I("proxtopus has been received stop signal");
+		LOG_I("proxtopus has been received stop signal ($)", sig);
 		glb.stop();
 
         struct termios t;
@@ -116,7 +123,12 @@ static void handle_signal(int sig) {
 
 void actual_process::terminate()
 {
-	kill(pid, SIGTERM);
+    if (pid != 0)
+    {
+        kill(pid, SIGTERM);
+        LOG_D("SIGTERM send; $ -> $", ostools::process_id(), pid);
+        Print();
+    }
 }
 void actual_process::actualize()
 {
@@ -148,12 +160,30 @@ void do_tests();
 void do_pretests();
 #endif // _DEBUG
 
+static str::astr cpu_features()
+{
+    str::astr features;
+    if (Botan::CPUID::has(Botan::CPUID::Feature::SSE2))
+        features.append(ASTR("SSE2,"));
+    if (Botan::CPUID::has(Botan::CPUID::Feature::SSSE3))
+        features.append(ASTR("SSSE3,"));
+    if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2))
+        features.append(ASTR("AVX2,"));
+    if (Botan::CPUID::has(Botan::CPUID::Feature::AVX512))
+        features.append(ASTR("AVX512,"));
+
+    str::trunc_len(features);
+
+    return features;
+}
+
 void shapka()
 {
 	auto numcores = ostools::get_cores();
 
-	LOG_N("proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ ")");
-	LOG_N("cores count: $", numcores);
+	LOG_N("proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ "); pid: $", ostools::process_id());
+	LOG_N("cpu cores count: $", numcores);
+	LOG_N("cpu features: $", cpu_features());
 	LOG_D("debug mode");
 	Print();
 
@@ -177,7 +207,7 @@ int run_engine(WINONLY(bool as_service = false))
 	} else
 	{
 		if (!SetConsoleCtrlHandler(consoleHandler, TRUE)) {
-			LOG_E("could not set control handler");
+			LOG_FATAL("could not set control handler");
 			return EXIT_FAIL_CTLHANDLE;
 		}
 	}
@@ -191,7 +221,7 @@ int run_engine(WINONLY(bool as_service = false))
     sigemptyset(&sa.sa_mask);
 
     if (sigaction(SIGINT, &sa, nullptr) == -1 || sigaction(SIGTERM, &sa, nullptr) == -1) {
-        LOG_E("could not set control handler");
+		LOG_FATAL("could not set control handler");
         return EXIT_FAIL_CTLHANDLE;
     }
 
@@ -203,6 +233,8 @@ int run_engine(WINONLY(bool as_service = false))
 
 	if (glb.actual)
 	{
+		ostools::set_current_thread_name(ASTR("overload guard"));
+
 		// role: work process
 
 		glb.actual_proc.actualize();
@@ -219,8 +251,9 @@ int run_engine(WINONLY(bool as_service = false))
 			spinlock::sleep((int)ms);
 		}
 	}
-	else
+	else if (e.exit_code == EXIT_OK)
 	{
+		ostools::set_current_thread_name(ASTR("watchdog"));
 		// role: watchdog process
 
 		LOG_N("watchdog mode...");
@@ -261,6 +294,9 @@ int run_engine(WINONLY(bool as_service = false))
 			}
 		}
 	}
+
+	LOG_D("exit with code $", e.exit_code);
+	Print();
 
 	return e.exit_code;
 
@@ -311,7 +347,7 @@ static int elevate(const std::vector<str::wstr>& parar)
 		return EXIT_OK_EXIT;
 	}
 
-	LOG_E("elevation failed");
+	LOG_FATAL("elevation failed");
 	return EXIT_FAIL_ELEVATION;
 }
 
@@ -375,19 +411,19 @@ void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVe
 
 static int error_openservice()
 {
-	LOG_E("failed to open service");
+	LOG_FATAL("failed to open service");
 	return EXIT_FAIL_OPENSERVICE;
 }
 
 static int error_openmgr()
 {
-	LOG_E("failed to open Service Manager");
+	LOG_FATAL("failed to open Service Manager");
 	return EXIT_FAIL_OPENMGR;
 }
 
 static int error_startservice()
 {
-	LOG_E("failed to start service");
+	LOG_FATAL("failed to start service");
 	return EXIT_FAIL_STARTSERVICE;
 
 }
@@ -401,7 +437,8 @@ static int handle_command_line()
 
 	cmdl.handle_options();
 
-	shapka();
+	if (!glb.actual)
+        shapka();
 
 	if (cmdl.help())
 		return EXIT_OK_EXIT;
@@ -497,7 +534,7 @@ static int handle_command_line()
 		}
 
 		if (!DeleteService(sch)) {
-			LOG_E("failed to delete service");
+			LOG_FATAL("failed to delete service");
 			return EXIT_FAIL_DELETESERVICE;
 		}
 
@@ -615,42 +652,3 @@ int main(NIXONLY(int /*argc*/, char* argv[]))
 	return run_engine();
 }
 
-
-#if 0
-void global_data::restart()
-{
-	stop();
-
-	// start FORCE SELF KILLER
-	std::thread th([]() {
-		spinlock::sleep(10000);
-		ostools::terminate();
-	});
-    th.detach();
-
-   	FNARR fa;
-	get_exec_full_commandline(fa);
-
-    auto w = MAKEFN("--wait");
-    auto b = MAKEFN("--btc");
-    for (signed_t i = fa.size() - 1; i >= 0; --i)
-    {
-        if (fa[i] == w || fa[i] == b)
-        {
-            fa.erase(fa.begin() + i);
-            if (i < (signed_t)fa.size())
-                fa.erase(fa.begin() + i);
-        }
-    }
-    fa.push_back(FN(w));
-    FN pid;
-    str::append_num(pid, ostools::process_id(), 0);
-    fa.push_back(pid);
-
-    fa.push_back(FN(b));
-    fa.push_back(FN(MAKEFN("5")));
-
-	ostools::execute(fa);
-
-}
-#endif

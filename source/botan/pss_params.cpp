@@ -5,12 +5,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/pss_params.h>
 
 #include <botan/assert.h>
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
-#include <botan/internal/fmt.h>
 
 namespace Botan {
 
@@ -18,7 +19,7 @@ namespace Botan {
 PSS_Params PSS_Params::from_emsa_name(Algo_Group emsa_name)
 {
     if ((emsa_name != ALG::EMSA4 && emsa_name != ALG::PSSR) || emsa_name.saltl == 0xff) {
-        throw Invalid_Argument(fmt("PSS_Params::from_emsa_name unexpected param '{}'", emsa_name));
+        throw Invalid_Argument(str::build_string("PSS_Params::from_emsa_name unexpected param '$'", emsa_name));
     }
 
     Hash_Algo hash_fn = emsa_name.second();

@@ -4,11 +4,12 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/internal/ec_inner_data.h>
 
 #include <botan/der_enc.h>
 #include <botan/internal/ec_inner_pc.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/pcurves.h>
 
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
@@ -90,7 +91,7 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
          throw Not_Implemented("EC_Group this group is not supported in this build configuration");
       } else {
          throw Not_Implemented(
-            fmt("EC_Group the group {} is not supported in this build configuration", oid.to_string()));
+            str::build_string("EC_Group the group $ is not supported in this build configuration", oid));
       }
    }
 #endif

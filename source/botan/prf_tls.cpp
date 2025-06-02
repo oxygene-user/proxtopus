@@ -6,11 +6,12 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/internal/prf_tls.h>
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/stl_util.h>
 
 namespace Botan {
@@ -25,7 +26,7 @@ void TLS_12_PRF::perform_kdf(std::span<uint8_t> key,
    try {
       m_mac->set_key(secret);
    } catch(Invalid_Key_Length&) {
-      throw Internal_Error(fmt("The premaster secret of {} bytes is too long for TLS-PRF", secret.size()));
+      throw Internal_Error(str::build_string("The premaster secret of $ bytes is too long for TLS-PRF", secret.size()));
    }
 
    auto A = concat<secure_vector<uint8_t>>(label, salt);

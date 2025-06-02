@@ -26,7 +26,6 @@
 
 #include "pch.h"
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
-
 #include "stkwlk.h"
 
 // TODO - move to /src/win

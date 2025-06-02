@@ -113,20 +113,6 @@ std::optional<Ciphersuite> Ciphersuite::from_name(std::string_view name) {
    return std::nullopt;  // some unknown ciphersuite
 }
 
-namespace {
-
-    /* /// PROXTOPUS : provider removed
-bool have_hash(std::string_view prf) {
-   return (!HashFunction::providers(prf).empty());
-}
-
-bool have_cipher(std::string_view cipher) {
-   return (!BlockCipher::providers(cipher).empty()) || (!StreamCipher::providers(cipher).empty());
-}
-*/
-
-}  // namespace
-
 bool Ciphersuite::is_usable() const {
    if(!m_cipher_keylen) {  // uninitialized object
       return false;

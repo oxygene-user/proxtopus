@@ -5,13 +5,12 @@
 
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
-
 #define LOGGER 2
+#define PROXTOPUS_PCH
 
 #ifdef _WIN32
 // Windows Header Files
-
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #include <winsock2.h>
 #include <ws2ipdef.h>
 #include <windows.h>
@@ -19,15 +18,22 @@
 
 #include <tchar.h>
 #include <in6addr.h>
+#define ARCH_X86 // assume win32 on x86 arch
 #endif // _WIN32
-
 
 #if defined __linux__
 #undef _NIX
 #define _NIX
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
+#define GCC_OR_CLANG
+#if defined(__i386__) || defined(__x86_64__)
+#define ARCH_X86
+#endif
+#endif
+
+#ifdef _NIX
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/ip.h>
@@ -38,8 +44,10 @@
 #include <thread>
 #include <poll.h>
 
-#pragma GCC diagnostic ignored "-Wswitch"
+#endif
 
+#ifdef GCC_OR_CLANG
+#pragma GCC diagnostic ignored "-Wswitch"
 #endif
 
 #include <stdlib.h>
@@ -68,8 +76,6 @@
 #include <botan/filter.h>
 #include <botan/tls_session_manager_memory.h>
 
-
-
 #include "base.h"
 #include "str_helpers.h"
 
@@ -94,6 +100,9 @@ extern bool g_single_core;
 #include "resource.h"
 #include "tls.h"
 
+#include "chacha20.h"
+#include "sodium_poly1305.h"
+
 #include "cmdline.h"
 #include "loader.h"
 #include "listener.h"
@@ -105,9 +114,8 @@ extern bool g_single_core;
 #include "os_tools.h"
 #include "watchdog.h"
 
-
 // reference additional headers your program requires here
 
 #ifndef _NIX
-//#define DO_SPEED_TESTS
+#define DO_SPEED_TESTS
 #endif

@@ -82,6 +82,9 @@ std::string BOTAN_PUBLIC_API(2, 11) to_string(ErrorType type);
 */
 class BOTAN_PUBLIC_API(2, 0) Exception : public std::exception {
    public:
+
+       static void quiet(bool f);
+
       /**
       * Return a descriptive string which is hopefully comprehensible to
       * a developer. It will likely not be useful for an end user.
@@ -236,7 +239,7 @@ class BOTAN_PUBLIC_API(2, 0) Lookup_Error : public Exception {
    public:
       explicit Lookup_Error(std::string_view err) : Exception(err) {}
 
-      Lookup_Error(std::string_view type, std::string_view algo, std::string_view provider = "");
+      Lookup_Error(std::string_view type, std::string_view algo);
 
       ErrorType error_type() const noexcept override { return ErrorType::LookupError; }
 };

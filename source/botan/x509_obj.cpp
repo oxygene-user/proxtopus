@@ -5,6 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "../proxtopus/pch.h"
+
 #include <botan/x509_obj.h>
 
 #include <botan/assert.h>
@@ -12,7 +14,6 @@
 #include <botan/der_enc.h>
 #include <botan/pem.h>
 #include <botan/pubkey.h>
-#include <botan/internal/fmt.h>
 #include <algorithm>
 #include <sstream>
 
@@ -182,26 +183,27 @@ namespace {
 }
 
 std::string format_padding_error_message(Any_Algo key_name,
-    Hash_Algo signer_hash_fn,
-    Hash_Algo user_hash_fn,
-                                         Algo_Group chosen_padding,
-                                         Algo_Group user_specified_padding) {
-   std::ostringstream oss;
-
-   oss << "Specified hash function " << user_hash_fn << " is incompatible with " << key_name;
+    Hash_Algo signer_hash_fn, Hash_Algo user_hash_fn, Algo_Group chosen_padding, Algo_Group user_specified_padding) {
+   
+    str::astr oss;
+    str::impl_build_string(oss, "Specified hash function $ is incompatible with $", user_hash_fn, key_name);
 
    if(!signer_hash_fn.empty()) {
-      oss << " chose hash function " << signer_hash_fn;
+       oss.append(ASTR(" chose hash function "));
+       oss.append(signer_hash_fn.to_string());
    }
 
    if(!chosen_padding.empty()) {
-      oss << " chose padding " << chosen_padding;
-   }
-   if(!user_specified_padding.empty()) {
-      oss << " with user specified padding " << user_specified_padding;
+       oss.append(ASTR(" chose padding "));
+       oss.append(chosen_padding.to_string());
    }
 
-   return oss.str();
+   if(!user_specified_padding.empty()) {
+       oss.append(ASTR(" with user specified padding "));
+       oss.append(user_specified_padding.to_string());
+   }
+
+   return oss;
 }
 
 }  // namespace

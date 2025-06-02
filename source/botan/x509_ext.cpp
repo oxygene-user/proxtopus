@@ -6,6 +6,7 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
+#include "../proxtopus/pch.h"
 
 #include <botan/x509_ext.h>
 
@@ -15,7 +16,6 @@
 #include <botan/hash.h>
 #include <botan/x509cert.h>
 #include <botan/internal/bit_ops.h>
-#include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
 #include <algorithm>
 #include <set>
@@ -830,12 +830,12 @@ void TNAuthList::Entry::decode_from(class BER_Decoder& ber) {
 
          list.decode(entry.start);
          if(!is_valid_telephone_number(entry.start)) {
-            throw Decoding_Error(fmt("Invalid TelephoneNumberRange start {}", entry.start.value()));
+            throw Decoding_Error(str::build_string("Invalid TelephoneNumberRange start $", entry.start.value()));
          }
 
          list.decode(entry.count);
          if(entry.count < 2) {
-            throw Decoding_Error(fmt("Invalid TelephoneNumberRange count {}", entry.count));
+            throw Decoding_Error(str::build_string("Invalid TelephoneNumberRange count $", entry.count));
          }
 
          range_items.emplace_back(std::move(entry));
@@ -850,11 +850,11 @@ void TNAuthList::Entry::decode_from(class BER_Decoder& ber) {
       ASN1_String one_string;
       BER_Decoder(obj).decode(one_string);
       if(!is_valid_telephone_number(one_string)) {
-         throw Decoding_Error(fmt("Invalid TelephoneNumber {}", one_string.value()));
+         throw Decoding_Error(str::build_string("Invalid TelephoneNumber $", one_string.value()));
       }
       m_data = std::move(one_string);
    } else {
-      throw Decoding_Error(fmt("Unexpected TNEntry type code {}", type_tag));
+      throw Decoding_Error(str::build_string("Unexpected TNEntry type code $", type_tag));
    };
 }
 
