@@ -13,7 +13,7 @@ public:
 
 template<size_t elsz, signed_t arsz, typename fallback> struct arena
 {
-	volatile spinlock::long3264 ff = 0;
+	volatile size_t ff = 0;
 	u8 buf[elsz * arsz];
 #ifdef _DEBUG
 	u64 corrupt_guard = 123456789;
@@ -47,16 +47,16 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 		ASSERT(corrupt_guard == 123456789);
 #endif
 
-		spinlock::long3264 unlockff = ff & ~(0x80000000ull);
+		size_t unlockff = ff & ~(0x80000000ull);
 		while (unlockff < arsz)
 		{
-			spinlock::long3264 lockff;
+			size_t lockff;
 
-            for (spinlock::long3264 spincount = 0;; ++spincount)
+            for (size_t spincount = 0;; ++spincount)
 			{
 				unlockff = ff & ~(0x80000000ull);
 				lockff = 0x80000000ull | unlockff;
-				if (spinlock::atomic_replace(ff, unlockff, lockff))
+				if (spinlock::atomic_cas<size_t>(ff, unlockff, lockff))
 					break; // lock success
 
 				if (g_single_core || spincount > 10000)
@@ -67,7 +67,7 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 
 			if (unlockff >= arsz)
 			{
-				spinlock::atomic_replace(ff, lockff, unlockff);
+				spinlock::atomic_cas<size_t>(ff, lockff, unlockff);
 				break;
 			}
 
@@ -82,7 +82,7 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 			if (current > peak)
 				peak = current;
 
-			spinlock::long3264 unlockff1 = *nf;
+			size_t unlockff1 = *nf;
 
 			if (unlockff1 < 0)
 				DEBUGBREAK();
@@ -91,7 +91,7 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 
 			unlockff = *nf;
 
-			bool ok = spinlock::atomic_replace(ff, lockff, unlockff);
+			bool ok = spinlock::atomic_cas<size_t>(ff, lockff, unlockff);
 			if (!ok)
 				DEBUGBREAK();
 
@@ -116,13 +116,13 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 		if (index < 0 || index >= arsz)
 			return false;
 
-		spinlock::long3264 unlockff;
-		spinlock::long3264 lockff;
-		for (spinlock::long3264 spincount = 0;;++spincount)
+		size_t unlockff;
+		size_t lockff;
+		for (size_t spincount = 0;;++spincount)
 		{
 			unlockff = ff & ~(0x80000000ull);
 			lockff = 0x80000000ull | unlockff;
-			if (spinlock::atomic_replace(ff, unlockff, lockff))
+			if (spinlock::atomic_cas<size_t>(ff, unlockff, lockff))
 				break; // lock success
 
             if (g_single_core || spincount > 10000)
@@ -141,7 +141,7 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 
 		if (unlockff < 0)
 			DEBUGBREAK();
-		bool ok = spinlock::atomic_replace(ff, lockff, unlockff);
+		bool ok = spinlock::atomic_cas<size_t>(ff, lockff, unlockff);
 		if (!ok)
 			DEBUGBREAK();
 

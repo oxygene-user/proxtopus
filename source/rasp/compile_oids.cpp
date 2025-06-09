@@ -1,6 +1,5 @@
 #include "pch.h"
-
-#if defined _DEBUG && defined _WIN32
+#if defined(_DEBUG) && defined(_WIN32)
 
 namespace
 {

@@ -3,7 +3,7 @@
 #if LOGGER==2
 class logger
 {
-	spinlock::long3264 lock = 0;
+	size_t lock = 0;
 	bool muted = false;
 	//logger& operator <<(const str::astr& s);
 	//logger& operator <<(const char* s);

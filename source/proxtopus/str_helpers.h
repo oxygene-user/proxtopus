@@ -740,7 +740,6 @@ namespace str
 			bool working = pos <= slen();
 			return working;
 		}
-		const xstr_view<CH>& operator* () const { return s; }
 		signed_t slen() const
 		{
 			return s.length();
@@ -818,6 +817,13 @@ namespace str
             this->pos = x;
             return r;
 		}
+        xstr_view<CH> operator* () const
+		{
+			if (this->pos >= this->slen())
+				return this->s.substr(0, 0);
+			return this->pos < 0 ? this->s : this->s.substr(0, this->pos);
+		}
+
 	};
 	template<typename CH> struct sep_line : public sep_base<CH>
 	{
@@ -931,7 +937,7 @@ namespace str
 		void operator=(const token& s) = delete;
 		void operator=(token&& s) = delete;
 
-		const xstr_view<CH>& remaind() const
+		xstr_view<CH> remained() const
 		{
 			return *te;
 		}

@@ -10,15 +10,9 @@ watchdog::watchdog()
     str::append_num(request, getpid(), 0);
     request.append(MAKEFN("/stat"));
 #endif
-
-    next_time_query = chrono::now() + 5;
 }
 watchdog::~watchdog()
 {
-#ifdef _WIN32
-#else
-
-#endif
 }
 
 #if DEBUG_OVERLOADER
@@ -27,10 +21,10 @@ static int freez_run = DEBUG_OVERLOADER;
 
 bool watchdog::operator()()
 {
-    auto now = chrono::now();
-    if (now < next_time_query)
+    --next_query_countdown;
+    if (next_query_countdown > 0)
         return true;
-    next_time_query = now + 5;
+    next_query_countdown = 5;
 
 #if DEBUG_OVERLOADER
     --freez_run;
@@ -84,8 +78,6 @@ bool watchdog::operator()()
     lastTotalTimeInt = totalTimeInt;
     lastNowInt = nowInt;
 
-    //LOG_D("cpu usage: $", cpuUsage);
-
 #else
 
     auto fd = open(request.c_str(), O_RDONLY);
@@ -97,6 +89,11 @@ bool watchdog::operator()()
     ssize_t bytes_read = read(fd, buf, sizeof(buf) - 1);
     close(fd);
     if (bytes_read > 0) {
+
+        auto s1 = str::astr_view(buf, bytes_read).find('(');
+        auto s2 = str::astr_view(buf, bytes_read).find(')', s1);
+        if (s1 != str::astr_view::npos && s2 != str::astr_view::npos && s1 < s2)
+            memset(buf+s1, '-', s2-s1);
 
         signed_t field = 1;
         enum_tokens_a(t, str::astr_view(buf, bytes_read), ' ')
@@ -130,16 +127,26 @@ bool watchdog::operator()()
 
 #endif
 
+    if (prev_cpu_usage != cpu_usage)
+    {
+        if (cpu_usage > 0)
+            ostools::set_current_thread_name(str::build_string("cpu load $%", cpu_usage));
+        else
+            ostools::set_current_thread_name(ASTR("cpu load ok"));
+        prev_cpu_usage = cpu_usage;
+    }
+
     if (cpu_usage >= 95)
     {
+        --overload_event_countdown;
 
         // too high load
-        if (overload_event == 0)
+        if (overload_event_countdown < 0)
         {
             LOG_I("too high CPU usage detected!!!");
-            overload_event = now + 10; // do not pay attention to the overload of 10 seconds
+            overload_event_countdown = 10; // do not pay attention to the overload of 10 seconds
         } else
-        if (now > overload_event)
+        if (overload_event_countdown == 0)
         {
 #ifdef _DEBUG
             if (!is_debugger_present()) {
@@ -169,7 +176,7 @@ bool watchdog::operator()()
     }
     else
     {
-        overload_event = 0;
+        overload_event_countdown = -1;
     }
 
 

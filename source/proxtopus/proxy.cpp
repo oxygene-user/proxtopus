@@ -145,7 +145,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 	}
 
 	connect_answr_socks4 answ;
-	signed_t rb = pipe_to_proxy->recv((u8*)&answ, -(signed_t)sizeof(connect_answr_socks4));
+	signed_t rb = pipe_to_proxy->recv((u8*)&answ, -(signed_t)sizeof(connect_answr_socks4), RECV_PREPARE_MODE_TIMEOUT);
 
 	if (rb != sizeof(connect_answr_socks4) || answ.vn != 0 || answ.cd != 90)
 		return netkit::pipe_ptr();
@@ -198,7 +198,7 @@ bool proxy_socks5::initial_setup(u8* packet, netkit::pipe* p2p) const
 	if (p2p->send(packet, 3) == netkit::pipe::SEND_FAIL)
 		return false;
 
-	signed_t rb = p2p->recv(packet, -2);
+	signed_t rb = p2p->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT);
 
 	if (rb != 2 || packet[0] != 5 || packet[1] != packet[2])
 		return false;
@@ -208,7 +208,7 @@ bool proxy_socks5::initial_setup(u8* packet, netkit::pipe* p2p) const
 		if (p2p->send(authpacket.data(), authpacket.size()) == netkit::pipe::SEND_FAIL)
 			return false;
 
-		signed_t rb1 = p2p->recv(packet, -2);
+		signed_t rb1 = p2p->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT);
 		if (rb1 != 2 || packet[1] != 0)
 			return false;
 	}
@@ -217,7 +217,7 @@ bool proxy_socks5::initial_setup(u8* packet, netkit::pipe* p2p) const
 
 bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep, const str::astr_view *addr2domain) const
 {
-	signed_t rb = p2p->recv(packet, -2);
+	signed_t rb = p2p->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT);
 
 	if (rb != 2 || packet[0] != 5 || packet[1] != 0)
 	{
@@ -256,7 +256,7 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 	}
 
 
-	rb = p2p->recv(packet, -2); // read next 2 bytes
+	rb = p2p->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); // read next 2 bytes
 
 	if (rb != 2)
 		return false;
@@ -264,7 +264,7 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 	switch (packet[1])
 	{
 	case 1:
-		rb = p2p->recv(packet, -6); // read ip4 and port
+		rb = p2p->recv(packet, -6, RECV_PREPARE_MODE_TIMEOUT); // read ip4 and port
 		if (rb != 6)
 			return false;
 
@@ -273,10 +273,10 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 
 		break;
 	case 3:
-		if (signed_t n = p2p->recv(packet, -1); n != 1) // read domain len
+		if (signed_t n = p2p->recv(packet, -1, RECV_PREPARE_MODE_TIMEOUT); n != 1) // read domain len
 			return false;
 
-		if (signed_t n = packet[0] + 2; n != p2p->recv(packet+1, n)) // read domain and port
+		if (signed_t n = packet[0] + 2; n != p2p->recv(packet+1, n, RECV_PREPARE_MODE_TIMEOUT)) // read domain and port
 			return false;
 
 		ep->set_domain( str::astr_view((const char *)packet + 1, packet[0]));
@@ -284,7 +284,7 @@ bool proxy_socks5::recv_rep(u8* packet, netkit::pipe* p2p, netkit::endpoint* ep,
 
 		break;
 	case 4:
-		rb = p2p->recv(packet, -18); // read ip6 and port
+		rb = p2p->recv(packet, -18, RECV_PREPARE_MODE_TIMEOUT); // read ip6 and port
 		if (rb != 18)
 			return false;
 

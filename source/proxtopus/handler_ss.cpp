@@ -28,7 +28,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
         mkr.unlock();
 		p_enc = NEW ss::core::crypto_pipe(p, k, core.cp);
 
-        if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
+        if (signed_t rb = p_enc->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); rb != 2)
             return;
 
 	}
@@ -44,7 +44,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 
 		ss::core::multipass_crypto_pipe multipass(p, core.masterkeys, core.cp);
 
-        if (signed_t rb = multipass.recv(packet, -2); rb != 2)
+        if (signed_t rb = multipass.recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); rb != 2)
             return;
 
         p_enc = NEW ss::core::crypto_pipe(multipass);
@@ -57,7 +57,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	switch (packet[0])
 	{
 	case 1: // ip4
-		if (signed_t rb = p_enc->recv(packet + 2, -3); rb != 3)
+		if (signed_t rb = p_enc->recv(packet + 2, -3, RECV_PREPARE_MODE_TIMEOUT); rb != 3)
 			return;
 
 		ep.set_ipap(netkit::ipap::build(packet + 1, 4));
@@ -65,13 +65,13 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	case 3: // domain name
 
 		len = packet[1]; // len of domain
-		if (signed_t rb = p_enc->recv(packet, -len); rb != len)
+		if (signed_t rb = p_enc->recv(packet, -len, RECV_PREPARE_MODE_TIMEOUT); rb != len)
 			return;
 		ep.set_domain(std::string((const char*)packet, len));
 		break;
 
 	case 4: // ipv6
-		if (signed_t rb = p_enc->recv(packet + 2, -15); rb != 15)// read 15 of 16 bytes of ipv6 address (1st byte already read)
+		if (signed_t rb = p_enc->recv(packet + 2, -15, RECV_PREPARE_MODE_TIMEOUT); rb != 15)// read 15 of 16 bytes of ipv6 address (1st byte already read)
 			return;
 		ep.set_ipap(netkit::ipap::build(packet + 1, 16));
         break;
@@ -80,14 +80,14 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
         return;
 
-	if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
+	if (signed_t rb = p_enc->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); rb != 2)
 		return;
 
 	signed_t port = ((signed_t)packet[0]) << 8 | packet[1];
 	ep.set_port(port);
 
 	if (netkit::pipe_ptr outcon = connect(ep, false))
-		bridge(/*ep,*/ std::move(p_enc), std::move(outcon));
+		glb.e->bridge(std::move(p_enc), std::move(outcon));
 
 }
 

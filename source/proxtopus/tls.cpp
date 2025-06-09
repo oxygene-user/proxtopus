@@ -101,7 +101,7 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
 
 }
 
-/*virtual*/ signed_t tls_pipe::recv(u8* data, signed_t maxdatasz)
+/*virtual*/ signed_t tls_pipe::recv(u8* data, signed_t maxdatasz, signed_t timeout)
 {
     if (!pipe)
         return -1;
@@ -119,7 +119,7 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
 
     for (;; do_recv = true)
     {
-        signed_t sz = do_recv ? pipe->recv(temp, sizeof(temp)) : 0;
+        signed_t sz = do_recv ? pipe->recv(temp, sizeof(temp), timeout) : 0;
         if (sz < 0)
             return sz;
 
@@ -193,7 +193,8 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
 }
 /*virtual*/ void tls_pipe::close(bool flush_before_close)
 {
-    bool io = spinlock::increment_by(busy, 10001) > 0;
+    spinlock::atomic_add<size_t>(busy, 10001);
+    bool io = busy > 10001;
     if (!io && pipe)
     {
         pipe->close(flush_before_close);

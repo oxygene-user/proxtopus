@@ -66,7 +66,7 @@ void logger::newline(int sev, const str::astr_view& s)
 				tids[0] = '[';
 				tids[5] = ']';
 				std::span<char> t(tids.data()+1, 0);
-				str::append_hex<std::span<char>, u16, false>(t, tools::as_word(spinlock::tid_self()));
+				str::append_hex<std::span<char>, u16, false>(t, tools::as_word(spinlock::current_thread_uid()));
 			}
 			return tids.data();
 		};

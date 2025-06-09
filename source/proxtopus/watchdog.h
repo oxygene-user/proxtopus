@@ -6,8 +6,8 @@
 
 class watchdog
 {
-    time_t next_time_query = 0;
-    time_t overload_event = 0;
+    signed_t next_query_countdown = 5;
+    signed_t overload_event_countdown = -1;
 #ifdef _WIN32
     ULARGE_INTEGER lastTotalTimeInt = { 0, 0 };
     ULARGE_INTEGER lastNowInt = { 0, 0 };
@@ -23,6 +23,8 @@ class watchdog
     struct timespec last_time = { 0 };
     FN request;
 #endif
+
+    signed_t prev_cpu_usage = -1;
 
 public:
     watchdog();

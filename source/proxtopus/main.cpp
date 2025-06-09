@@ -14,11 +14,15 @@ global_data::global_data()
 
 void global_data::stop()
 {
-    exit = true;
-    logger::unmute();
-    Print();
-    if (!actual)
-        actual_proc.terminate();
+	if (!exit)
+	{
+        exit = true;
+		if (e) e->wake_up_acceptors();
+		logger::unmute();
+		Print();
+		if (!actual)
+			actual_proc.terminate();
+	}
 }
 
 #ifdef _WIN32
@@ -233,22 +237,23 @@ int run_engine(WINONLY(bool as_service = false))
 
 	if (glb.actual)
 	{
-		ostools::set_current_thread_name(ASTR("overload guard"));
-
 		// role: work process
 
 		glb.actual_proc.actualize();
 
 		watchdog wd;
-
-		for (; wd();)
+		for (signed_t msacc = 0; wd(); ++msacc, spinlock::sleep(1000))
 		{
-			signed_t ms = e.working();
-			if (ms < 0)
+			if (e.heartbeat())
 				break;
 			Print();
 
-			spinlock::sleep((int)ms);
+			if (msacc > 111)
+			{
+                // once per 111 sec check unused acceptors
+				msacc = 0;
+				e.wake_up_acceptors();
+			}
 		}
 	}
 	else if (e.exit_code == EXIT_OK)
@@ -594,8 +599,11 @@ static int handle_command_line()
 	}
 #endif
 
-#if defined _NIX && LOGGER==2
-    logger::mute(); // mute by default on nix
+#if defined _NIX
+	// check stdout is not console
+	// use --unmute to enable output to non-console file
+	if (!isatty(fileno(stdout)))
+		logger::mute();
 #endif
 
 	cmdl.handle_options();

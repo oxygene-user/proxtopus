@@ -290,9 +290,11 @@ void chacha20::setup_implementation(size_t iv_size)
     switch (iv_size)
     {
     case 8:
+#ifdef MODE64
         if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2)) {
             m_impl = std::make_unique<iml_chacha20_avx2>();
         }
+#endif
         if (!m_impl && Botan::CPUID::has(Botan::CPUID::Feature::SSSE3)) {
             m_impl = std::make_unique<iml_chacha20_ssse3>();
         }
@@ -303,9 +305,11 @@ void chacha20::setup_implementation(size_t iv_size)
         break;
     case 12:
 
+#ifdef MODE64
         if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2)) {
             m_impl = std::make_unique<iml_ietf_chacha20_avx2>();
         }
+#endif
         if (!m_impl && Botan::CPUID::has(Botan::CPUID::Feature::SSSE3)) {
             m_impl = std::make_unique<iml_ietf_chacha20_ssse3>();
         }
@@ -316,9 +320,11 @@ void chacha20::setup_implementation(size_t iv_size)
         break;
     case 24:
 
+#ifdef MODE64
         if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2)) {
             m_impl = std::make_unique<iml_chacha20_avx2_keybuf>();
         }
+#endif
         if (!m_impl && Botan::CPUID::has(Botan::CPUID::Feature::SSSE3)) {
             m_impl = std::make_unique<iml_chacha20_ssse3_keybuf>();
         }

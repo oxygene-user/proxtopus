@@ -794,11 +794,13 @@
     <ClCompile Include="proxtopus\proxy_ss.cpp" />
     <ClCompile Include="proxtopus\rndgen.cpp" />
     <ClCompile Include="proxtopus\sts.cpp" />
-    <ClCompile Include="proxtopus\tests.cpp" />
     <ClCompile Include="proxtopus\tls.cpp" />
     <ClCompile Include="proxtopus\tools.cpp" />
     <ClCompile Include="proxtopus\watchdog.cpp" />
-    <ClCompile Include="rasp\compile_oids.cpp" />
+    <ClCompile Include="proxtopus\tests.cpp" />
+    <ClCompile Include="rasp\compile_oids.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Release'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="proxtopus\sodium_chacha20_avx2.inl">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>

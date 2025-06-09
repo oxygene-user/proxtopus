@@ -236,12 +236,6 @@
     <ClCompile Include="proxtopus\mem.cpp">
       <Filter>src\system</Filter>
     </ClCompile>
-    <ClCompile Include="debug\excpn.cpp">
-      <Filter>src\debug</Filter>
-    </ClCompile>
-    <ClCompile Include="debug\stkwlk.cpp">
-      <Filter>src\debug</Filter>
-    </ClCompile>
     <ClCompile Include="proxtopus\dnsq.cpp">
       <Filter>src\dns</Filter>
     </ClCompile>
@@ -712,6 +706,12 @@
     </ClCompile>
     <ClCompile Include="proxtopus\aead_chacha20poly1305.cpp">
       <Filter>src\algs\aead</Filter>
+    </ClCompile>
+    <ClCompile Include="debug\excpn.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="debug\stkwlk.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

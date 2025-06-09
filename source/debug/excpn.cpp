@@ -187,7 +187,7 @@ LONG WINAPI exceptions_best_friend::exception_filter(EXCEPTION_POINTERS* pExp)
     Print(FOREGROUND_RED | FOREGROUND_INTENSITY, "crash! (See config.txt -> settings -> crash_log_file for stack trace)\n");
 	Print();
     
-	SIMPLELOCK(self.lock);
+	spinlock::auto_simple_lock slock(self.lock);
     self.m_buf.clear();
 	self.m_buf.append(ASTR("crash!\r\n"));
 
@@ -244,7 +244,7 @@ void exceptions_best_friend::set_dump_type(MINIDUMP_TYPE minidumpType)
 
 void exceptions_best_friend::create_dump(EXCEPTION_POINTERS* pExp/*=NULL*/, bool needExcept/*=true*/)
 {
-    static spinlock::long3264 lock=0;
+    static size_t lock=0;
     static int err;
     static std::array<char, 256> tmperror;
 

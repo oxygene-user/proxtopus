@@ -372,8 +372,67 @@ void mul_test()
     DEBUGBREAK();
 }
 
+std::atomic<int> shared_value{ 0 };
+tools::bucket<size_t> buck;
+spinlock::syncvar<std::vector<size_t>> allvals;
+bool fsio = false;
+
+void reader_task() {
+
+	std::vector<size_t> xx;
+
+	for (;!fsio;) {
+
+		buck.get([&](size_t& x) {
+			xx.push_back(x);
+		});
+    }
+	auto wr = allvals.lock_write();
+	wr().insert(wr().end(), xx.begin(), xx.end());
+}
+
+void writer_task() {
+    for (int i = 0; i < 1000;) {
+
+		if (buck.put([](size_t& x) { x = shared_value; }))
+			shared_value++, ++i;
+    }
+}
+
+
+
+void sync_test()
+{
+	std::vector<std::thread> threadsr;
+	std::vector<std::thread> threadsw;
+
+    for (int i = 0; i < 10; ++i) {
+		threadsr.emplace_back(reader_task);
+    }
+
+    for (int i = 0; i < 5; ++i) {
+        threadsw.emplace_back(writer_task);
+    }
+
+    for (auto& t : threadsw) {
+        t.join();
+    }
+
+	fsio = true;
+
+    for (auto& t : threadsr) {
+        t.join();
+    }
+
+	auto wr = allvals.lock_write();
+	std::sort(wr().begin(), wr().end());
+
+	DEBUGBREAK();
+}
+
 void do_tests()
 {
+	//sync_test();
 	//mul_test();
 	//chacha_test();
 	//crash_test();

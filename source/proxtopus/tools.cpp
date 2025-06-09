@@ -4,6 +4,16 @@
 #include <iostream>
 #endif
 
+namespace spinlock
+{
+	size_t current_thread_uid()
+	{
+		static size_t counter = 0;
+		static thread_local size_t tid = atomic_increment(counter);
+		return tid;
+	}
+}
+
 namespace
 {
 	class tools_init
@@ -211,8 +221,8 @@ void Print()
 	std::vector<global_data::print_line> cp;
 	cp = std::move(glb.prints.lock_write()());
 	
-	static volatile spinlock::long3264 lock = 0;
-	SIMPLELOCK(lock);
+	static volatile size_t lock = 0;
+	spinlock::auto_simple_lock slock(lock);
 
 	for(auto &s : cp)
 	{

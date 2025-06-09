@@ -34,7 +34,7 @@ public:
     transport_tls(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st, handler* h);
     virtual ~transport_tls() { stop(); }
 
-    /*virtual*/ str::astr desc() const { return str::astr(ASTR("tls")); }
+    /*virtual*/ str::astr_view desc() const { return ASTR("tls"); }
     /*virtual*/ bool compatible(netkit::socket_type_e st) const
     {
         return st == netkit::ST_TCP;

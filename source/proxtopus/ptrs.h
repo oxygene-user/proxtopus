@@ -62,6 +62,11 @@ namespace ptr
 
 		T* get() { return object; }
 		const T* get() const { return object; }
+
+		// tricky methods; use only if you absolutely understand what you do
+        T* _release() { T* rv = object; object = nullptr; return rv; }
+        void _assign(T* t) { object = t; };
+
 	};
 
 	template<typename N = int> struct intref
@@ -85,9 +90,13 @@ namespace ptr
 			ASSERT(nv >= 0);
 			return nv == 0;
 		}
-		bool operator *() const
+		bool is_multi() const
 		{
 			return value > 1;
+		}
+		bool is_new() const
+		{
+			return value == 0;
 		}
 	};
 
@@ -126,7 +135,8 @@ namespace ptr
 	public:
 		shared_object_t() {}
 
-		bool is_multi_ref() const { return *ref; }
+		bool is_ref_new() const { return ref.is_new(); }
+		bool is_multi_ref() const { return ref.is_multi(); }
 		void add_ref() const { ++ref; }
 		void dec_ref_no_check() const { --ref; }
 		template <class T> static void dec_ref(T* object)

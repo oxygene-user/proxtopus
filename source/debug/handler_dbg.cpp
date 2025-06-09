@@ -89,9 +89,13 @@ void handler_debug::handle_pipe(netkit::pipe* pipe)
         if (wr == netkit::WR_CLOSED)
             break;
         if (wr == netkit::WR_TIMEOUT)
+        {
+            if (glb.is_stop())
+                break;
             continue;
+        }
 
-        signed_t r = pipe->recv(b, 256);
+        signed_t r = pipe->recv(b, 256, RECV_BRIDGE_MODE_TIMEOUT);
         if (r < 0)
             break;
 

@@ -10,7 +10,7 @@ public:
     handler_debug(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st);
     virtual ~handler_debug() { stop(); }
 
-    /*virtual*/ str::astr desc() const { return str::astr(ASTR("debug")); }
+    /*virtual*/ str::astr_view desc() const { return ASTR("debug"); }
     /*virtual*/ bool compatible(netkit::socket_type_e st) const
     {
         return netkit::ST_TCP == st;

@@ -777,7 +777,7 @@ namespace netkit
 		return SEND_OK;
 	}
 
-	/*virtual*/ signed_t tcp_pipe::recv(u8* data, signed_t maxdatasz)
+	/*virtual*/ signed_t tcp_pipe::recv(u8* data, signed_t maxdatasz, signed_t timeout)
 	{
 		if (maxdatasz < 0)
 		{
@@ -785,6 +785,7 @@ namespace netkit
 			{
 				// need exactly -maxdatasz bytes
 				maxdatasz = -maxdatasz;
+				signed_t deadtime = 0;
 				for (; rcvbuf.datasize() < maxdatasz;)
 				{
 					if (!rcv_all())
@@ -792,8 +793,18 @@ namespace netkit
 					if (rcvbuf.datasize() < maxdatasz)
 					{
 						wrslt rslt = wait(get_waitable(), LOOP_PERIOD);
-						if (rslt == WR_CLOSED)
+						if (glb.is_stop() || rslt == WR_CLOSED)
 							return -1;
+						if (rslt == WR_TIMEOUT)
+						{
+							if (deadtime == 0)
+							{
+								deadtime = chrono::ms() + timeout;
+								continue;
+							}
+							if (chrono::ms() > deadtime)
+								return -1;
+						}
 					}
 				}
 				rcvbuf.peek(data, maxdatasz);
@@ -831,7 +842,7 @@ namespace netkit
 		}
 
 		signed_t ct = chrono::ms();
-		if ((ct - lastcheckalive) > 1000)
+		if ((ct - lastcheckalive) > 5000)
 		{
 			// check no more than once per second
 			lastcheckalive = ct;
@@ -1185,13 +1196,13 @@ namespace netkit
 		return ipap();
 	}
 
-	wrslt wait(WAITABLE s, long microsec)
+	wrslt wait(WAITABLE s, signed_t ms_timeout)
 	{
 		if (is_ready(s))
 			return WR_READY4READ;
 
 #ifdef _WIN32
-		if (microsec == 0)
+		if (ms_timeout == 0)
 		{
 			WSANETWORKEVENTS e;
 			WSAEnumNetworkEvents(s->s, s->wsaevent, &e);
@@ -1207,7 +1218,7 @@ namespace netkit
 			return WR_TIMEOUT;
 		}
 
-		u32 rslt = WSAWaitForMultipleEvents(1, &s->wsaevent, TRUE, microsec < 0 ? WSA_INFINITE : (microsec / 1000), FALSE);
+		u32 rslt = WSAWaitForMultipleEvents(1, &s->wsaevent, TRUE, ms_timeout < 0 ? WSA_INFINITE : (DWORD)ms_timeout, FALSE);
 		if (WSA_WAIT_TIMEOUT == rslt)
 			return WR_TIMEOUT;
 
@@ -1231,7 +1242,7 @@ namespace netkit
 #ifdef _NIX
 
         pollfd p = { s->s, POLLIN };
-        int pr = poll(&p, 1, microsec * 1000);
+        int pr = poll(&p, 1, ms_timeout);
         if (pr == 0)
             return WR_TIMEOUT;
         if (pr < 0)
@@ -1246,10 +1257,10 @@ namespace netkit
 #endif
 	}
 
-    wrslt wait_write(WAITABLE s, long microsec)
+    wrslt wait_write(WAITABLE s, signed_t ms_timeout)
     {
 #ifdef _WIN32
-        if (microsec == 0)
+        if (ms_timeout == 0)
         {
             WSANETWORKEVENTS e;
             WSAEnumNetworkEvents(s->s, s->wsaevent, &e);
@@ -1264,7 +1275,7 @@ namespace netkit
             return WR_TIMEOUT;
         }
 
-        u32 rslt = WSAWaitForMultipleEvents(1, &s->wsaevent, TRUE, microsec < 0 ? WSA_INFINITE : (microsec / 1000), FALSE);
+        u32 rslt = WSAWaitForMultipleEvents(1, &s->wsaevent, TRUE, ms_timeout < 0 ? WSA_INFINITE : (DWORD)ms_timeout, FALSE);
         if (WSA_WAIT_TIMEOUT == rslt)
             return WR_TIMEOUT;
 
@@ -1286,7 +1297,7 @@ namespace netkit
 #ifdef _NIX
 
         pollfd p = { s->s, POLLOUT };
-        int pr = poll(&p, 1, microsec * 1000);
+        int pr = poll(&p, 1, ms_timeout);
         if (pr == 0)
             return WR_TIMEOUT;
         if (pr < 0)
@@ -1368,7 +1379,7 @@ namespace netkit
 	}
 #endif // _NIX
 
-	pipe_waiter::mask pipe_waiter::wait(long microsec)
+	pipe_waiter::mask pipe_waiter::wait(signed_t ms_timeout)
 	{
 #ifdef _WIN32
 		if (readymask != 0)
@@ -1420,7 +1431,7 @@ namespace netkit
 		}
 
 		www[numw] = sig;
-		u32 rslt = WSAWaitForMultipleEvents(tools::as_dword(numw + 1), www, FALSE, microsec < 0 ? WSA_INFINITE : (microsec / 1000), FALSE);
+		u32 rslt = WSAWaitForMultipleEvents(tools::as_dword(numw + 1), www, FALSE, ms_timeout < 0 ? WSA_INFINITE : (DWORD)ms_timeout, FALSE);
 		if (WSA_WAIT_TIMEOUT == rslt)
 		{
 			readymask = 0;
@@ -1495,8 +1506,8 @@ namespace netkit
             }
         }
 
-        int er = poll(polls, numw+1, microsec >= 0 ? (microsec/1000) : -1);
-		if (er < 0)
+        int er = poll(polls, numw+1, ms_timeout >= 0 ? ms_timeout : -1);
+        if (er < 0)
             return checkall();
 
         mask m;
@@ -1655,7 +1666,7 @@ namespace netkit
             }
 
             tempbuf.reserve_space(512);
-            signed_t rcv = pp->recv(tempbuf.free_space_ptr(), tempbuf.free_space());
+            signed_t rcv = pp->recv(tempbuf.free_space_ptr(), tempbuf.free_space(), RECV_PREPARE_MODE_TIMEOUT);
             if (rcv < 0)
                 return false;
             if (rcv > 0)

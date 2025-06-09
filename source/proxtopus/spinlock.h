@@ -3,7 +3,9 @@
 */
 #pragma once
 
-#ifndef _SPINLOCK_INCLUDE_
+#ifndef PROXTOPUS_PCH
+#error "do not include this file without pch.h"
+#endif
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -19,28 +21,6 @@
 #include <unistd.h>
 #endif
 
-#ifndef JOINMACRO1
-#define JOINMACRO2(x,y) x##y
-#define JOINMACRO1(x,y) JOINMACRO2(x,y)
-#endif
-
-#ifndef UNIQIDLINE
-#define UNIQIDLINE(x) JOINMACRO1(x,__LINE__)
-#endif
-
-#ifndef __STR1__
-#define __STR2__(x) #x
-#define __STR1__(x) __STR2__(x)
-#endif
-
-#ifndef __LOC__
-#define __LOC__ __FILE__ "(" __STR1__(__LINE__) ") : "
-#endif
-
-#ifdef _DEBUG
-#define DEBUG_DEADLOCK
-#endif
-
 #ifndef IS_SINGLE_CORE
 #define IS_SINGLE_CORE (false)
 #endif
@@ -48,7 +28,6 @@
 namespace spinlock
 {
 #if defined _WIN32
-
     inline void sleep()
     {
         _mm_pause();
@@ -57,133 +36,22 @@ namespace spinlock
     {
         Sleep(ms);
     }
-
-typedef __int64 int64;
-#define WIN32ALIGN __declspec(align(ALIGNBYTES))
-#elif defined __linux__
-typedef long long int64;
-#else
-#error "Sorry, can't compile: unknown target system"
 #endif
 
-#if defined (_M_AMD64) || defined (WIN64) || defined (__LP64__)
-typedef int64 long3264;
-#define ALIGNBYTES 16
-#else
-typedef long long3264;
-#define ALIGNBYTES 8
-#endif
+    /* 
+      This is not a thread id in the usual sense.This number cannot be passed to the operating system.
+      However, this number is unique for each thread just like the thread id. Unlike the thread id,
+      which has a size of up to 64 bits (on Linux, for example), this number in most cases will not exceed 16 bits.
+    */
+    size_t current_thread_uid();
 
 #if defined(_MSC_VER)
-// =========================================== Visual Studio stuff begin ======================================
-#define SLALIGN(n) __declspec( align( n ) )
 #define SLINLINE __forceinline
-#ifndef SLASSERT
-__pragma( message( "SLASSERT undefined" ) )
-#define SLASSERT(c) (1,true)
-#endif
-
-#ifndef SLERROR
-__pragma( message( "SLERROR undefined" ) )
-#define SLERROR(s, ...) __debugbreak()
-#endif
-// =========================================== Visual Studio stuff end ======================================
-#elif defined(__GNUC__)
-// =========================================== GCC stuff begin ======================================
-#define SLALIGN(n) __attribute__((aligned(n)))
+#elif defined(GCC_OR_CLANG)
 #define SLINLINE inline
-#ifndef SLASSERT
-#pragma message "SLASSERT undefined"
-#define SLASSERT(c) (1,true)
 #endif
 
-#ifndef SLERROR
-#pragma message "SLERROR undefined"
-#define SLERROR(s, ...) __builtin_trap()
-#endif
-// =========================================== GCC stuff end ======================================
-#endif
-
-#define ALIGN_ASSERT(ptr, a) SLASSERT (ptr != nullptr && 0 == ( ((int64)ptr) & (a-1)))
-
-#ifdef _WIN32
-#ifdef _WINDOWS_
-#ifndef INLINE_PTHREAD_SELF
-#define INLINE_PTHREAD_SELF
-SLINLINE unsigned long tid_self() { return ::GetCurrentThreadId(); }
-#endif
-#else
-unsigned long tid_self();
-#endif
-
-#pragma intrinsic (_InterlockedExchangeAdd, _InterlockedCompareExchange64)
-#define InterlockedExchangeAdd _InterlockedExchangeAdd
-
-#ifdef _WIN64
-#	pragma intrinsic (_InterlockedExchangeAdd64, _InterlockedCompareExchange128)
-#	define InterlockedExchangeAdd64 _InterlockedExchangeAdd64
-#endif
-
-#endif
-
-#if defined(_M_AMD64)
-#define SLxInterlockedCompareExchange _InterlockedCompareExchange64
-#define SLxInterlockedCompareExchange32 _InterlockedCompareExchange
-#define SLxInterlockedCompareExchange2 _InterlockedCompareExchange128
-#define SLxInterlockedCompareExchange64 _InterlockedCompareExchange64
-#define SLxInterlockedAdd _InterlockedExchangeAdd64
-#define SLxInterlockedAdd64 _InterlockedExchangeAdd64
-#define SLxInterlockedAnd64 _InterlockedAnd64
-#define SLxInterlockedIncrement _InterlockedIncrement64
-#define SLxInterlockedDecrement _InterlockedDecrement64
-#elif defined (_M_IX86)
-#define SLxInterlockedCompareExchange _InterlockedCompareExchange
-#define SLxInterlockedCompareExchange32 _InterlockedCompareExchange
-#define SLxInterlockedCompareExchange2 _InterlockedCompareExchange64
-#define SLxInterlockedCompareExchange64 _InterlockedCompareExchange64
-#define SLxInterlockedAdd InterlockedExchangeAdd
-#define SLxInterlockedAdd64 SLlInterlockedExchangeAdd64
-#define SLxInterlockedAnd64 SLlInterlockedAnd64
-#define SLxInterlockedIncrement _InterlockedIncrement
-#define SLxInterlockedDecrement _InterlockedDecrement
-
-inline int64 SLlInterlockedExchangeAdd64(volatile int64* lock, int64 adding)
-{
-	int64 old=*lock;
-	for (;;)
-	{
-		int64 tmp=SLxInterlockedCompareExchange64(lock, old + adding, old);
-		if (tmp==old)
-			return old;
-		old=tmp;
-	}
-}
-
-inline int64 SLlInterlockedAnd64(volatile int64* lock, int64 mask)
-{
-	int64 old=*lock;
-	for (;;)
-	{
-        int64 tmp=SLxInterlockedCompareExchange64(lock, old & mask, old);
-        if (tmp==old)
-			return old;
-        old=tmp;
-	}
-}
-
-inline int64 SLlInterlockedExchange64(volatile int64* lock, int64 newValue)
-{
-    int64 old=*lock;
-    for (;;)
-    {
-        int64 tmp=SLxInterlockedCompareExchange64(lock, newValue, old);
-        if (tmp==old)
-			return old;
-        old=tmp;
-    }
-}
-
-#elif defined(__linux__)
+#if defined(__linux__)
 inline void sleep()
 {
     sched_yield();
@@ -216,178 +84,308 @@ inline void sleep(int ms)
         }
     } while (req.tv_sec > 0 || req.tv_nsec > 0);
 }
-
-
-#define SLxInterlockedCompareExchange(a,b,c)     __sync_val_compare_and_swap(a,c,b)
-#define SLxInterlockedCompareExchange32(a,b,c)   __sync_val_compare_and_swap(a,c,b)
-#define SLxInterlockedCompareExchange2(a,b,c)    __sync_val_compare_and_swap(a,c,b)
-#define SLxInterlockedCompareExchange64(a,b,c)   __sync_val_compare_and_swap(a,c,b)
-#define SLxInterlockedAdd  __sync_fetch_and_add
-#define SLxInterlockedAdd64 __sync_fetch_and_add
-#define SLxInterlockedAnd64 __sync_and_and_fetch
-#define SLxInterlockedIncrement(a) __sync_add_and_fetch(a,1)
-#define SLxInterlockedDecrement(a) __sync_sub_and_fetch(a,1)
-
-inline int64 SLlInterlockedExchangeAdd64(volatile int64* lock, int64 adding)
-{
-    return __sync_fetch_and_add(lock, adding);
-}
-
-inline int64 SLlInterlockedAnd64(volatile int64* lock, int64 mask)
-{
-    return __sync_fetch_and_and(lock, mask);
-}
-
-inline int64 SLlInterlockedExchange64(volatile int64* lock, int64 newValue)
-{
-    return __sync_lock_test_and_set(lock, newValue);
-}
-SLINLINE uint32_t tid_self() { return ::pthread_self() & 0xffffffff; }
-
-#else
-#error "Sorry, can't compile: unknown target system"
 #endif
+
+template<typename T> SLINLINE void atomic_set(volatile T &t, const T&v)
+{
+    if constexpr (sizeof(size_t) >= sizeof(T))
+    {
+        t = v; // no need to use interlocked* functions if sizeof var same as archbits
+    }
+    else
+    {
+        static_assert(sizeof(T) == 8);
+
+#ifdef _WIN32
+        _InterlockedExchange64((LONG64*)&t, v);
+#else
+        atomic_exchange_64(&t, v, __ATOMIC_SEQ_CST);
+#endif
+    }
+}
+
+template<typename T> SLINLINE T atomic_load(volatile T& t)
+{
+    if constexpr (sizeof(size_t) >= sizeof(T))
+    {
+        return t; // no need to use interlocked* functions if sizeof var same as archbits
+    }
+    else
+    {
+        static_assert(sizeof(T) == 8);
+
+#ifdef _WIN32
+        return InterlockedCompareExchange64((LONG64*)&t, 0, 0);
+#else
+        return __atomic_load(&t, __ATOMIC_SEQ_CST);
+#endif
+    }
+}
+
+template<typename T> SLINLINE void atomic_add(volatile T& t, T v)
+{
+#ifdef _WIN32
+    if constexpr (sizeof(T) == 8)
+    {
+        _InterlockedAdd64((LONG64 *) & t, v);
+    }
+    else
+    {
+        static_assert(sizeof(T) == 4);
+        _InterlockedAdd((LONG *) & t, v);
+    }
+#else
+    __atomic_add_fetch(&t, v, __ATOMIC_SEQ_CST);
+#endif
+}
+
+template<typename T> SLINLINE T atomic_increment(volatile T& t)
+{
+#ifdef _WIN32
+    if constexpr (sizeof(T) == 8)
+    {
+        return _InterlockedIncrement64((LONG64*)&t);
+    }
+    else
+    {
+        static_assert(sizeof(T) == 4);
+        return _InterlockedIncrement(&t);
+    }
+#else
+    return __atomic_add_fetch(&t, 1, __ATOMIC_SEQ_CST);
+#endif
+
+}
+
+template<typename T> SLINLINE T atomic_decrement(volatile T& t)
+{
+#ifdef _WIN32
+    if constexpr (sizeof(T) == 8)
+    {
+        return _InterlockedDecrement64((LONG64*)&t);
+    }
+    else
+    {
+        static_assert(sizeof(T) == 4);
+        return _InterlockedDecrement(&t);
+    }
+#else
+    return __atomic_sub_fetch(&t, 1, __ATOMIC_SEQ_CST);
+#endif
+
+}
+
+template<typename T> bool atomic_cas(volatile T& t, T expected, T desired)
+{
+#ifdef _WIN32
+    if constexpr (sizeof(T) == 16)
+    {
+        return 0 != _InterlockedCompareExchange128((LONG64*)(&t), ((i64*)&desired)[1], ((i64*)&desired)[0], (LONG64*)&expected);
+
+    } else if constexpr (sizeof(T) == 8)
+    {
+        return _InterlockedCompareExchange64((LONG64*)&t, desired, expected) == (LONG64)expected;
+    }
+    else
+    {
+        static_assert(sizeof(T) == 4);
+        return _InterlockedCompareExchange((LONG*)&t, desired, expected) == (LONG)expected;
+    }
+#else
+    if constexpr (sizeof(T) == 16)
+    {
+        //return __atomic_compare_exchange((__int128 *)&t, (__int128*)&expected, (const __int128*)&desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+        return __sync_bool_compare_and_swap((__int128*)&t, (__int128&)expected, (__int128&)desired);
+    }
+    else {
+        return __atomic_compare_exchange(&t, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    }
+#endif
+}
+
+template<typename T> bool atomic_cas_update_expected(volatile T& t, T &expected, const T &desired)
+{
+#ifdef _WIN32
+    if constexpr (sizeof(T) == 16)
+    {
+        return 0 != _InterlockedCompareExchange128((LONG64*)(&t), ((i64*)&desired)[1], ((i64*)&desired)[0], (LONG64*)&expected);
+
+    } else if constexpr (sizeof(T) == 8)
+    {
+        auto prevv = _InterlockedCompareExchange64((LONG64*)&t, desired, expected);
+        if ((LONG64)expected != prevv)
+        {
+            expected = prevv;
+            return false;
+        }
+        return true;
+    }
+    else
+    {
+        static_assert(sizeof(T) == 4);
+        auto prevv = _InterlockedCompareExchange((LONG*)&t, desired, expected);
+        if ((LONG)expected != prevv)
+        {
+            expected = prevv;
+            return false;
+        }
+        return true;
+    }
+#else
+    if constexpr (sizeof(T) == 16)
+    {
+        //return __atomic_compare_exchange((__int128 *)&t, (__int128*)&expected, (const __int128*)&desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+        if (__sync_bool_compare_and_swap((__int128*)&t, (__int128&)expected, (__int128&)desired))
+            return true;
+        tools::memcopy<16>(&expected, (const void*)&t);
+        return false;
+    }
+    else
+    {
+        return __atomic_compare_exchange(&t, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    }
+#endif
+}
 
 //////////////////////////////////////////////////////////////////////////
 // reenterable spinlock
 // many readers, writer wait and block new readers
 // ACHTUNG! ACHTUNG! [read] then [write] lock in same thread leads to deadlock!!!
 
-#define RWLOCKVALUE			spinlock::int64
-#define RWLOCK              RWLOCKVALUE volatile
-#define LOCK_READ_MASK      0xFFFF000000000000
-#define LOCK_WRITE_MASK     0x0000FF0000000000
-#define LOCK_THREAD_MASK    0x000000FFFFFFFFFF
-#define LOCK_WRITE_VAL      0x0000010000000000
-#define LOCK_READ_VAL       0x0001000000000000
+using rwlock = u64;
+constexpr const rwlock lock_thread_mask = 0x000000FFFFFFFFFFull;
+constexpr const rwlock lock_read_mask   = 0xFFFF000000000000ull;
+constexpr const rwlock lock_read_value  = 0x0001000000000000ull;
+constexpr const rwlock lock_write_mask  = 0x0000FF0000000000ull;
+constexpr const rwlock lock_write_value = 0x0000010000000000ull;
 
-#define CHECK_WRITE_LOCK(lock) if (!(lock & LOCK_WRITE_MASK)) SLERROR("No WRITE LOCK: $", lock)
-#define CHECK_READ_LOCK(lock) SLASSERT(lock & LOCK_READ_MASK, "No READ LOCK: $", lock)
-#define CHECK_LOCK(lock) if (!(lock & LOCK_READ_MASK) && !(lock & LOCK_WRITE_MASK)) SLERROR("No LOCK: $", lock)
-
-SLINLINE void lock_write(RWLOCK &lock)
+SLINLINE void lock_write(volatile rwlock &lock)
 {
-	RWLOCKVALUE thread = tid_self();
-	RWLOCKVALUE val = lock;
-	if ((val & LOCK_THREAD_MASK) == thread) // second lock same thread
+	rwlock thread = current_thread_uid() & lock_thread_mask;
+	if ((atomic_load(lock) & lock_thread_mask) == thread) // second lock same thread
 	{
-		SLxInterlockedAdd64(&lock, LOCK_WRITE_VAL);
+        atomic_add(lock, lock_write_value);
 		return;
 	}
-	thread |= LOCK_WRITE_VAL;
+	thread |= lock_write_value;
 
-    long3264 spincount = 0;
-	for(;; ++spincount) // initial lock
+    // now wait for write lock released
+    size_t spincount = 0;
+	for(rwlock expected = lock;; ++spincount) // initial lock
 	{
-		RWLOCKVALUE tmp = val & LOCK_READ_MASK;
-		val = tmp | thread;
-		val = SLxInterlockedCompareExchange64(&lock, val, tmp);
-		if (val == tmp) // no more writers - set current thread to block new readers
-			break;
+        expected &= lock_read_mask;
+        rwlock newlock = expected | thread;
+
+        if (atomic_cas_update_expected(lock, expected, newlock))
+            break; // write lock was released
 
         if (IS_SINGLE_CORE || spincount > 10000)
+        {
             sleep((spincount >> 17) & 0xff);
+            expected = lock;
+        }
         else
             sleep();
-
 	}
 
-	for (;; ++spincount) // if there are readers from current thread - deadlock
+    // if there are readers from current thread - deadlock:
+    //      lock-write, lock-read, unlock-read, unlock-write => ok
+    //      lock-read, lock-write ... => deadlock
+	for (;; ++spincount)
 	{
-		if (!(lock & LOCK_READ_MASK)) // all readers gone
+		if (0 == (lock & lock_read_mask)) // all readers gone // no need to use atomic_load here because we need masked value
 			return;
-    
+
         if (IS_SINGLE_CORE || spincount > 10000)
             sleep((spincount >> 17) & 0xff);
         else
             sleep();
-
     }
 }
 
-SLINLINE void lock_read(RWLOCK &lock)
+SLINLINE void lock_read(volatile rwlock&lock)
 {
-	RWLOCKVALUE thread = tid_self();
-	RWLOCKVALUE val = lock;
-	if ((val & LOCK_THREAD_MASK) == thread)
+	rwlock thread = current_thread_uid() & lock_thread_mask;
+	if ((atomic_load(lock) & lock_thread_mask) == thread)
 	{
-		SLxInterlockedAdd64(&lock, LOCK_READ_VAL);
+        atomic_add(lock, lock_read_value); // allow read_lock if already locked with write_lock for current thread
 		return;
 	}
 
-    
-	for (long3264 spincount = 0;; ++spincount) // Initial lock
+    rwlock expected = lock; // allow read lock only if no write locks - thread and write parts are 0
+	for (size_t spincount = 0;; ++spincount) // Initial lock
 	{
-		RWLOCKVALUE tmp = val & LOCK_READ_MASK;
-		val = tmp + LOCK_READ_VAL;
-		val = SLxInterlockedCompareExchange64(&lock, val, tmp);
-		if (val == tmp) // only readers
-			break;
-    
+        expected &= lock_read_mask;
+        rwlock val = expected + lock_read_value;
+
+        if (atomic_cas_update_expected(lock, expected, val))
+            break; // read lock count increased
+
         if (IS_SINGLE_CORE || spincount > 10000)
+        {
             sleep((spincount >> 17) & 0xff);
+            expected = lock; // no need use atomic_load here due we need masked value
+        }
         else
             sleep();
     }
 }
 
-SLINLINE bool try_lock_read( RWLOCK &lock )
+SLINLINE bool try_lock_read(volatile rwlock &lock)
 {
-    RWLOCKVALUE thread = tid_self();
-    RWLOCKVALUE val = lock;
-    if ( ( val & LOCK_THREAD_MASK ) == thread )
+    rwlock thread = current_thread_uid() & lock_thread_mask;
+    if ((atomic_load(lock) & lock_thread_mask) == thread)
     {
-        SLxInterlockedAdd64( &lock, LOCK_READ_VAL );
+        atomic_add(lock, lock_read_value);
         return true;
     }
 
-    RWLOCKVALUE tmp = val & LOCK_READ_MASK;
-    val = tmp + LOCK_READ_VAL;
-    val = SLxInterlockedCompareExchange64( &lock, val, tmp );
-    return val == tmp; // only readers
+    rwlock expected = lock & lock_read_mask;
+    rwlock val = expected + lock_read_value;
+    return atomic_cas(lock, expected, val);
 }
 
 
-SLINLINE bool try_lock_write(RWLOCK &lock)
+SLINLINE bool try_lock_write(volatile rwlock &lock)
 {
-	RWLOCKVALUE thread = tid_self();
-	RWLOCKVALUE val = lock;
-	if ((val & LOCK_THREAD_MASK)==thread) // second lock
+	rwlock thread = current_thread_uid() & lock_thread_mask;
+	if ((atomic_load(lock) & lock_thread_mask)==thread) // second lock
 	{
-		SLxInterlockedAdd64(&lock, LOCK_WRITE_VAL);
+        atomic_add(lock, lock_write_value);
 		return true;
 	}
-	thread |= LOCK_WRITE_VAL;
-	val = SLxInterlockedCompareExchange64(&lock, thread, 0);
-	return !val;
+	thread |= lock_write_value;
+    return atomic_cas<rwlock>(lock, 0, thread);
 }
 
-SLINLINE void unlock_write(RWLOCK &lock)
+SLINLINE void unlock_write(volatile rwlock &lock)
 {
-    RWLOCKVALUE tmp = lock;
+    rwlock thread = current_thread_uid() & lock_thread_mask;
+    rwlock curlock = atomic_load(lock);
 
-    RWLOCKVALUE thread = tid_self();
-    if ((tmp & LOCK_THREAD_MASK)!=thread)
-        SLERROR("DEAD LOCK: $", lock);
+    if ((curlock & lock_thread_mask)!=thread)
+        ERRORM(__FILE__, __LINE__, "bad call of unlock_write: current tid: $, locked tid: $", thread, (curlock & lock_thread_mask));
 
-    CHECK_WRITE_LOCK(tmp);
+    if (0 == (curlock & lock_write_mask))
+        ERRORM(__FILE__, __LINE__, "bad call of unlock_write: not locked for write ($)", HEX(0, curlock));
 
-    RWLOCKVALUE val = tmp - LOCK_WRITE_VAL;
-	if(!(val & LOCK_WRITE_MASK)) // last lock - reset thread
-		val &= LOCK_READ_MASK;
-	SLxInterlockedCompareExchange64(&lock, val, tmp);
+    rwlock val = curlock - lock_write_value;
+	if(!(val & lock_write_mask)) // last lock - reset thread
+		val &= lock_read_mask;
+
+    atomic_set(lock, val);
 }
 
-SLINLINE void unlock_read(RWLOCK &lock)
+SLINLINE void unlock_read(volatile rwlock &lock)
 {
-	CHECK_READ_LOCK(lock);
-	SLxInterlockedAdd64(&lock, ~(LOCK_READ_VAL-1));
+    ASSERT(lock & lock_read_mask, "bad call of unlock_read: not locked for read ($)", lock);
+    atomic_add(lock, ~(lock_read_value - 1));
 }
 
 struct auto_lock_write
 {
-    RWLOCK *lock;
-    auto_lock_write( RWLOCK& _lock ) : lock(&_lock)
+    volatile rwlock *lock;
+    auto_lock_write(volatile rwlock & _lock ) : lock(&_lock)
     {
 		lock_write(*lock);
     }
@@ -408,8 +406,8 @@ struct auto_lock_write
 
 struct auto_lock_read
 {
-    RWLOCK *lock;
-    auto_lock_read( RWLOCK& _lock ) : lock(&_lock)
+    volatile rwlock*lock;
+    auto_lock_read(volatile rwlock& _lock ) : lock(&_lock)
     {
         lock_read(*lock);
     }
@@ -420,82 +418,48 @@ struct auto_lock_read
     }
 };
 
-#define LOCK4WRITE( ll ) spinlock::auto_lock_write UNIQIDLINE(__l4w)( ll )
-#define LOCK4READ( ll ) spinlock::auto_lock_read UNIQIDLINE(__l4r)( ll )
-
-inline void simple_lock(volatile long3264 &lock)
+inline void simple_lock(volatile size_t &lock)
 {
-    long3264 myv = tid_self();
-    #if defined(_MSC_VER) && !defined(_RELEASE)
-    if (lock == myv)
-        __debugbreak();
-    #endif
-    for (;;)
+    for (; !atomic_cas<size_t>(lock, 0, 1);)
     {
-        long3264 val = SLxInterlockedCompareExchange(&lock, myv, 0);
-        if (val == 0)
-            break;
-        #if defined(_MSC_VER) && !defined(_RELEASE)
-        if (val == myv)
-            __debugbreak();
-        #endif
-        _mm_pause();
+        if (IS_SINGLE_CORE)
+            sleep(0);
+        else
+            sleep();
     }
-    #if defined(_MSC_VER) && !defined(_RELEASE)
-    if (lock != myv)
-        __debugbreak();
-    #endif
 }
 
-inline bool try_simple_lock(volatile long3264 &lock)
+inline void simple_lock_spincount(volatile size_t& lock, size_t spincount)
 {
-    long3264 myv = 0;
-    uint32_t x = tid_self();
-    myv = x;
-    #if defined(_MSC_VER) && !defined(_RELEASE)
-    if (lock == myv)
-        __debugbreak();
-    #endif
-    long3264 val = SLxInterlockedCompareExchange(&lock, myv, 0);
-    if (val) return false;
-    #if defined(_MSC_VER) && !defined(_RELEASE)
-    if (lock != myv)
-        __debugbreak();
-    #endif
-    return true;
+    for (size_t sc = 0; !atomic_cas<size_t>(lock, 0, 1); ++sc)
+    {
+        if (IS_SINGLE_CORE || sc > spincount)
+            sleep((sc >> 17) & 0xff);
+        else
+            sleep();
+    }
+}
+
+inline bool try_simple_lock(volatile size_t &lock)
+{
+    return atomic_cas<size_t>(lock, 0, 1);
 }
 
 
-inline void simple_unlock(volatile long3264 &lock)
+inline void simple_unlock(volatile size_t &lock)
 {
-    long3264 myv = tid_self();
-    #if defined(_MSC_VER) && !defined(_RELEASE)
-    if (lock != myv)
-        __debugbreak();
-    long3264 val =
-    #endif
-    SLxInterlockedCompareExchange(&lock, 0, myv);
-    #if defined(_MSC_VER) && !defined(_RELEASE)
-    if (val != myv)
-        __debugbreak();
-    #endif
-}
-
-inline bool atomic_replace(volatile long3264& lock, long3264 expected_value, long3264 new_value)
-{
-	long3264 val = SLxInterlockedCompareExchange(&lock, new_value, expected_value);
-    return expected_value == val;
+    atomic_set<size_t>(lock, 0);
 }
 
 struct auto_simple_lock
 {
-    volatile long3264 *lockvar;
-    auto_simple_lock(volatile long3264& _lock, bool) : lockvar(&_lock)
+    volatile size_t *lockvar;
+    auto_simple_lock(volatile size_t& _lock, bool) : lockvar(&_lock)
     {
         if (!try_simple_lock(*lockvar))
             lockvar = nullptr;
     }
-    auto_simple_lock(volatile long3264& _lock) : lockvar(&_lock)
+    auto_simple_lock(volatile size_t& _lock) : lockvar(&_lock)
     {
         simple_lock(*lockvar);
     }
@@ -505,7 +469,7 @@ struct auto_simple_lock
             simple_unlock(*lockvar);
     }
     bool is_locked() const { return lockvar != nullptr; }
-    void lock( long3264& _lock)
+    void lock( size_t& _lock)
     {
         if (lockvar) simple_unlock(*lockvar);
         lockvar = &_lock;
@@ -521,52 +485,35 @@ struct auto_simple_lock
     }
 };
 
-#define SIMPLELOCK( ll ) spinlock::auto_simple_lock UNIQIDLINE(__slock)( ll )
-
-inline long3264 increment_by( volatile long3264 &lock, long3264 val ) // returns initial value
-{
-    return SLxInterlockedAdd( &lock, val );
-}
-
-inline long3264 increment( volatile long3264 &lock )
-{
-    return SLxInterlockedIncrement( &lock );
-}
-
-inline long3264 decrement( volatile long3264 &lock )
-{
-    return SLxInterlockedDecrement( &lock );
-}
-
 //////////////////////////////////////////////////////////////////////////
 
 template <typename VARTYPE> class syncvar
 {
-    RWLOCK mutable  m_lock = 0;
-    VARTYPE         m_var = {};
+    volatile mutable rwlock m_lock = 0;
+    VARTYPE m_var = {};
 
-    class read_c
+    class read_accessor
     {
         const VARTYPE *var;
         const syncvar *host;
         friend class syncvar;
-        read_c( const VARTYPE & _var, const syncvar *_host ): var(&_var), host(_host)
+        read_accessor( const VARTYPE & _var, const syncvar *_host ): var(&_var), host(_host)
         {
         }
-        read_c & operator = (const read_c &) = delete;
-        read_c(const read_c &) = delete;
+        read_accessor & operator = (const read_accessor &) = delete;
+        read_accessor(const read_accessor &) = delete;
     public:
-        read_c( read_c &&r ): var(r.var), host(r.host)
+        read_accessor( read_accessor &&r ): var(r.var), host(r.host)
         {
             r.var = nullptr;
             r.host = nullptr;
         }
-        ~read_c()
+        ~read_accessor()
         {
             if (host)
                 host->unlock_read();
         }
-        read_c & operator = (read_c &&r)
+        read_accessor & operator = (read_accessor &&r)
         {
             if (host)
                 host->unlock_read();
@@ -584,7 +531,7 @@ template <typename VARTYPE> class syncvar
 
         void unlock()
         {
-            SLASSERT (host != nullptr);
+            ASSERT (host != nullptr);
             host->unlock_read();
             var = nullptr;
             host = nullptr;
@@ -592,29 +539,29 @@ template <typename VARTYPE> class syncvar
 
         const VARTYPE &operator()()
         {
-            SLASSERT(var != nullptr && host != nullptr);
+            ASSERT(var != nullptr && host != nullptr);
             return *var;
         }
     };
 
-    class write_c
+    class write_accessor
     {
         VARTYPE * var;
         const syncvar *host;
         friend class syncvar;
-        write_c( VARTYPE * _var, const syncvar *_host ): var(_var), host(_host)
+        write_accessor( VARTYPE * _var, const syncvar *_host ): var(_var), host(_host)
         {
         }
-        write_c & operator = (const write_c &r) = delete;
-        write_c(const write_c &r) = delete;
+        write_accessor & operator = (const write_accessor &r) = delete;
+        write_accessor(const write_accessor &r) = delete;
     public:
-        write_c(): var(nullptr), host(nullptr) {}
-        write_c( write_c &&r ): var(r.var), host(r.host)
+        write_accessor(): var(nullptr), host(nullptr) {}
+        write_accessor( write_accessor &&r ): var(r.var), host(r.host)
         {
             r.var = nullptr;
             r.host = nullptr;
         }
-        write_c & operator = ( write_c &&r )
+        write_accessor & operator = ( write_accessor &&r )
         {
             if (host != nullptr)
                 host->unlock_write();
@@ -624,7 +571,7 @@ template <typename VARTYPE> class syncvar
             r.host = nullptr;
             return *this;
         }
-        ~write_c()
+        ~write_accessor()
         {
             if (host != nullptr)
                 host->unlock_write();
@@ -633,7 +580,7 @@ template <typename VARTYPE> class syncvar
         operator bool() const { return is_locked(); }
         void unlock()
         {
-            SLASSERT(host != nullptr);
+            ASSERT(host != nullptr);
             host->unlock_write();
             var = nullptr;
             host = nullptr;
@@ -642,14 +589,14 @@ template <typename VARTYPE> class syncvar
 
         VARTYPE &operator()()
         {
-            SLASSERT(var != nullptr && host != nullptr);
+            ASSERT(var != nullptr && host != nullptr);
             return *var;
         }
     };
 
 
-    friend class read_c;
-    friend class write_c;
+    friend class read_accessor;
+    friend class write_accessor;
 
 private:
 
@@ -667,8 +614,8 @@ private:
 
 public:
 
-    typedef read_c READER;
-    typedef write_c WRITER;
+    using READER = read_accessor;
+    using WRITER = write_accessor;
 
 public:
 
@@ -697,10 +644,10 @@ public:
     * Current thread will wait for lock_read if there are some other thread waits for lock_write
     */
 
-    read_c lock_read() const
+    read_accessor lock_read() const
     {
         spinlock::lock_read(m_lock);
-        return read_c( m_var, this );
+        return read_accessor( m_var, this );
     }
 
     template<typename H> void lock_read(const H& h)
@@ -713,47 +660,23 @@ public:
     /**
     *  Lock variable for write. no any other thread can lock for read or write.
     */
-    write_c lock_write(bool trylock = false)
+    write_accessor lock_write()
     {
-        if (trylock)
-        {
-            if (try_lock_write(m_lock))
-            {
-                return write_c( &m_var, this );
-            }
-            return write_c();
-        }
         spinlock::lock_write(m_lock);
-        return write_c( &m_var, this );
+        return write_accessor( &m_var, this );
+    }
+    write_accessor try_lock_write()
+    {
+        if (try_lock_write(m_lock))
+            return write_accessor(&m_var, this);
+        return write_accessor();
     }
 
     bool locked() const {return m_lock != 0;}
 };
-
-
-#undef DEADLOCKCHECK_INIT
-#undef DEADLOCKCHECK
-
-template<typename T> SLINLINE bool CAS2(volatile T& dest, T& compare, const T& value)
-{
-	//ALIGN_ASSERT(&dest, 16);
-	//ALIGN_ASSERT(&compare, 16);
-	//ALIGN_ASSERT(&value, 16);
-
-#ifdef _M_AMD64
-    return(SLxInterlockedCompareExchange2((int64*)&dest, ((int64*)&value)[1], ((int64*)&value)[0], ((int64*)&compare)) ? true : false);
-#else
-    int64 old = SLxInterlockedCompareExchange2((int64*)&dest, *((int64*)&value), *((int64*)&compare));
-    if (*((int64*)&compare) == old)	return true;
-    *((int64*)&compare) = old;
-    return false;
-#endif
-}
 
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #endif
 
 } // namespace spinlock
-
-#endif // _SPINLOCK_INCLUDE_

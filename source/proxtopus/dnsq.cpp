@@ -75,7 +75,7 @@ bool dnspp::build_query(qtype qt, netkit::pgen& pg)
 
 	header& mh = pg.pushstruct<header>();
 
-	mh.id = tools::as_word(spinlock::tid_self() >> 4);
+	mh.id = tools::as_word(spinlock::current_thread_uid());
 	mh.rd = 1; // recursion
 	mh.nques = 1;
 
@@ -203,7 +203,7 @@ dnspp::parse_result dnspp::parser::start()
 
 	if (nullptr == hdr)
 		return parse_data_error;
-	if (hdr->id != ((spinlock::tid_self() >> 4) & 0xffff))
+	if (hdr->id != (spinlock::current_thread_uid() & 0xffff))
 		return parse_data_error;
 	if (!hdr->qr)
 		return parse_data_error;
@@ -503,7 +503,7 @@ bool dns_resolver::find_ns(query_internals& qi, signed_t deep)
 				break;
 			}
 		}
-		if (swlv && !t.remaind().empty())
+		if (swlv && !t.remained().empty())
 			continue;
 
 		bool do_parent = false;
@@ -624,9 +624,9 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 	{
 		if (z->z == *t)
 		{
-			if (!t.remaind().empty())
+			if (!t.remained().empty())
 			{
-				add_zone_ns(ct, &z->subs, ns, t.remaind(), z.get(), prx);
+				add_zone_ns(ct, &z->subs, ns, t.remained(), z.get(), prx);
 				return;
 			}
 
@@ -687,9 +687,9 @@ void dns_resolver::add_zone_ns(time_t ct, zones_array* zar, newns& ns, const str
 	// add zone
 	zar->push_back( std::make_unique<zone>(*t, parent) );
 	zone* a = (*zar)[zar->size() - 1].get();
-	if (!t.remaind().empty())
+	if (!t.remained().empty())
 	{
-		add_zone_ns(ct, &a->subs, ns, t.remaind(), a, prx);
+		add_zone_ns(ct, &a->subs, ns, t.remained(), a, prx);
 		return;
 	}
 
@@ -775,7 +775,7 @@ ptr::shared_ptr<dns_resolver::cache_rec> dns_resolver::start_resolving(const str
 		rslv().emplace_back(emptyrr);
 	}
 
-	emptyrr->tid = spinlock::tid_self();
+	emptyrr->tid = spinlock::current_thread_uid();
 	emptyrr->hn = hn;
 
 	rslv.unlock();

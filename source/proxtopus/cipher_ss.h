@@ -384,17 +384,17 @@ namespace ss
 		protected:
 			struct incdec
 			{
-				volatile spinlock::long3264& v;
+				volatile size_t& v;
 				crypto_pipe_base* owner;
-				incdec(volatile spinlock::long3264& v, crypto_pipe_base* owner) :v(v), owner(owner) { if (spinlock::increment(v) > 10000) owner = nullptr; }
-				~incdec() { if (spinlock::decrement(v) > 10000 && owner) owner->close(true); }
+				incdec(volatile size_t& v, crypto_pipe_base* owner) :v(v), owner(owner) { if (spinlock::atomic_increment(v) > 10000) owner = nullptr; }
+				~incdec() { if (spinlock::atomic_decrement(v) > 10000 && owner) owner->close(true); }
 				operator bool() const
 				{
 					return owner == nullptr;
 				}
 			};
 
-			volatile spinlock::long3264 busy = 0;
+			volatile size_t busy = 0;
 			netkit::pipe_ptr pipe;
             std::unique_ptr<cryptor> crypto;
 			buffer encrypted_data; // ready 2 send data
@@ -419,7 +419,7 @@ namespace ss
             }
 
 			/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
-			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
+			/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz, signed_t timeout) override;
 			/*virtual*/ bool unrecv(const u8* data, signed_t sz) override;
 			/*virtual*/ netkit::WAITABLE get_waitable() override;
 			/*virtual*/ void close(bool flush_before_close) override;

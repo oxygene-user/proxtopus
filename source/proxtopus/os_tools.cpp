@@ -177,7 +177,7 @@ namespace ostools
             pSetThreadDescription(GetCurrentThread(), str::from_utf8(name).c_str());
 #endif
 #if defined(__linux__)
-        char buf[16];
+        char buf[16] = {0};
         size_t sl = math::minv(sizeof(buf),name.length());
         memcpy(buf, name.data(), sl);
         buf[15] = 0;

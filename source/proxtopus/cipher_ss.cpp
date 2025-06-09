@@ -279,7 +279,8 @@ void ss::core::crypto_pipe_base::generate_outgoing_salt()
 
 /*virtual*/ void ss::core::crypto_pipe_base::close(bool flush_before_close)
 {
-    bool io = spinlock::increment_by(busy, 10001) > 0;
+    spinlock::atomic_add<size_t>(busy, 10001);
+    bool io = busy > 10001;
     if (!io && pipe)
     {
         pipe->close(flush_before_close);
@@ -333,7 +334,7 @@ void ss::core::crypto_pipe_base::generate_outgoing_salt()
     return rslt;
 }
 
-/*virtual*/ signed_t ss::core::crypto_pipe_base::recv(u8* data, signed_t maxdatasz)
+/*virtual*/ signed_t ss::core::crypto_pipe_base::recv(u8* data, signed_t maxdatasz, signed_t timeout)
 {
     if (!pipe)
         return -1;
@@ -355,7 +356,7 @@ void ss::core::crypto_pipe_base::generate_outgoing_salt()
     signed_t recvsize = sizeof(temp);
     for (;; do_recv = true)
     {
-        signed_t sz = do_recv ? pipe->recv(temp, recvsize) : 0;
+        signed_t sz = do_recv ? pipe->recv(temp, recvsize, timeout) : 0;
         if (sz < 0)
             return sz;
 
@@ -413,7 +414,7 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, const str::astr & mast
 
 /*virtual*/ bool ss::core::crypto_pipe::init_decryptor(u8* temp)
 {
-    signed_t rb = pipe->recv(temp, -(signed_t)cp.KeySize);
+    signed_t rb = pipe->recv(temp, -(signed_t)cp.KeySize, RECV_PREPARE_MODE_TIMEOUT);
 	if (rb != cp.KeySize)
 		return false;
 
@@ -558,7 +559,7 @@ ss::core::multipass_crypto_pipe::multipass_crypto_pipe(netkit::pipe_ptr pipe, ma
 
     ASSERT(c->init == multipass_crypto::init_none);
 
-    if (signed_t rb = pipe->recv(c->nonce, -(signed_t)cp.KeySize); rb != cp.KeySize)
+    if (signed_t rb = pipe->recv(c->nonce, -(signed_t)cp.KeySize, RECV_PREPARE_MODE_TIMEOUT); rb != cp.KeySize)
         return false;
 
     c->init = multipass_crypto::init_rcv_nonce;

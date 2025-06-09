@@ -114,31 +114,28 @@ socket_listener::socket_listener(const netkit::ipap& bind, handler* h): listener
 
 void socket_listener::acceptor()
 {
-	state.lock_write()().stage = ACCEPTOR_WORKS;
+	stage = ACCEPTOR_WORKS;
 
 	accept_impl();
 
-	state.lock_write()().stage = IDLE;
+	stage = IDLE;
 
-	spinlock::decrement(glb.numlisteners);
+	spinlock::atomic_decrement(glb.numlisteners);
 }
 
 /*virtual*/ void socket_listener::api(json_saver& j) const
 {
 	listener::api(j);
 	j.field(ASTR("bind"), bind.to_string(true));
-	j.field(ASTR("idle"), state.lock_read()().stage == IDLE ? 1 : 0);
+	j.field(ASTR("idle"), stage == IDLE ? 1 : 0);
 }
 
 /*virtual*/ void socket_listener::open()
 {
-	auto ss = state.lock_write();
-	if (ss().stage != IDLE)
+	if (!spinlock::atomic_cas(stage, IDLE, ACCEPTOR_START))
 		return;
-	ss().stage = ACCEPTOR_START;
-	ss.unlock();
 
-	spinlock::increment(glb.numlisteners);
+	spinlock::atomic_increment(glb.numlisteners);
 
 	std::thread th(&socket_listener::acceptor, this);
 	th.detach();
@@ -146,10 +143,8 @@ void socket_listener::acceptor()
 
 /*virtual*/ void socket_listener::stop()
 {
-	if (state.lock_read()().stage == IDLE)
+	if (stage == IDLE)
 		return;
-
-	state.lock_write()().need_stop = true;
 
 	// holly stupid linux behaviour...
 	// we have to make a fake connection to the listening socket so that the damn [accept] will deign to give control.
@@ -159,10 +154,8 @@ void socket_listener::acceptor()
 
 	close(false);
 
-	while (state.lock_read()().stage != IDLE)
+	while (stage != IDLE)
 		spinlock::sleep(100);
-
-	state.lock_write()().need_stop = false;
 }
 
 
@@ -201,11 +194,6 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
 }
 #endif
 
-void pipe_worker(handler* h, netkit::pipe* p)
-{
-	h->handle_pipe(p);
-}
-
 /*virtual*/ void tcp_listener::accept_impl()
 {
 	ostools::set_current_thread_name(str::build_string("tcp-lstnr $", bind.port));
@@ -213,23 +201,16 @@ void pipe_worker(handler* h, netkit::pipe* p)
     if (sock.listen(name, bind))
     {
 #ifdef _DEBUG
-    accept_tid = spinlock::tid_self();
+    accept_tid = spinlock::current_thread_uid();
 #endif // _DEBUG
 
         LOG_N("listener {$} has been started (bind: $)", str::clean(name), bind.to_string(true).c_str());
 
-        stats::tick_collector cl(ASTR("tcp lst"));
-
-        for (; !state.lock_read()().need_stop;)
+        for (; !glb.is_stop();)
         {
-            cl.collect();
-
             netkit::tcp_pipe* pipe = sock.tcp_accept(name);
             if (nullptr != pipe)
-            {
-                std::thread th(pipe_worker, hand.get(), pipe);
-                th.detach();
-            }
+				glb.e->new_tcp_pipe(hand.get(), pipe);
         }
 
         hand->stop();
@@ -237,10 +218,12 @@ void pipe_worker(handler* h, netkit::pipe* p)
     else if (glb.listeners_need_all)
     {
         glb.e->exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
-        logger::unmute();
-        if (!glb.is_stop())
-            LOG_I("proxtopus exit (active option --lna)");
-        glb.stop();
+		if (!glb.is_stop())
+		{
+            logger::unmute();
+			LOG_I("proxtopus exit (active option --lna)");
+			glb.stop();
+		}
     }
 }
 
@@ -294,7 +277,7 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
 	if (port > 0)
 	{
 #ifdef _DEBUG
-		accept_tid = spinlock::tid_self();
+		accept_tid = spinlock::current_thread_uid();
 #endif // _DEBUG
 
 		hand->on_listen_port(port);
@@ -310,7 +293,7 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
 
 		stats::tick_collector cl(ASTR("udp lst"));
 
-		for (; !state.lock_read()().need_stop;)
+		for (; !glb.is_stop();)
 		{
 			cl.collect();
 

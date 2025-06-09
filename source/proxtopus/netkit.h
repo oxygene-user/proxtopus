@@ -5,7 +5,7 @@
 #include <Mmsystem.h>
 #endif
 
-#define LOOP_PERIOD 500000 // 0.5 sec
+#define LOOP_PERIOD 500 // 0.5 sec
 
 #ifdef _NIX
 inline void closesocket(int s) { ::close(s); };
@@ -481,8 +481,8 @@ namespace netkit
 	inline void clear_ready(WAITABLE w, signed_t mask) { w->ready &= ~mask; }
 #define NULL_WAITABLE ((netkit::WAITABLE)nullptr)
 
-	wrslt wait(WAITABLE s, long microsec);
-	wrslt wait_write(WAITABLE s, long microsec);
+	wrslt wait(WAITABLE s, signed_t ms_timeout);
+	wrslt wait_write(WAITABLE s, signed_t ms_timeout);
 
 	struct pipe;
 	class pipe_waiter
@@ -601,7 +601,7 @@ namespace netkit
 		u64 reg(pipe* p);
 		void unreg_last();
 
-		mask wait(long microsec); // after wait return, waiter is in empty state
+		mask wait(signed_t ms_timeout); // after wait return, waiter is in empty state
 		void signal();
 	};
 
@@ -784,7 +784,7 @@ namespace netkit
 		pipe(tcp_pipe&&) = delete;
 
 		virtual sendrslt send(const u8* data, signed_t datasize) = 0;
-		virtual signed_t recv(u8* data, signed_t maxdatasz) = 0;
+		virtual signed_t recv(u8* data, signed_t maxdatasz, signed_t timeout) = 0;
 		virtual WAITABLE get_waitable() = 0;
 		virtual void close(bool flush_before_close) = 0;
 		virtual bool alive() = 0;
@@ -858,7 +858,7 @@ namespace netkit
 
 
 		/*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
-		/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz) override;
+		/*virtual*/ signed_t recv(u8* data, signed_t maxdatasz, signed_t timeout) override;
 		/*virtual*/ bool unrecv(const u8* data, signed_t sz) override;
 
 		bool rcv_all(); // receive all, but stops when buffer size reaches 64k

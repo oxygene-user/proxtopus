@@ -60,6 +60,7 @@
 #include <map>
 #include <set>
 #include <mutex>
+#include <condition_variable>
 #include <shared_mutex>
 #include <functional>
 #include <charconv>
@@ -83,6 +84,7 @@ extern bool g_single_core;
 #define IS_SINGLE_CORE (g_single_core)
 
 #include "spinlock.h"
+
 #include "fsys.h"
 #include "arena.h"
 #include "sts.h"

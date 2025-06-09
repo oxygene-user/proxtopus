@@ -20,7 +20,7 @@ public:
 	handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st);
 	virtual ~handler_ss() { stop(); }
 
-	/*virtual*/ str::astr desc() const { return str::astr(ASTR("shadowsocks")); }
+	/*virtual*/ str::astr_view desc() const { return ASTR("shadowsocks"); }
     /*virtual*/ bool compatible(netkit::socket_type_e /*st*/) const
     {
         return true; // compatible with both tcp and udp

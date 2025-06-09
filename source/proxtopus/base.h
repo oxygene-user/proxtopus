@@ -216,13 +216,13 @@ namespace tools
     }
 }
 
-
-
-#define SLASSERT ASSERT
-#define SLERROR(...) do {ERRORM(__FILE__, __LINE__, __VA_ARGS__); DEBUGBREAK(); } while(false)
-
 #define ERRORM(fn, ln, ...) (([&]()->bool { debug_print("$($): $\n", filename(fn, strsize(fn)), ln, str::build_string(__VA_ARGS__).c_str()); return true; })())
 #define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, __VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
+#ifdef _DEBUG
+#define DASSERT ASSERT
+#else
+#define DASSERT(...) 
+#endif
 
 #ifdef _NIX
 #define NIXONLY(...) __VA_ARGS__

@@ -974,6 +974,148 @@ namespace tools
 		}
 	};
 
+#ifdef GCC_OR_CLANG
+    template<typename T> signed_t lowest_bit_index(T x) {
+		if (0 == x)
+			return -1;
+        return __builtin_ctzll(x);
+    }
+#endif
+#ifdef _MSC_VER
+#ifdef MODE64
+#pragma intrinsic(_BitScanForward64)
+	template<typename T> signed_t lowest_bit_index(T x) {
+
+        unsigned long index;
+        return _BitScanForward64(&index, x) ? (signed_t)index : -1;
+    }
+#else
+#pragma intrinsic(_BitScanForward)
+	template<typename T>  signed_t lowest_bit_index(T x) {
+        
+        if constexpr (sizeof(T) == 4)
+        {
+            unsigned long index;
+            return _BitScanForward(&index, x) ? (signed_t)index : -1;
+        }
+		else {
+
+            unsigned long index;
+			if (_BitScanForward(&index, static_cast<u32>(x & 0xffffffff)))
+				return (signed_t)index;
+
+			return _BitScanForward(&index, static_cast<u32>(x >> 32)) ? (signed_t)(index + 32) : -1;
+		}
+    }
+#endif
+#endif
+
+	template<typename T> requires(is_plain_old_struct_v<T>) class bucket
+	{
+		volatile u64 lockmask = 0xffffffffffffffffull; // each 0..31 bit: 0 - locked; 1 - unlocked / each 32..63 bit: 0 - not empty; 1 - empty (free)
+		u8 buf[sizeof(T) * 32];
+
+		signed_t lockempty()
+        {
+			size_t spincount = 0;
+            for (u64 m = spinlock::atomic_load(lockmask);;++spincount)
+            {
+                signed_t indx = lowest_bit_index(static_cast<u32>(m & (m>>32)));
+                if (indx < 0)
+                    return -1;
+                u64 newmask = m & (~(1ull << indx));
+                if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
+                    return indx;
+
+				if (g_single_core || spincount > 10000)
+				{
+					spinlock::sleep((spincount >> 17) & 0xff);
+					m = spinlock::atomic_load(lockmask);
+				}
+                else
+					spinlock::sleep();
+            }
+		}
+
+        signed_t lockvalue()
+        {
+			size_t spincount = 0;
+            for (u64 m = spinlock::atomic_load(lockmask);;++spincount)
+            {
+                signed_t indx = lowest_bit_index(static_cast<u32>(m & ((~m)>>32)));
+                if (indx < 0)
+                    return -1;
+                u64 newmask = m & (~(1ull << indx));
+                if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
+                    return indx;
+
+				if (IS_SINGLE_CORE || spincount > 10000)
+				{
+					spinlock::sleep((spincount >> 17) & 0xff);
+					m = spinlock::atomic_load(lockmask);
+				}
+                else
+					spinlock::sleep();
+            }
+        }
+
+		void unlock(u64 bitmask_set, u64 bitmask_clear)
+		{
+			size_t spincount = 0;
+            for (u64 m = lockmask;; ++spincount)
+            {
+				DASSERT( (m & bitmask_set) == 0 );
+                u64 newmask = (m | bitmask_set) & (~bitmask_clear);
+                if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
+                    return;
+
+                if (IS_SINGLE_CORE || spincount > 10000)
+                {
+					spinlock::sleep((spincount >> 17) & 0xff);
+                    m = spinlock::atomic_load(lockmask);
+                }
+                else
+					spinlock::sleep();
+
+            }
+		}
+
+	public:
+
+		bool empty() const
+		{
+			return (lockmask >> 32) == 0xffffffff;
+		}
+
+		template<typename SETER> bool put(SETER s)
+		{
+			if (signed_t idx = lockempty(); idx >= 0)
+			{
+                // indx bit is locked
+				// now set data
+                s(*(((T*)buf) + idx));
+                u64 maskbit = (1ull << idx);
+                unlock(maskbit, maskbit << 32);
+				return true;
+			}
+			return false;
+		}
+        template<typename GETER> bool get(GETER g)
+        {
+            if (signed_t idx = lockvalue(); idx >= 0)
+            {
+                // indx bit is locked
+                // now get data
+				g(*(((T*)buf) + idx));
+                u64 maskbit = (1ull << idx);
+                unlock(maskbit|(maskbit<<32), 0);
+                return true;
+            }
+            return false;
+        }
+
+	};
+
 	template<typename T> class fifo
 	{
 		std::vector<T> buf;

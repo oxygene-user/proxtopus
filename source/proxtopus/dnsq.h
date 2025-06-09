@@ -226,7 +226,7 @@ class dns_resolver
 		str::astr hn;
 		std::mutex mut;
 		std::condition_variable cv;
-		signed_t tid;
+		size_t tid;
 	};
 
 	struct cachemap : public tools::shashmap<char, ptr::shared_ptr<cache_rec>>

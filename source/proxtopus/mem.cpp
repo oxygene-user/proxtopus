@@ -358,9 +358,9 @@ void operator delete[](void* ptr, std::size_t /*size*/, std::align_val_t /*align
 #define USE_DL_PREFIX
 #define USE_LOCKS 0
 
-static spinlock::long3264 dlmalloc_spinlock = 0;
+static size_t dlmalloc_spinlock = 0;
 
-#define PREACTION(M)  (spinlock::simple_lock(dlmalloc_spinlock), 0)
+#define PREACTION(M)  (spinlock::simple_lock_spincount(dlmalloc_spinlock, 10000), 0)
 #define POSTACTION(M) spinlock::simple_unlock(dlmalloc_spinlock)
 
 #define _NTOS_

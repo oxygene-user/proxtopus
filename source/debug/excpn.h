@@ -10,7 +10,7 @@ typedef BOOL (WINAPI * MINIDUMPWRITEDUMP)(HANDLE, DWORD, HANDLE, MINIDUMP_TYPE, 
 class exceptions_best_friend : public StackWalker
 {
 private:
-    spinlock::long3264 lock;
+    size_t lock;
     MINIDUMP_TYPE dump_type;
 
 	void trace_info(EXCEPTION_POINTERS* pExp);

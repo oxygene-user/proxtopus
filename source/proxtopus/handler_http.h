@@ -132,7 +132,7 @@ public:
     handler_http(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st);
     virtual ~handler_http() { stop(); }
 
-    /*virtual*/ str::astr desc() const { return str::astr(ASTR("http")); }
+    /*virtual*/ str::astr_view desc() const { return ASTR("http"); }
     /*virtual*/ bool compatible(netkit::socket_type_e st) const
     {
         return st == netkit::ST_TCP;

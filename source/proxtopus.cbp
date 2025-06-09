@@ -11,10 +11,12 @@
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
+				<Option parameters="--actual" />
 				<Compiler>
 					<Add option="-m64" />
 					<Add option="-g" />
 					<Add option="-rdynamic" />
+					<Add option="-mcx16" />
 					<Add option="-D_DEBUG" />
 					<Add option="-D_GLIBCXX_DEBUG" />
 					<Add directory="proxtopus" />

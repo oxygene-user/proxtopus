@@ -3,6 +3,9 @@
 #include "handlers.h"
 #include "transport.h"
 
+#define RECV_BRIDGE_MODE_TIMEOUT 60000 // 1 min
+#define RECV_PREPARE_MODE_TIMEOUT 10000 // 10 sec
+
 class loader;
 class proxy;
 class listener;
@@ -16,7 +19,7 @@ protected:
 public:
 
 #ifdef _DEBUG
-	u32 accept_tid = 0;
+	size_t accept_tid = 0;
 #endif // _DEBUG
 
 	listener(loader& ldr, const str::astr& name, const asts& bb);
@@ -39,24 +42,16 @@ public:
 
 class socket_listener : public listener
 {
-	enum state_stage : u8
+	enum state_stage : size_t
 	{
 		IDLE,
 		ACCEPTOR_START,
 		ACCEPTOR_WORKS,
 	};
 
-	struct statestruct
-	{
-		state_stage stage = IDLE;
-		bool need_stop = false;
-		u8 dummy[6];
-	};
-
-	static_assert(sizeof(statestruct) == 8);
 
 protected:
-	spinlock::syncvar<statestruct> state;
+    volatile state_stage stage = IDLE;
     netkit::ipap bind;
 	void acceptor();
 	virtual void accept_impl() = 0;

@@ -1,6 +1,6 @@
 #pragma once
 
-#define PROXTOPUS_VER "0.7"
+#define PROXTOPUS_VER "0.8"
 
 struct conf
 {
@@ -167,9 +167,9 @@ struct global_data
 private:
 	volatile bool exit = false;
 public:
-	volatile spinlock::long3264 numlisteners = 0;
-	volatile spinlock::long3264 numtcp = 0; // number of tcp processing threads
-	volatile spinlock::long3264 numudp = 0; // number of udp processing threads
+	volatile size_t numlisteners = 0;
+	volatile size_t numtcp = 0; // number of tcp processing threads
+	volatile size_t numudp = 0; // number of udp processing threads
 
 	void stop();
 	bool is_stop() { return exit; }
