@@ -18,6 +18,7 @@
 #include <botan/internal/eme.h>
 #include <botan/internal/eme_pkcs.h>
 #include <botan/internal/rounding.h>
+#include <botan/internal/hmac.h>
 
 namespace str
 {
@@ -665,12 +666,6 @@ namespace Botan
 		return Botan::CT::is_equal(our_mac.data(), mac.data(), mac.size()).as_bool();
 	}
 
-	size_t Entropy_Sources::poll(RandomNumberGenerator& /*rng*/, size_t /*poll_bits*/, std::chrono::milliseconds /*timeout*/) {
-
-		DEBUGBREAK();
-		return 0;
-	}
-
     void assert_unreachable(const char* file, int line) {
 
         debug_print("$($): $\n", filename(file, strlen(file)), line, "Codepath that was marked unreachable was reached");
@@ -705,7 +700,7 @@ namespace Botan
 	}
 
     void SymmetricAlgorithm::throw_key_not_set_error() const {
-        throw Key_Not_Set("");
+        throw Key_Not_Set(ASTR(""));
     }
 
 	std::string ALG::to_string() const

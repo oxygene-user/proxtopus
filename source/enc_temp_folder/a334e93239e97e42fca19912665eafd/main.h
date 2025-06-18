@@ -1,6 +1,6 @@
 #pragma once
 
-#define PROXTOPUS_VER "0.9"
+#define PROXTOPUS_VER "0.8"
 
 struct conf
 {

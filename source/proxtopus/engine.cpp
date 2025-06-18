@@ -1,5 +1,7 @@
 #include "pch.h"
 
+DST(bool deep_tracer::deep_trace_enabled = true);
+
 engine::engine()
 {
 	glb.e = this;
@@ -117,11 +119,11 @@ engine::~engine()
 
     current_absorber = 0; // force remove absorber
 
-	for (; num_acceptors > 0;)
-	{
-		cv.notify_all();
-		spinlock::sleep(100);
-	}
+    for (; num_acceptors > 0;)
+    {
+        cv.notify_all();
+        spinlock::sleep(100);
+    }
 
     spinlock::lock_read(lock_tcp_list); // << LOCK a
     if (tcps)
@@ -131,7 +133,7 @@ engine::~engine()
     for (; tcps.get() != nullptr;)
         spinlock::sleep(100);
 
-	glb.e = nullptr;
+    glb.e = nullptr;
 
 	std::array<netkit::pipe*,256> pipes2del;
 	std::array<slot_statistics*, 256> stat2del;
@@ -298,24 +300,65 @@ void engine::release_tcp(tcp_processing_thread* tcp_wt)
 
 }
 
-engine::bridged::process_result engine::bridged::process(u8* data, netkit::pipe_waiter::mask& masks)
+namespace
+{
+    struct send_cb
+    {
+        netkit::pipe* pipe;
+        send_cb(netkit::pipe* pipe) :pipe(pipe) {}
+        netkit::pipe::sendrslt r1 = netkit::pipe::SEND_UNDEFINED;
+        netkit::pipe::sendrslt r2 = netkit::pipe::SEND_UNDEFINED;
+        void operator += (std::span<const u8> data)
+        {
+            if (r1 == netkit::pipe::SEND_UNDEFINED)
+                r1 = pipe->send(data.data(), data.size());
+            else if (r1 != netkit::pipe::SEND_FAIL)
+                r2 = pipe->send(data.data(), data.size());
+        }
+        operator netkit::pipe::sendrslt()
+        {
+            if (r2 == netkit::pipe::SEND_UNDEFINED)
+                return r1;
+            if (r1 == netkit::pipe::SEND_FAIL)
+                return netkit::pipe::SEND_FAIL;
+            return r2;
+        }
+    };
+
+    inline signed_t capacity(const send_cb&)
+    {
+        return 0;
+    }
+
+}
+
+
+engine::bridged::process_result engine::bridged::process(tools::circular_buffer_extdata &data, netkit::pipe_waiter::mask& masks)
 {
     process_result rv = masks.have_closed(mask1 | mask2) ? SLOT_DEAD : SLOT_SKIPPED;
-
+    bool highload = false;
     if (masks.have_read(mask1))
     {
         if (pipe2->send(nullptr, 0) == netkit::pipe::SEND_BUFFERFULL)
         {
+            DST(tracer->log("1>2 sendfull"));
         }
         else
         {
-            signed_t sz = pipe1->recv(data, BRIDGE_BUFFER_SIZE, RECV_BRIDGE_MODE_TIMEOUT);
+            DST(tracer->log("1 recv"));
+            data.clear();
+            signed_t sz = pipe1->recv(data, 0, RECV_BRIDGE_MODE_TIMEOUT DST(, tracer));
+            DST(tracer->log("1 recv $", sz));
 
             if (sz < 0)
                 rv = SLOT_DEAD;
             else if (sz > 0)
             {
-                netkit::pipe::sendrslt r = pipe2->send(data, sz);
+                highload = sz >= 32768;
+
+                DST(tracer->log("1>2 send $", sz));
+                send_cb r(pipe2.get());
+                data.peek(r);
                 if (r == netkit::pipe::SEND_FAIL)
                     return SLOT_DEAD;
 
@@ -327,7 +370,7 @@ engine::bridged::process_result engine::bridged::process(u8* data, netkit::pipe_
 #endif
             }
         }
-        if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+        if (rv != SLOT_DEAD) rv = highload ? SLOT_PROCESSED_HIGHLOAD : SLOT_PROCESSED;
 
     }
     if (masks.have_read(mask2))
@@ -336,16 +379,25 @@ engine::bridged::process_result engine::bridged::process(u8* data, netkit::pipe_
         {
             // send buffer full
             // don't read pipe now because we can't send it
+            DST(tracer->log("2>1 sendfull"));
         }
         else
         {
-            signed_t sz = pipe2->recv(data, BRIDGE_BUFFER_SIZE, RECV_BRIDGE_MODE_TIMEOUT);
+            DST(tracer->log("2 recv"));
+            data.clear();
+            signed_t sz = pipe2->recv(data, 0, RECV_BRIDGE_MODE_TIMEOUT DST(, tracer));
+            DST(tracer->log("2 recv $", sz));
 
             if (sz < 0)
                 rv = SLOT_DEAD;
             else if (sz > 0)
             {
-                netkit::pipe::sendrslt r = pipe1->send(data, sz);
+                highload = sz >= 32768;
+
+                DST(tracer->log("2>1 send $", sz));
+                send_cb r(pipe1.get());
+                data.peek(r);
+
                 if (r == netkit::pipe::SEND_FAIL)
                     return SLOT_DEAD;
 
@@ -358,23 +410,27 @@ engine::bridged::process_result engine::bridged::process(u8* data, netkit::pipe_
 
             }
         }
-        if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+        if (rv != SLOT_DEAD) rv = highload ? SLOT_PROCESSED_HIGHLOAD : SLOT_PROCESSED;
 
     }
 
     if (masks.have_write(mask1))
     {
-        netkit::pipe::sendrslt r = pipe1->send(data, 0); // just send unsent buffer
+        DST(tracer->log("2>1 send buf"));
+        u8 temp = 0;
+        netkit::pipe::sendrslt r = pipe1->send(&temp, 0); // just send unsent buffer; temp not send
         if (r == netkit::pipe::SEND_FAIL)
             return SLOT_DEAD;
-        if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+        if (rv != SLOT_DEAD) rv = highload ? SLOT_PROCESSED_HIGHLOAD : SLOT_PROCESSED;
     }
     if (masks.have_write(mask2))
     {
-        netkit::pipe::sendrslt r = pipe2->send(data, 0); // just send unsent buffer
+        DST(tracer->log("1>2 send buf"));
+        u8 temp = 0;
+        netkit::pipe::sendrslt r = pipe2->send(&temp, 0); // just send unsent buffer; temp not send
         if (r == netkit::pipe::SEND_FAIL)
             return SLOT_DEAD;
-        if (rv != SLOT_DEAD) rv = SLOT_PROCESSES;
+        if (rv != SLOT_DEAD) rv = highload ? SLOT_PROCESSED_HIGHLOAD : SLOT_PROCESSED;
     }
 
     return rv;
@@ -398,8 +454,14 @@ void engine::bridge(netkit::pipe_ptr&& pipe1, netkit::pipe_ptr&& pipe2)
 
     ostools::set_current_thread_name(ASTR("bridge"));
 
+#ifdef _WIN32
+    // it will call WSACreateEvent
+    pipe1->get_waitable();
+    pipe2->get_waitable();
+#endif
+
 #if 0
-    if (g_single_core)
+    if (IS_SINGLE_CORE)
     {
         // do not merge connection threads if single core
         tcp_processing_thread pt;
@@ -429,32 +491,30 @@ void engine::bridge(netkit::pipe_ptr&& pipe1, netkit::pipe_ptr&& pipe2)
     pipe2 = nullptr;
 
     spinlock::lock_write(lock_tcp_list); //<< LOCK b
-
     npt->get_next_ptr()->reset(tcps.get());
     tcps.release();
     tcps.reset(npt);
-
     spinlock::unlock_write(lock_tcp_list); //<< UNLOCK b
 
-    bridge(npt);
-
-
-    release_tcp(npt);
-
-}
-
-void engine::bridge(tcp_processing_thread* npt)
-{
-    u8 data[BRIDGE_BUFFER_SIZE];
+    tools::circular_buffer_preallocated<BRIDGE_BUFFER_SIZE> data;
     for (; !glb.is_stop();)
     {
         if (!npt->tick(data))
             break;
     }
+
+    if (glb.is_stop())
+        current_absorber = 0;
+
+    release_tcp(npt);
 }
 
 engine::tcp_processing_thread::~tcp_processing_thread()
 {
+#if DEEP_SLOT_TRACE
+    save_log();
+#endif
+
     ASSERT(!glb.e->is_absorber_status(this));
     spinlock::atomic_decrement(glb.numtcp);
 }
@@ -475,8 +535,10 @@ void engine::tcp_processing_thread::close()
 
 
 
-bool engine::tcp_processing_thread::tick(u8* data)
+bool engine::tcp_processing_thread::tick(tools::circular_buffer_extdata &data)
 {
+    DST(set_current_thread());
+
     bool absorber = glb.e->acquire_absorber_status(this);
 
 rep_prep:
@@ -515,6 +577,7 @@ rep_prep:
     {
         if (numslots < MAXIMUM_SLOTS)
         {
+            DST(slots[numslots].tracer = this);
             if (glb.e->bridge_absorb(slots[numslots]))
             {
                 slots[numslots].mask1 = 0;
@@ -553,6 +616,18 @@ rep_prep:
         ostools::set_current_thread_name(n);
     }
 
+#if DEEP_SLOT_TRACE
+    set_current_thread();
+
+    for (signed_t i = 0; i < numslots; ++i)
+    {
+        bridged& slot = slots[i];
+        slot.tracer = this;
+        set_current_slot(slot.stat->uid);
+        log("prewait");
+    }
+#endif
+
     waiting = true;
     auto mask = waiter.wait(10 * 1000 /*10 sec*/);
     waiting = false;
@@ -587,6 +662,9 @@ rep_prep:
                 if (dt > 60000 * 2)
                 {
                     // kill inactive slot
+
+                    DST(slot.tracer->log("inactive timeout"));
+
                     slot.clear();
                     if (cleanup < 0)
                         cleanup = slot_i;
@@ -594,7 +672,10 @@ rep_prep:
                 }
                 slot.stat->one_sec_inactive = dt > 1000;
                 if (dt > 1000 && cleanup < 0)
+                {
                     cleanup = slot_i;
+                    DST(slot.tracer->log("1sec inactive"));
+                }
             }
         };
 
@@ -646,6 +727,29 @@ rep_prep:
 
     if (mask.is_empty())
     {
+#if DEEP_SLOT_TRACE
+        if (mask.is_bysignal())
+        {
+            for (signed_t i = 0; i < numslots; ++i)
+            {
+                bridged& slot = slots[i];
+                slot.tracer = this;
+                set_current_slot(slot.stat->uid);
+                log("waitbreak");
+            }
+        }
+        else
+        {
+            for (signed_t i = 0; i < numslots; ++i)
+            {
+                bridged& slot = slots[i];
+                slot.tracer = this;
+                set_current_slot(slot.stat->uid);
+                log("empty wait");
+            }
+        }
+#endif
+
         if (!absorber)
         {
             for (signed_t i = 0; i < numslots; ++i)
@@ -654,38 +758,43 @@ rep_prep:
         }
         return true;
     }
-
-    bool some_processed = false;
-    for (signed_t i = 0; i < numslots && !mask.is_empty();)
+    bool highload = false;
+    for (signed_t i = 0; i < numslots && !mask.is_empty(); ++i)
     {
-        bridged::process_result pr = slots[i].process(data, mask);
-        some_processed |= pr == bridged::SLOT_PROCESSES;
-
-        if (bridged::SLOT_DEAD == pr)
+#if DEEP_SLOT_TRACE
+        slots[i].tracer = this;
+        set_current_slot(slots[i].stat->uid);
+#endif
+        switch (slots[i].process(data, mask))
         {
+        case bridged::SLOT_DEAD:
+            DST(log("dead"));
+
             slots[i].clear();
             if (cleanup < 0)
                 cleanup = i;
             continue;
-        }
-
-        if (bridged::SLOT_SKIPPED == pr)
-        {
+        case bridged::SLOT_SKIPPED:
+            DST(log("skiped"));
             process_inactive_slot(slots[i], i);
-        }
-        else
-        {
+            continue;
+        case bridged::SLOT_PROCESSED_HIGHLOAD:
+            highload = true;
+            [[fallthrough]];
+        case bridged::SLOT_PROCESSED:
             if (slots[i].stat)
             {
                 slots[i].stat->inactive_start = 0;
                 slots[i].stat->one_sec_inactive = false;
             }
         }
-
-        ++i;
     }
 
-    return handle_cleanup();
+    bool ok = handle_cleanup();
+    if (highload)
+        return ok;
+    spinlock::sleep(5); // If we don't sleep on a low channel load, we will get a large CPU consumption in Linux.
+    return !glb.is_stop() && numslots > 0;
 }
 
 
@@ -710,3 +819,104 @@ bool engine::heartbeat()
 
 	return false;
 }
+
+#if DEEP_SLOT_TRACE
+void deep_tracer::set_current_thread()
+{
+#ifdef _WIN32
+    cur_thread_id = GetCurrentThreadId();
+#else
+    cur_thread_id = pthread_self();
+#endif
+    cur_thread_uid = spinlock::current_thread_uid();
+
+    if (!deep_trace_enabled && !recs.empty())
+    {
+        save_log();
+    }
+
+
+}
+void deep_tracer::save_log()
+{
+    if (!recs.empty())
+    {
+        FN fn;
+#ifdef _WIN32
+        fn = MAKEFN("t:\\deep_trace\\");
+#endif
+        str::append_num(fn, reinterpret_cast<size_t>(this), 0);
+        fn.append(MAKEFN("-"));
+        str::append_num(fn, traceuid, 0);
+        fn.append(MAKEFN(".csv"));
+
+        if (file_appender apndr(fn); apndr)
+        {
+            std::vector<size_t> alluids;
+            for (auto& r : recs)
+            {
+                r.numlines = 0;
+                for (const auto& l : r.logs)
+                {
+                    if (l.second.log.size() > r.numlines)
+                        r.numlines = l.second.log.size();
+
+                    signed_t index;
+                    if (!tools::find_sorted(alluids, index, l.first))
+                        alluids.insert(alluids.begin() + index, l.first);
+                }
+            }
+
+            apndr << "time,tid,utid";
+            str::astr temp(ASTR(","));
+            for (size_t slotid : alluids)
+            {
+                temp.resize(1);
+                str::append_num(temp, slotid, 0);
+                apndr << temp;
+            }
+            apndr << "\r\n";
+
+            signed_t prevt = recs[0].time;
+            for (const auto& r : recs)
+            {
+                for (size_t ln = 0; ln < r.numlines; ++ln)
+                {
+                    if (ln == 0)
+                    {
+                        temp.resize(1);
+                        str::append_num(temp, r.time - prevt, 0);
+                        apndr << temp.substr(1);
+
+                        temp.resize(1);
+                        str::append_num(temp, r.tid, 0);
+                        apndr << temp;
+
+                        temp.resize(1);
+                        str::append_num(temp, r.utid, 0);
+                        apndr << temp;
+                    }
+                    else
+                    {
+                        apndr << ASTR(",,");
+                    }
+                    for (size_t slotid : alluids)
+                    {
+                        apndr << ASTR(",");
+                        auto x = r.logs.find(slotid);
+                        if (x != r.logs.end() && ln < x->second.log.size())
+                        {
+                            apndr << x->second.log[ln];
+                        }
+                    }
+                    apndr << ASTR("\r\n");
+
+                }
+                prevt = r.time;
+            }
+        }
+        recs.clear();
+        traceuid = tools::unique_id();
+    }
+}
+#endif

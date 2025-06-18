@@ -114,7 +114,7 @@ namespace ptr
 	{
 		template<typename T> static void kill(T* o)
 		{
-			free(o);
+			ma::mf(o);
 		}
 	};
 

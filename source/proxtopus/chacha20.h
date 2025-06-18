@@ -10,20 +10,45 @@ public:
 
     struct impl
     {
-        uint32_t input[16]; // context
+#ifndef MODE64
+        uint32_t ic_high;
+#endif
+        uint32_t input14, input15;
+        uint32_t input4, input5, input6, input7, input8, input9, input10, input11;
+#ifdef MODE64
+        uint32_t ic_high;
+#endif
 
-        void cipher_ref(const uint8_t in[], uint8_t out[], size_t size);
-        void cipher_ssse3(const uint8_t in[], uint8_t out[], size_t size);
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
-        void cipher_avx2(const uint8_t in[], uint8_t out[], size_t size);
+        impl()
+        {
+            #ifdef _NIX
+            #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+            #endif // _NIX
+            ASSERT(offsetof(impl, input4) == 16);
+            ASSERT(offsetof(impl, input5) == offsetof(impl, input4) + 4);
+            ASSERT(offsetof(impl, input6) == offsetof(impl, input5) + 4);
+            ASSERT(offsetof(impl, input7) == offsetof(impl, input6) + 4);
+            ASSERT(offsetof(impl, input8) == offsetof(impl, input7) + 4);
+        }
+
+#ifndef SSSE3_SUPPORTED
+        void cipher_ref(const uint8_t in[], uint8_t out[], size_t size, u64 ic);
+#endif
+
+#ifndef AVX2_SUPPORTED
+        void cipher_ssse3(const uint8_t in[], uint8_t out[], size_t size, u64 ic);
+#endif
+#ifdef MODE64
+        void cipher_avx2(const uint8_t in[], uint8_t out[], size_t size, u64 ic);
 #endif
 
         virtual ~impl()
         {
+            void* clrptr = reinterpret_cast<u8*>(this) + sizeof(void*);
 #ifdef _DEBUG
-            memset(input, 0xab, sizeof(input));
+            memset(clrptr, 0xab, sizeof(impl)-sizeof(void*));
 #else
-            Botan::secure_scrub_memory(input, sizeof(input));
+            Botan::secure_scrub_memory(clrptr, sizeof(impl) - sizeof(void*));
 #endif
         };
         virtual void cipher(const uint8_t in[], uint8_t out[], size_t size, size_t ic) = 0; // cipher 64 bytes
@@ -31,8 +56,8 @@ public:
 
         void key_setup_xchacha20(const unsigned char* k, const unsigned char* n);
         void key_setup(const uint8_t* k);
-        void ic_setup(size_t ic);
-        void ic_setup_ietf(size_t ic);
+        u64 ic_setup(size_t ic);
+        u64 ic_setup_ietf(size_t ic);
         void iv_setup(const uint8_t* iv);
         void iv_setup_ietf(const uint8_t* iv);
     };

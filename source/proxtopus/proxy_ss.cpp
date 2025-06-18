@@ -61,7 +61,8 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
 
-	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, core.masterkeys.lock_read()()[0].key, core.cp));
+	ss::core::keyspace* key = NEW ss::core::keyspace(core.masterkeys.lock_read()()[0].key);
+	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, key, core.cp));
 
 	// just send connect request (shadowsocks 2012 protocol spec)
 	// no need to wait answer: stream mode just after request

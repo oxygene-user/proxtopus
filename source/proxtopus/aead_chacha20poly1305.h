@@ -6,8 +6,8 @@ class aead_chacha20poly1305
 {
     chacha20 chacha;
 
-    void encipher_packet_impl(std::span<const uint8_t> nonce, std::span<const uint8_t> packet, uint8_t *outbuf); // full process; no associated data
-    bool decipher_packet_impl(std::span<const uint8_t> nonce, std::span<const uint8_t> packet, tools::memory_pair &outbuf); // full process; no associated data
+    void encipher_packet_impl(std::span<const u8> nonce, std::span<const u8> packet, u8 *outbuf); // full process; no associated data
+    bool decipher_packet_impl(std::span<const u8> nonce, std::span<const u8> packet, tools::memory_pair &outbuf); // full process; no associated data
 
 protected:
 
@@ -28,11 +28,11 @@ public:
         encipher_packet_impl(nonce, packet, outbuf);
     }
 
-    bool decipher_packet(std::span<const uint8_t> nonce, std::span<const uint8_t> packet, tools::memory_pair &mp)
+    bool decipher_packet(std::span<const uint8_t> nonce, std::span<const u8> packet, tools::memory_pair &reslt)
     {
         if (packet.size() < poly1305::tag_size)
             return false;
-        return decipher_packet_impl(nonce, packet, mp);
+        return decipher_packet_impl(nonce, packet, reslt);
     }
 
 };

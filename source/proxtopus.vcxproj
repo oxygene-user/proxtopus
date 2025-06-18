@@ -49,8 +49,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(GARBAGE)\libs\</AdditionalLibraryDirectories>
-      <ProgramDatabaseFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(GARBAGE)\bin\proxtopus.pdb</ProgramDatabaseFile>
       <UACExecutionLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">RequireAdministrator</UACExecutionLevel>
+      <ProgramDatabaseFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -136,6 +136,8 @@
     <ClInclude Include="botan\x509_ext.h" />
     <ClInclude Include="botan\x509_key.h" />
     <ClInclude Include="botan\x509_obj.h" />
+    <ClInclude Include="conf.h" />
+    <ClInclude Include="proxtopus\botan_hash.h" />
     <ClInclude Include="proxtopus\chacha20.h" />
     <ClInclude Include="debug\handler_dbg.h" />
     <ClInclude Include="debug\memspy.h" />
@@ -152,12 +154,10 @@
     <ClInclude Include="botan\concepts.h" />
     <ClInclude Include="botan\data_snk.h" />
     <ClInclude Include="botan\data_src.h" />
-    <ClInclude Include="botan\entropy_src.h" />
     <ClInclude Include="botan\exceptn.h" />
     <ClInclude Include="botan\filter.h" />
     <ClInclude Include="botan\hash.h" />
     <ClInclude Include="botan\hex.h" />
-    <ClInclude Include="botan\hmac_drbg.h" />
     <ClInclude Include="botan\internal\aes.h" />
     <ClInclude Include="botan\internal\alignment_buffer.h" />
     <ClInclude Include="botan\internal\bit_ops.h" />
@@ -167,7 +167,6 @@
     <ClInclude Include="botan\internal\ctr.h" />
     <ClInclude Include="botan\internal\ct_utils.h" />
     <ClInclude Include="botan\internal\donna128.h" />
-    <ClInclude Include="botan\internal\dyn_load.h" />
     <ClInclude Include="botan\internal\fmt.h" />
     <ClInclude Include="botan\internal\gcm.h" />
     <ClInclude Include="botan\internal\ghash.h" />
@@ -198,15 +197,16 @@
     <ClInclude Include="botan\mem_ops.h" />
     <ClInclude Include="botan\mutex.h" />
     <ClInclude Include="botan\rng.h" />
-    <ClInclude Include="botan\stateful_rng.h" />
     <ClInclude Include="botan\stream_cipher.h" />
     <ClInclude Include="botan\strong_type.h" />
     <ClInclude Include="botan\sym_algo.h" />
-    <ClInclude Include="botan\system_rng.h" />
     <ClInclude Include="botan\types.h" />
     <ClInclude Include="debug\excpn.h" />
     <ClInclude Include="debug\stkwlk.h" />
     <ClInclude Include="proxtopus\aead_chacha20poly1305.h" />
+    <ClInclude Include="proxtopus\conf_def.h" />
+    <ClInclude Include="proxtopus\hkdf.h" />
+    <ClInclude Include="proxtopus\hmac.h" />
     <ClInclude Include="proxtopus\os_tools.h" />
     <ClInclude Include="proxtopus\sodium_poly1305.h" />
     <ClInclude Include="proxtopus\secure_vector.h" />
@@ -270,9 +270,6 @@
     <ClCompile Include="botan\ctr.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="botan\dyn_load.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
     <ClCompile Include="botan\exceptn.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -295,9 +292,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\hmac.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\hmac_drbg.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\keccak_perm.cpp">
@@ -337,12 +331,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\sha3.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\stateful_rng.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="botan\system_rng.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="botan\tls_version.cpp">
@@ -827,6 +815,9 @@
   <ItemGroup>
     <Text Include="res\help.txt" />
     <Text Include="res\help_win.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="proxtopus\chacha20_select.inl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

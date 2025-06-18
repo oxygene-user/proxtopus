@@ -101,34 +101,63 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
 
 }
 
-/*virtual*/ signed_t tls_pipe::recv(u8* data, signed_t maxdatasz, signed_t timeout)
+/*virtual*/ signed_t tls_pipe::recv(tools::circular_buffer_extdata& outdata, signed_t required, signed_t timeout DST(, deep_tracer* tracer))
 {
+    if (required > 0 && outdata.datasize() >= required)
+    {
+        DST(if (tracer) tracer->log("tlsrecv alrd"));
+        return required;
+    }
+
     if (!pipe)
         return -1;
 
     incdec ddd(busy, this);
     if (ddd) return -1;
 
-    u8 temp[65536];
+    tools::circular_buffer_preallocated<BRIDGE_BUFFER_SIZE> tempbuf;
 
+    signed_t recvsize = required > 0 ? 1 : 0; // we need at least 1 required byte to recv (it will wait for data)
     bool do_recv = decrypted_data.is_empty();
     if (do_recv)
         netkit::clear_ready(get_waitable(), READY_PIPE);
-    else if (maxdatasz < 0 && !decrypted_data.enough(-maxdatasz))
-        do_recv = true;
+    else if (required > 0)
+    {
+        if (decrypted_data.enough(required - outdata.datasize()))
+        {
+            decrypted_data.peek(outdata);
+            ASSERT(outdata.datasize() >= required);
+            return required;
+        }
+        else {
+            do_recv = true;
+        }
+    }
 
     for (;; do_recv = true)
     {
-        signed_t sz = do_recv ? pipe->recv(temp, sizeof(temp), timeout) : 0;
+        signed_t sz = do_recv ? pipe->recv(tempbuf, recvsize, timeout DST(, tracer)) : tempbuf.datasize();
         if (sz < 0)
             return sz;
 
-        if (sz > 0)
+        if (size_t dsz = tempbuf.datasize(); dsz > 0)
         {
             try
             {
-                if (channel->from_peer(std::span<const u8>(temp, sz)) > 0)
+                std::span<const u8> td = tempbuf.data(dsz).p0;
+                
+                if (channel->from_peer(td) > 0)
+                {
+                    auto w = pipe->get_waitable();
+                    clear_ready(w, READY_PIPE | READY_SYSTEM);
+                    netkit::wrslt rslt = wait(w, LOOP_PERIOD);
+                    if (rslt == netkit::WR_CLOSED || glb.is_stop())
+                        return -1;
+
+                    tempbuf.skip(td.size());
                     continue;
+                }
+                tempbuf.skip(td.size());
             }
             catch (const std::exception&)
             {
@@ -136,45 +165,58 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
             }
         }
 
-        if (maxdatasz < 0)
+        if (required > 0)
         {
-            signed_t required = -maxdatasz; // required size to recv
-
             if (!decrypted_data.enough(required))
-                continue; // not enough data
+            {
+                auto w = pipe->get_waitable();
+                clear_ready(w, READY_PIPE | READY_SYSTEM);
+                netkit::wrslt rslt = wait(w, LOOP_PERIOD);
+                if (rslt == netkit::WR_CLOSED || glb.is_stop())
+                    return -1;
 
-            decrypted_data.peek(data, required);
+                continue; // not enough data
+            }
+
+            decrypted_data.peek(outdata, required);
             return required;
         }
         break;
     }
-    signed_t rv = 0;
-    if (decrypted_data.enough_for(maxdatasz))
+    signed_t rv = 0, maxcopysize = outdata.get_free_size();
+    if (decrypted_data.enough_for(maxcopysize))
     {
         // just copy whole decrypted data
-        rv = decrypted_data.peek(data);
+        rv = decrypted_data.peek(outdata);
     }
     else
     {
         // output buffer is smaller then decrypted
         // copy some
 
-        rv = decrypted_data.peek(data, maxdatasz);
-        ASSERT(rv = maxdatasz);
+        rv = decrypted_data.peek(outdata, maxcopysize);
+        ASSERT(rv = maxcopysize);
     }
 
     return rv;
 
 }
-/*virtual*/ bool tls_pipe::unrecv(const u8* data, signed_t sz)
+
+/*virtual*/ void tls_pipe::unrecv(tools::circular_buffer_extdata& data)
 {
-    if (pipe && sz > 0)
+    if (size_t dsz = data.datasize(); dsz>0 && pipe)
     {
-        decrypted_data.insert(std::span(data, sz));
+        tools::memory_pair mp = data.data(dsz);
+
+        if (mp.p1.size())
+            decrypted_data.insert(mp.p1);
+        decrypted_data.insert(mp.p0);
+        data.clear();
+
         netkit::make_ready(pipe->get_waitable(), READY_PIPE);
     }
-    return true;
 }
+
 /*virtual*/ netkit::WAITABLE tls_pipe::get_waitable()
 {
     if (!pipe)

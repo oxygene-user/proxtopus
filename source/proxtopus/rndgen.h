@@ -1,34 +1,30 @@
 #pragma once
 
-class randomgen : public Botan::RandomNumberGenerator {
+class chacha20;
+class randomgen {
 
-    Botan::HMAC_DRBG sfrng;
+    std::unique_ptr<chacha20> chacha;
+    void rnd(void* const buf, size_t size); // extra rnd
+public:
+    randomgen()
+    {
+    }
 
-    public:
-        bool is_seeded() const override
-        {
-            return sfrng.is_seeded();
-        }
+    void clear() { chacha.reset(); }
+    void randombytes_buf(void* const buf, size_t size);
+    void random_vec(std::span<uint8_t> v) { this->randombytes_buf(v.data(), v.size()); }
+};
 
-        bool accepts_input() const override { return true; }
 
-        void force_reseed();
+class BotanRndGen : public Botan::RandomNumberGenerator, public randomgen
+{
+public:
+    void fill_bytes_with_input(std::span<uint8_t> output, std::span<const uint8_t> /*input*/) override
+    {
+        randomgen::random_vec(output);
+    }
 
-        size_t reseed(Botan::Entropy_Sources& srcs, size_t poll_bits = BOTAN_RNG_RESEED_POLL_BITS, std::chrono::milliseconds poll_timeout = BOTAN_RNG_RESEED_DEFAULT_TIMEOUT) override
-        {
-            return sfrng.reseed(srcs, poll_bits, poll_timeout);
-        }
-
-        /// PROXTOPUS : name removed
-
-        void clear() override
-        {
-            sfrng.clear();
-        }
-
-        randomgen(size_t reseed_interval = BOTAN_RNG_DEFAULT_RESEED_INTERVAL);
-
-    private:
-        void fill_bytes_with_input(std::span<uint8_t> out, std::span<const uint8_t> in) override;
-
+    bool accepts_input() const override { return false; }
+    void clear() override { randomgen::clear(); }
+    bool is_seeded() const override { return true; }
 };

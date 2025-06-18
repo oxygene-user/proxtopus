@@ -18,8 +18,6 @@
 #define ALLOCA (u8 *)_alloca
 #endif // _MSC_VER
 
-
-
 bool messagebox(const char* s1, const char* s2, int options);
 
 //#define ASSERTS(expr, ...) ASSERTO(expr, (std::stringstream() << ""  __VA_ARGS__).str())
@@ -55,6 +53,8 @@ inline int timeGetTime()
 
 namespace tools
 {
+    size_t unique_id();
+
 	template<size_t sz> struct flags
 	{
 		using type = sztype<sz>::type;
@@ -127,6 +127,20 @@ namespace chrono
 		return (signed_t)timeGetTime();
 	}
 
+#if defined(_MSC_VER)
+#pragma intrinsic(__rdtsc)
+	inline uint64_t tsc() {
+		return __rdtsc();
+	}
+#elif defined(GCC_OR_CLANG)
+	inline uint64_t tsc() {
+		unsigned int lo, hi;
+		__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+		return ((uint64_t)hi << 32) | lo;
+	}
+#else
+#error "Unsupported compiler"
+#endif
 }
 
 namespace math
@@ -234,10 +248,12 @@ namespace helpers
         }
     };
 
+    template<typename T1, typename T2> using bigger_type = typename std::conditional<(sizeof(T1) >= sizeof(T2)), T1, T2>::type;
+
     template<bool s1, bool s2, typename T1, typename T2> struct getminmax
     {
-        typedef T1 type_min;
-		typedef T1 type_max;
+        typedef bigger_type<T1, T2> type_min;
+		typedef bigger_type<T1, T2> type_max;
         static T1 getmin(T1 t1, T2 t2)
         {
             return t1 < t2 ? t1 : t2;
@@ -279,6 +295,17 @@ namespace helpers
 
 namespace math
 {
+	template<std::unsigned_integral T, u8 flr> consteval T fill()
+	{
+		T t = flr;
+		for (size_t i = 1; i < sizeof(T); ++i)
+		{
+			t = (t << 8) | flr;
+		}
+		return t;
+	}
+
+
     template < typename T1, typename T2, typename T3 > inline T1 clamp(const T1 & a, const T2 & vmin, const T3 & vmax)
     {
         return (T1)(((a) > (vmax)) ? (vmax) : (((a) < (vmin)) ? (vmin) : (a)));
@@ -523,6 +550,15 @@ namespace tools
 		memory_pair(uint8_t* p, size_t sz) :p0(p, sz) {}
 		memory_pair(uint8_t* p0, size_t sz0, uint8_t* p1, size_t sz1) :p0(p0, sz0), p1(p1, sz1) {}
 
+		str::astr_view view1st() const
+		{
+			return str::view(p0);
+		}
+        str::astr_view view2nd() const
+        {
+            return str::view(p0);
+        }
+
 		size_t size() const
 		{
 			return p0.size() + p1.size();
@@ -721,6 +757,12 @@ namespace tools
 			}
 		}
 
+		chunk_buffer& operator += (std::span<const u8> data)
+		{
+			append(data);
+			return *this;
+		}
+
 		std::span<const u8> get_1st_chunk()
 		{
 			if (!first)
@@ -750,21 +792,36 @@ namespace tools
 			}
 		}
 
-		signed_t peek(u8 * out, signed_t sv) // like skip with data get
-		{
-			signed_t total_peeked = 0;
-			for (;first && sv > 0;)
-			{
-				auto fc = get_1st_chunk();
-				signed_t cpy = math::minv(sv, fc.size());
-				memcpy(out, fc.data(), cpy);
-				sv -= cpy;
-				out += cpy;
-				skip(cpy);
-				total_peeked += cpy;
-			}
-			return total_peeked;
-		}
+        signed_t peek(u8* out, signed_t sv) // like skip with data get
+        {
+            signed_t total_peeked = 0;
+            for (; first && sv > 0;)
+            {
+                auto fc = get_1st_chunk();
+                signed_t cpy = math::minv(sv, fc.size());
+                memcpy(out, fc.data(), cpy);
+                sv -= cpy;
+                out += cpy;
+                skip(cpy);
+                total_peeked += cpy;
+            }
+            return total_peeked;
+        }
+
+		template<typename BUF> signed_t peek(BUF &bufout, signed_t sv) // like skip with data get
+        {
+            signed_t total_peeked = 0;
+            for (; first && sv > 0;)
+            {
+                auto fc = get_1st_chunk();
+                signed_t cpy = math::minv(sv, fc.size());
+                bufout += std::span<const u8>(fc.data(), cpy);
+                sv -= cpy;
+                skip(cpy);
+                total_peeked += cpy;
+            }
+            return total_peeked;
+        }
 
 		signed_t peek(u8* out) // peek all
 		{
@@ -791,6 +848,39 @@ namespace tools
 			return total_peeked;
 		}
 
+        template<typename BUF> signed_t peek(BUF & bufout) // peek all
+        {
+            signed_t cap = capacity(bufout);
+            if (cap == 0)
+                cap = math::maximum<signed_t>::value;
+            signed_t total_peeked = 0;
+            for (; first;)
+            {
+                auto fc = get_1st_chunk();
+                auto cpy = math::minv(cap, fc.size());
+                bufout += std::span<const u8>(fc.data(), cpy);
+                total_peeked += cpy;
+                cap -= cpy;
+                if (cap == 0)
+                {
+                    first_skip += cpy;
+                    return total_peeked;
+                }
+
+                first_skip = 0;
+                chunk* next = first->next.get();
+                first->next.release();
+                first.reset(next);
+                if (!next)
+                {
+                    last = nullptr;
+                    ASSERT(first_skip == 0);
+                    break;
+                }
+
+            }
+            return total_peeked;
+        }
 
 		bool is_empty() const
 		{
@@ -825,154 +915,409 @@ namespace tools
 
 	};
 
-	template<signed_t size> class circular_buffer
+	inline signed_t capacity(const str::astr&)
 	{
-		u8 data[(size + 15) & (~15)];
-		signed_t start = 0, end = 0;
+		return 0;
+	}
+    template<signed_t size> signed_t capacity(const chunk_buffer<size>&)
+    {
+        return 0;
+    }
+    inline signed_t capacity(const buffer&)
+    {
+        return 0;
+    }
+	class circular_buffer_extdata;
+	signed_t capacity(const circular_buffer_extdata&);
+
+	class circular_buffer_engine
+	{
+    protected:
+        i32 start = 0, end = 0;
 	public:
-		circular_buffer() {}
-		circular_buffer(circular_buffer&& x)
+        using tank = std::span<u8>;
+		using const_tank = std::span<const u8>;
+
+        void clear()
+        {
+            start = 0;
+            end = 0;
+        }
+
+	protected:
+		circular_buffer_engine() {}
+
+		bool is_full( size_t size ) const
 		{
-			end = x.peek(data, size);
-		}
-		void operator=(circular_buffer&& x)
-		{
-			start = 0;
-			end = x.peek(data, size);
+			return (start == 0 && (size_t)end == size) || (end + 1 == start);
 		}
 
-		bool is_full() const
+#if 0
+		bool insert(const u8* d, signed_t sz, tank storage)
 		{
-			return (start == 0 && end == size) || (end + 1 == start);
-		}
-
-		bool insert(const u8* d, signed_t sz)
-		{
-			if (get_free_size() < sz)
+			if (get_free_size(storage.size()) < sz)
 				return false;
 
-			signed_t dsz = datasize();
+			i32 dsz = datasize(storage.size());
 			u8* temp = ALLOCA(dsz);
-			peek(temp, dsz);
+			peek(temp, dsz, storage);
 			clear();
-			auto t = get_1st_free();
+			auto t = get_1st_free(storage);
 			ASSERT((signed_t)t.size() <= (sz + dsz));
 			memcpy(t.data(), d, sz);
             memcpy(t.data() + sz, temp, dsz);
-			confirm(sz + dsz);
+			confirm(sz + dsz, storage.size());
 			return true;
 		}
+#endif
 
-		void clear()
-		{
-			start = 0;
-			end = 0;
-		}
-		signed_t datasize() const { return (start <= end) ? (end - start) : ((size - start) + end); }
-		signed_t get_free_size() const
+		i32 datasize(size_t size) const { return (start <= end) ? (end - start) : ((static_cast<i32>(size) - start) + end); }
+		i32 get_free_size(size_t size) const
 		{
 			if (start <= end)
 			{
-				signed_t sz1 = size - end;
-				signed_t sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+				i32 sz1 = static_cast<i32>(size) - end;
+				i32 sz2 = start - 1; if (sz2 < 0) sz2 = 0;
 				return sz1 + sz2;
 			}
-			signed_t sz = start - end - 1; if (sz < 0) sz = 0;
+			i32 sz = start - end - 1; if (sz < 0) sz = 0;
 			return sz;
 		}
 
-		using tank = std::span<u8>;
-
-		tank get_1st_free()
+		const u8* data1st(size_t getsize, const_tank storage) const
 		{
-			if (start <= end)
-			{
-				signed_t sz1 = size - end;
-				signed_t sz2 = start - 1; if (sz2 < 0) sz2 = 0;
-				if (sz1 == 0)
-					return tank(data, sz2);
-				return tank(data + end, sz1); // , tank(data, sz2)
-			}
-			signed_t sz = start - end - 1; if (sz < 0) sz = 0;
-			return tank(data + end, sz); // , tank(nullptr, 0)
+            auto available = (start <= end) ? (end - start) : (storage.size() - start);
+			ASSERT(getsize <= available);
+			//return getsize <= available ? storage.data() + start : nullptr;
+			return storage.data() + start;
 		}
-		void confirm(signed_t sz)
+
+		memory_pair data(size_t getsize, tank storage)
+		{
+			if (start <= end)
+				return memory_pair(storage.data() + start, math::minv(getsize, end-start));
+
+			size_t sz1 = storage.size() - start;
+			if (getsize <= sz1)
+				return memory_pair(storage.data() + start, getsize);
+			getsize -= sz1;
+			return memory_pair(storage.data() + start, sz1, storage.data(), math::minv(getsize, end));
+		}
+
+        tank get_1st_free(tank storage) // it simply returns the free block following the data; after filling you should call confirm method to apply append
 		{
 			if (start <= end)
 			{
-				signed_t sz1 = size - end;
+				i32 sz1 = static_cast<i32>(storage.size()) - end;
+				i32 sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+				if (sz1 == 0)
+					return tank(storage.data(), sz2);
+				return tank(storage.data() + end, sz1); // , tank(data, sz2)
+			}
+			i32 sz = start - end - 1; if (sz < 0) sz = 0;
+			return tank(storage.data() + end, sz); // , tank(nullptr, 0)
+		}
+		void confirm(signed_t sz, size_t size)
+		{
+			if (start <= end)
+			{
+				i32 sz1 = static_cast<i32>(size) - end;
 #ifdef _DEBUG
-				signed_t sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+				i32 sz2 = start - 1; if (sz2 < 0) sz2 = 0;
 				ASSERT(sz <= (sz1 + sz2));
 #endif
 				if (sz <= sz1)
 				{
-					end += sz;
+					end += static_cast<i32>(sz);
 					return;
 				}
 
-				end = sz - sz1;
+				end = static_cast<i32>(sz - sz1);
 				return;
 			}
 
 
 #ifdef _DEBUG
-			signed_t sz0 = start - end - 1; if (sz < 0) sz = 0;
+			i32 sz0 = start - end - 1; if (sz < 0) sz = 0;
 			ASSERT(sz <= sz0);
 #endif
-			end += sz;
+			end += static_cast<i32>(sz);
 		}
 
-		signed_t peek(u8* output, signed_t outsize)
+        i32 append(const_tank d, tank storage)
+        {
+            auto cpy = [](tank dst, const_tank src) -> i32
+                {
+                    size_t cpysz = math::minv(dst.size(), src.size());
+                    memcpy(dst.data(), src.data(), cpysz);
+                    return static_cast<i32>(cpysz);
+                };
+
+            i32 cpyd = 0;
+            for (; d.size() > 0;)
+            {
+
+                auto csz = cpy(get_1st_free(storage), d);
+                if (csz == 0)
+                    return cpyd;
+                cpyd += csz;
+                d = const_tank(d.data() + csz, d.size() - csz);
+                confirm(csz, storage.size());
+            }
+            return cpyd;
+        }
+
+        void skip(signed_t skipbytes, size_t size)
+        {
+            if (start <= end)
+            {
+                // continuous block
+                i32 blocksize = end - start;
+                if (skipbytes < blocksize)
+                {
+                    start += static_cast<i32>(skipbytes);
+					return; // static_cast<i32>(skipbytes);
+                }
+                clear();
+				return; // blocksize;
+
+            }
+
+            // two blocks: from start to size and from 0 to end
+            i32 sz1 = static_cast<i32>(size) - start;
+            i32 sz2 = end;
+
+            if (skipbytes <= sz1)
+            {
+                start += static_cast<i32>(skipbytes);
+                if ((size_t)start == size)
+                    start = 0;
+				return; // static_cast<i32>(skipbytes);
+            }
+			skipbytes -= sz1;
+
+            if (skipbytes < sz2)
+            {
+                start = static_cast<i32>(skipbytes);
+				return; // static_cast<i32>(sz1 + outsize);
+            }
+
+            clear();
+			return; // sz1 + sz2;
+
+        }
+
+		i32 peek(u8* output, signed_t outsize, const_tank storage)
 		{
 			if (start <= end)
 			{
 				// continuous block
-				signed_t blocksize = end - start;
-				if (outsize <= blocksize)
+				i32 blocksize = end - start;
+				if (outsize < blocksize)
 				{
-					memcpy(output, data + start, outsize);
-					start += outsize;
-					if (start == end)
-						clear();
-					return outsize;
+					memcpy(output, storage.data() + start, outsize);
+					start += static_cast<i32>(outsize);
+					return static_cast<i32>(outsize);
 				}
-				memcpy(output, data + start, blocksize);
-				start += blocksize;
-				if (start == end)
-					clear();
+				memcpy(output, storage.data() + start, blocksize);
+				clear();
 				return blocksize;
 
 			}
 
 			// two blocks: from start to size and from 0 to end
-			signed_t sz1 = size - start;
-			signed_t sz2 = end;
+			i32 sz1 = static_cast<i32>(storage.size()) - start;
+			i32 sz2 = end;
 
 			if (outsize <= sz1)
 			{
-				memcpy(output, data + start, outsize);
-				start += outsize;
-				if (start == size)
+				memcpy(output, storage.data() + start, outsize);
+				start += static_cast<i32>(outsize);
+				if ((size_t)start == storage.size())
 					start = 0;
-				return outsize;
+				return static_cast<i32>(outsize);
 			}
-			memcpy(output, data + start, sz1);
+			memcpy(output, storage.data() + start, sz1);
 			outsize -= sz1;
 
 			if (outsize < sz2)
 			{
-				memcpy(output + sz1, data, outsize);
-				start = outsize;
-				return sz1 + outsize;
+				memcpy(output + sz1, storage.data(), outsize);
+				start = static_cast<i32>(outsize);
+				return static_cast<i32>(sz1 + outsize);
 			}
 
-			memcpy(output + sz1, data, sz2);
-			start = sz2;
+			memcpy(output + sz1, storage.data(), sz2);
+			clear();
 			return sz1 + sz2;
 
 		}
+        template<typename BUF> i32 peek(BUF &buf, const_tank storage)
+        {
+            if (start <= end)
+            {
+                // continuous block
+                i32 blocksize = end - start;
+				buf += std::span<const u8>(storage.data() + start, blocksize);
+                clear();
+                return blocksize;
+            }
+
+            // two blocks: from start to size and from 0 to end
+            i32 sz1 = static_cast<i32>(storage.size()) - start;
+            i32 sz2 = end;
+
+            buf += std::span<const u8>(storage.data() + start, sz1);
+			buf += std::span<const u8>(storage.data(), sz2);
+            clear();
+            return sz1 + sz2;
+        }
+		template<typename BUF> i32 peek(BUF& buf, signed_t limit, const_tank storage)
+		{
+			signed_t bufcap = capacity(buf);
+			if (limit == 0 && bufcap == 0)
+				return peek(buf, storage);
+
+			size_t a = bufcap - 1;
+			size_t b = limit - 1;
+			limit = math::minv( a, b ) + 1;
+
+            if (start <= end)
+            {
+                // continuous block
+                i32 blocksize = end - start;
+                if (limit < blocksize)
+                {
+					buf += std::span<const u8>(storage.data() + start, limit);
+                    start += static_cast<i32>(limit);
+                    return static_cast<i32>(limit);
+                }
+				buf += std::span<const u8>(storage.data() + start, blocksize);
+                clear();
+                return blocksize;
+
+            }
+
+            // two blocks: from start to size and from 0 to end
+            i32 sz1 = static_cast<i32>(storage.size()) - start;
+            i32 sz2 = end;
+
+            if (limit <= sz1)
+            {
+				buf += std::span<const u8>(storage.data() + start, limit);
+                start += static_cast<i32>(limit);
+                if ((size_t)start == storage.size())
+                    start = 0;
+                return static_cast<i32>(limit);
+            }
+			buf += std::span<const u8>(storage.data() + start, sz1);
+			limit -= sz1;
+
+            if (limit < sz2)
+            {
+				buf += std::span<const u8>(storage.data(), limit);
+                start = static_cast<i32>(limit);
+                return static_cast<i32>(sz1 + limit);
+            }
+
+			buf += std::span<const u8>(storage.data(), sz2);
+            clear();
+            return sz1 + sz2;
+		}
 	};
+
+	template<size_t desiredsize> class circular_buffer : public circular_buffer_engine
+	{
+		constexpr const static size_t size = (desiredsize + 3) & (~3);
+		u8 bytes[size];
+
+	public:
+		circular_buffer() {}
+		circular_buffer(circular_buffer&& x)
+		{
+			end = x.peek(bytes, size - 1);
+		}
+		void operator=(circular_buffer&& x)
+		{
+			start = 0;
+			end = x.peek(bytes, size - 1);
+		}
+
+        bool is_full() const { return circular_buffer_engine::is_full(size); }
+		//bool insert(const u8* d, signed_t sz) { return circular_buffer_engine::insert(d, sz, std::span(bytes, size)); }
+		i32 datasize() const { return circular_buffer_engine::datasize(size); }
+		const u8* data1st(size_t getsize) const { return circular_buffer_engine::data(getsize, std::span(bytes, size)); }
+        i32 peek(u8* output, signed_t outsize) { return circular_buffer_engine::peek(output, outsize, std::span(bytes, size)); }
+		template<typename BUF> i32 peek(BUF &buf, signed_t limit = 0) { return circular_buffer_engine::peek<BUF>(buf, limit, std::span(bytes, size)); }
+		void confirm(signed_t sz) { circular_buffer_engine::confirm(sz, size); }
+		tank get_1st_free() { return circular_buffer_engine::get_1st_free(std::span(bytes, size)); }
+		i32 get_free_size() const { return circular_buffer_engine::get_free_size(size); }
+
+	};
+
+	class circular_buffer_extdata : public circular_buffer_engine
+	{
+	public:
+		std::span<u8> storage;
+
+		circular_buffer_extdata(std::span<u8> s, bool prefill = false) :storage(s) {
+			if (prefill)
+				end = static_cast<i32>(s.size());
+		};
+        template<size_t N> circular_buffer_extdata(std::array<u8, N> &s, bool prefill = false) :storage(std::span(s.data(), N)) {
+            if (prefill)
+                end = static_cast<i32>(s.size());
+        };
+
+		bool is_full() const { return circular_buffer_engine::is_full(storage.size()); }
+		//bool insert(const u8* d, signed_t sz) { return circular_buffer_engine::insert(d, sz, storage); }
+		i32 datasize() const { return circular_buffer_engine::datasize(storage.size()); }
+		const u8* data1st(size_t getsize) const { return circular_buffer_engine::data1st(getsize, storage); }
+		memory_pair data(size_t getsize) { return circular_buffer_engine::data(getsize, storage); }
+		i32 peek(u8* output, signed_t outsize) { return circular_buffer_engine::peek(output, outsize, storage); }
+		template<typename BUF> i32 peek(BUF& buf, signed_t limit = 0) { return circular_buffer_engine::peek<BUF>(buf, limit, storage); }
+		void skip(signed_t skipbytes) { circular_buffer_engine::skip(skipbytes, storage.size()); }
+		void confirm(signed_t sz) { circular_buffer_engine::confirm(sz, storage.size()); }
+		tank get_1st_free() { return circular_buffer_engine::get_1st_free(storage); }
+		i32 get_free_size() const { return circular_buffer_engine::get_free_size(storage.size()); }
+		
+		template<typename T> T getle()
+		{
+			if constexpr (sizeof(T) == 1)
+			{
+				T r = static_cast<T>(*(storage.data() + start));
+				skip(1);
+				return r;
+			}
+			else
+			{
+				T r;
+				peek(reinterpret_cast<u8*>(&r), sizeof(T));
+				return r;
+			}
+
+		}
+
+		circular_buffer_extdata& operator+=(const_tank d)
+		{
+			ASSERT((size_t)get_free_size() >= d.size());
+			circular_buffer_engine::append(d, storage);
+			return *this;
+		}
+	};
+
+	inline signed_t capacity(const circular_buffer_extdata& cbed)
+	{
+		return cbed.get_free_size();
+	}
+
+	template<size_t sz> class circular_buffer_preallocated : public circular_buffer_extdata
+	{
+		u8 buf[sz];
+	public:
+		circular_buffer_preallocated():circular_buffer_extdata(std::span<u8>(buf, sz)) {}
+	};
+
 
 #ifdef GCC_OR_CLANG
     template<typename T> signed_t lowest_bit_index(T x) {
@@ -1027,13 +1372,7 @@ namespace tools
                 if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
                     return indx;
 
-				if (g_single_core || spincount > 10000)
-				{
-					spinlock::sleep((spincount >> 17) & 0xff);
-					m = spinlock::atomic_load(lockmask);
-				}
-                else
-					spinlock::sleep();
+				SPINCOUNT_SLEEP(spincount, m = spinlock::atomic_load(lockmask));
             }
 		}
 
@@ -1049,13 +1388,7 @@ namespace tools
                 if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
                     return indx;
 
-				if (IS_SINGLE_CORE || spincount > 10000)
-				{
-					spinlock::sleep((spincount >> 17) & 0xff);
-					m = spinlock::atomic_load(lockmask);
-				}
-                else
-					spinlock::sleep();
+				SPINCOUNT_SLEEP(spincount, m = spinlock::atomic_load(lockmask));
             }
         }
 
@@ -1069,14 +1402,7 @@ namespace tools
                 if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
                     return;
 
-                if (IS_SINGLE_CORE || spincount > 10000)
-                {
-					spinlock::sleep((spincount >> 17) & 0xff);
-                    m = spinlock::atomic_load(lockmask);
-                }
-                else
-					spinlock::sleep();
-
+				SPINCOUNT_SLEEP(spincount, m = spinlock::atomic_load(lockmask));
             }
 		}
 
@@ -1264,12 +1590,17 @@ namespace str
 		using ptr = ptr::shared_ptr<shared_str>;
 		static ptr build(const astr_view& s)
 		{
-			shared_str* x = (shared_str*)malloc( s.length() + sizeof(shared_str) );
+			shared_str* x = (shared_str*)MA( s.length() + sizeof(shared_str) );
 			*(u16*)x = 0;
 			x->len = tools::as_byte(s.length());
 			memcpy((void *)(x + 1), s.data(), s.length());
 			return ptr(x);
 		}
+		void secure_erase()
+        {
+            Botan::secure_scrub_memory(this, len + sizeof(shared_str)); // zeroise including length
+		}
+
 		str::astr_view cstr() const
 		{
 			return str::astr_view( (const char *)(this+1), len );
@@ -1294,6 +1625,12 @@ namespace str
 	{
 		sout.append(p->cstr());
 	}
+
+    inline std::span<const u8> span(const str::shared_str::ptr& s)
+    {
+        return str::span(s->cstr());
+    }
+
 }
 
 namespace stats

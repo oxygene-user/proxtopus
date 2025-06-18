@@ -1449,6 +1449,12 @@ namespace str
 	}
 }
 
+inline str::astr& operator+=(str::astr& s, std::span<const u8> d)
+{
+    s.append(str::view(d));
+    return s;
+}
+
 namespace tools
 {
 	template <typename CH> struct string_hash

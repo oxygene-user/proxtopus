@@ -69,7 +69,7 @@ void aead_chacha20poly1305::encipher_packet_impl(std::span<const uint8_t> nonce,
 
 }
 
-bool aead_chacha20poly1305::decipher_packet_impl(std::span<const uint8_t> nonce, std::span<const uint8_t> packet, tools::memory_pair& outbuf)
+bool aead_chacha20poly1305::decipher_packet_impl(std::span<const u8> nonce, std::span<const u8> packet, tools::memory_pair& outbuf)
 {
     if (packet.size() < poly1305::tag_size)
         return false;
@@ -78,6 +78,7 @@ bool aead_chacha20poly1305::decipher_packet_impl(std::span<const uint8_t> nonce,
     start(poly, nonce);
 
     size_t packet_size = packet.size() - poly1305::tag_size;
+
     poly.update(std::span(packet.data(), packet_size));
 
     ASSERT(outbuf.size() == packet_size);

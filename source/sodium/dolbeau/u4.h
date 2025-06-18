@@ -79,28 +79,23 @@
         _mm_storeu_si128((__m128i*) (c + 128 + offs), x_##C); \
         _mm_storeu_si128((__m128i*) (c + 192 + offs), x_##D)
 
+#define orig0 _mm_set1_epi32(0x61707865)
+#define orig1 _mm_set1_epi32(0x3320646e)
+#define orig2 _mm_set1_epi32(0x79622d32)
+#define orig3 _mm_set1_epi32(0x6b206574)
 
-if (bytes >= 256) {
-    /* constant for shuffling bytes (replacing multiple-of-8 rotates) */
-    const __m128i rot16 =
-        _mm_set_epi8(13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2);
-    const __m128i rot8 =
-        _mm_set_epi8(14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 2, 1, 0, 3);
+#define orig4 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input4), 0)
+#define orig5 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input4), 0x55)
+#define orig6 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input4), 0xAA)
+#define orig7 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input4), 0xFF)
 
-    const __m128i orig0  = _mm_set1_epi32(x[0]);
-    const __m128i orig1 = _mm_set1_epi32(x[1]);
-    const __m128i orig2 = _mm_set1_epi32(x[2]);
-    const __m128i orig3 = _mm_set1_epi32(x[3]);
-    const __m128i orig4 = _mm_set1_epi32(x[4]);
-    const __m128i orig5 = _mm_set1_epi32(x[5]);
-    const __m128i orig6 = _mm_set1_epi32(x[6]);
-    const __m128i orig7 = _mm_set1_epi32(x[7]);
-    const __m128i orig8 = _mm_set1_epi32(x[8]);
-    const __m128i orig9 = _mm_set1_epi32(x[9]);
-    const __m128i orig10 = _mm_set1_epi32(x[10]);
-    const __m128i orig11 = _mm_set1_epi32(x[11]);
-    const __m128i orig14 = _mm_set1_epi32(x[14]);
-    const __m128i orig15 = _mm_set1_epi32(x[15]);
+#define orig8 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input8), 0)
+#define orig9 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input8), 0x55)
+#define orig10 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input8), 0xAA)
+#define orig11 _mm_shuffle_epi32(_mm_loadu_si128((const __m128i*) & input8), 0xFF)
+
+#define orig14 _mm_shuffle_epi32(_mm_loadu_si64(&input14), 0)
+#define orig15 _mm_shuffle_epi32(_mm_loadu_si64(&input14), 0x55)
 
     while (bytes >= 256) {
 
@@ -169,7 +164,21 @@ if (bytes >= 256) {
         bytes -= 256;
         c += 256;
     }
-}
+
+#undef orig0
+#undef orig1
+#undef orig2
+#undef orig3
+#undef orig4
+#undef orig5
+#undef orig6
+#undef orig7
+#undef orig8
+#undef orig9
+#undef orig10
+#undef orig11
+#undef orig14
+#undef orig15
 
 #undef ONEQUAD_TRANSPOSE
 #undef ONEQUAD_TRANSPOSE_NULL_SOURCE

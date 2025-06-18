@@ -59,10 +59,7 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 				if (spinlock::atomic_cas<size_t>(ff, unlockff, lockff))
 					break; // lock success
 
-				if (g_single_core || spincount > 10000)
-					spinlock::sleep((spincount >> 17) & 0xff);
-                else
-                    spinlock::sleep();
+				SPINCOUNT_SLEEP(spincount);
 			}
 
 			if (unlockff >= arsz)
@@ -125,10 +122,7 @@ template<size_t elsz, signed_t arsz, typename fallback> struct arena
 			if (spinlock::atomic_cas<size_t>(ff, unlockff, lockff))
 				break; // lock success
 
-            if (g_single_core || spincount > 10000)
-                spinlock::sleep((spincount >> 17) & 0xff);
-            else
-                spinlock::sleep();
+			SPINCOUNT_SLEEP(spincount);
 		}
 
 		int* ef = (int*)(buf + (elsz * index));

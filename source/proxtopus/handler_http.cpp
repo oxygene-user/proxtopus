@@ -328,7 +328,7 @@ mode_result host_mode_proxy::do_CONNECT(http_server& s)
         epa = s.path;
         break;
     }
-    s.ownerhandler->make_bridge(epa, s.pp.get(), [&](bool established) {
+    s.ownerhandler->make_bridge(s.rcvd, epa, s.pp.get(), [&](bool established) {
         s.answer(established ? HC_OK_CONNECTION_ESTABLISHED : HC_BAD_GATEWAY);
         if (established)
             s.pp = nullptr; // bridge is exclusive owner of pipe

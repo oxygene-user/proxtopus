@@ -14,4 +14,21 @@ namespace ostools
     void terminate(); // force terminate self
 
     void set_current_thread_name(const str::astr_view& name);
+
+
+    class dynlib
+    {
+        dynlib(const dynlib&) = delete;
+        dynlib& operator=(const dynlib&) = delete;
+
+        void* lib_handler = nullptr;
+    public:
+        dynlib(str::astr_view lib_name);
+        ~dynlib();
+        void* resolve_symbol(const str::astr& symbol);
+        template <typename T> T resolve(const str::astr& symbol) {
+            return reinterpret_cast<T>(resolve_symbol(symbol));
+        }
+    };
+
 }

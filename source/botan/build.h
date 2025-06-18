@@ -1,10 +1,12 @@
 #pragma once
 
+#include "../conf.h"
+#include "../proxtopus/conf_def.h"
+
 #ifdef _WIN32
 #define BOTAN_TARGET_OS_HAS_WIN32
 #define BOTAN_BUILD_COMPILER_IS_MSVC
 #define BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK
-#define BOTAN_TARGET_OS_HAS_RTLGENRANDOM
 #define BOTAN_TARGET_OS_HAS_RTLSECUREZEROMEMORY
 #define BOTAN_TARGET_CPU_IS_X86_FAMILY
 #else
@@ -56,7 +58,6 @@
 #define BOTAN_HAS_GHASH_CLMUL_CPU
 #define BOTAN_HAS_GHASH_CLMUL_VPERM
 
-#define BOTAN_HAS_ENTROPY_SOURCE
 #define BOTAN_HAS_PSS
 
 #define BOTAN_HAS_AES
@@ -66,11 +67,6 @@
 
 #define BOTAN_HAS_HMAC
 #define BOTAN_HAS_KECCAK_PERM_BMI2
-
-#define BOTAN_HAS_AUTO_RNG
-#define BOTAN_HAS_AUTO_SEEDING_RNG
-#define BOTAN_HAS_STATEFUL_RNG
-#define BOTAN_HAS_SYSTEM_RNG
 
 #define BOTAN_HAS_CHACHA
 #define BOTAN_HAS_CHACHA_SIMD32
@@ -95,14 +91,11 @@
 //#define BOTAN_HAS_DSA //do not support
 //#define BOTAN_HAS_ED448 //do not support
 
-#define BOTAN_BLINDING_REINIT_INTERVAL 64
-
 #define BOTAN_HAS_TLS_CBC
 #define BOTAN_HAS_TLS
 #define BOTAN_HAS_TLS_12
 //#define BOTAN_HAS_TLS_13 // TODO enable later
 #define BOTAN_HAS_TLS_V12_PRF
-#define BOTAN_HAS_ASN1
 #define BOTAN_HAS_EMSA_PKCS1
 #define BOTAN_HAS_EMSA_PSSR
 #define BOTAN_HAS_EME_PKCS1
@@ -115,28 +108,9 @@
 #define BOTAN_HAS_XMD
 #define BOTAN_HAS_PCURVES_GENERIC
 
-#define BOTAN_DEFAULT_BUFFER_SIZE 4096
-#define BOTAN_BLOCK_CIPHER_PAR_MULT 4
-
-/**
-* Userspace RNGs like HMAC_DRBG will reseed after a specified number
-* of outputs are generated. Set to zero to disable automatic reseeding.
-*/
-#define BOTAN_RNG_DEFAULT_RESEED_INTERVAL 1024
-
-/** Number of entropy bits polled for reseeding userspace RNGs like HMAC_DRBG */
-#define BOTAN_RNG_RESEED_POLL_BITS 256
-
-#define BOTAN_RNG_RESEED_DEFAULT_TIMEOUT std::chrono::milliseconds(50)
-
-#define BOTAN_ENTROPY_DEFAULT_SOURCES \
-   { "rdseed", "hwrng", "getentropy", "system_rng", "system_stats" }
-
-
 #define BOTAN_HAS_MD5
 #define BOTAN_HAS_BLAKE2B
 #define BOTAN_HAS_SALSA20
-#define BOTAN_HAS_SHA3_BMI2
 
 #define BOTAN_HAS_SHA1
 #define BOTAN_HAS_SHA1_X86_SHA_NI
@@ -146,16 +120,13 @@
 #define BOTAN_HAS_SHA2_32_SIMD
 #define BOTAN_HAS_SHA2_32_X86_AVX2
 #define BOTAN_HAS_SHA2_32_X86
-#define BOTAN_HAS_SHA2_32_X86_BMI2
 #define BOTAN_HAS_SHA2_64
 #define BOTAN_HAS_SHA2_64_X86
 #define BOTAN_HAS_SHA2_64_X86_AVX2
-#define BOTAN_HAS_SHA2_64_BMI2
 #define BOTAN_HAS_SHA3
 #define BOTAN_HAS_SHA_256
 #define BOTAN_HAS_RIPEMD_160
 #define BOTAN_HAS_SM3
-
 
 #define BOTAN_DLL
 #define BOTAN_IS_BEING_BUILT
@@ -182,11 +153,6 @@ struct IUnknown;
 #include <cmath>
 #include <sstream>
 #include <proxtopus/secure_vector.h>
-
-#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY) && defined(MODE64)
-#define SSE2_SUPPORTED
-#include <emmintrin.h>
-#endif
 
 namespace tools
 {

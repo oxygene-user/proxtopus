@@ -82,7 +82,7 @@ void handler_debug::handle_pipe(netkit::pipe* pipe)
     pipe->send((const u8*)bs.c_str(), bs.size());
     bs.clear();
 
-    u8 b[256];
+    tools::circular_buffer_preallocated<1024> b;
     for (;!glb.is_stop();)
     {
         netkit::wrslt wr = netkit::wait(pipe->get_waitable(), 1000);
@@ -95,14 +95,14 @@ void handler_debug::handle_pipe(netkit::pipe* pipe)
             continue;
         }
 
-        signed_t r = pipe->recv(b, 256, RECV_BRIDGE_MODE_TIMEOUT);
+        signed_t r = pipe->recv(b, 0, RECV_BRIDGE_MODE_TIMEOUT DST(, nullptr));
         if (r < 0)
             break;
 
         // echo
         //pipe->send(b, r);
 
-        bs.append( str::view(std::span(b,r)) );
+        b.peek(bs);
 
         if (bs.size() > 1024)
             break; // too long command line, now disconnect

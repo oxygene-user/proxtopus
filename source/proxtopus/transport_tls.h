@@ -2,7 +2,7 @@
 
 class transport_tls : public transport, public Botan::Credentials_Manager, public Botan::TLS::Strict_Policy  // tls server
 {
-    randomgen rng;
+    BotanRndGen rng;
     tools::deferred_init<Botan::TLS::Session_Manager_In_Memory> sesionmgr;
 
     /*virtual*/ std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(const std::string& type, const std::string& context) override {

@@ -296,6 +296,11 @@ void Print(const buffer &txt)
 
 namespace tools
 {
+	size_t unique_id()
+	{
+		static size_t idpool = 0;
+		return spinlock::atomic_increment(idpool);
+	}
 
 }
 

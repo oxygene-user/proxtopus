@@ -20,15 +20,18 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	if (mkr().size() == 0)
 		return; // inactive
 
-    u8 packet[512];
+    std::array<u8,512> packet;
+	tools::circular_buffer_extdata rcvdata(packet);
 
 	if (mkr().size() == 1)
 	{
-		str::astr k = mkr()[0].key;
+		ss::core::keyspace* key = NEW ss::core::keyspace(mkr()[0].key);
         mkr.unlock();
-		p_enc = NEW ss::core::crypto_pipe(p, k, core.cp);
+		p_enc = NEW ss::core::crypto_pipe(p, key, core.cp);
 
-        if (signed_t rb = p_enc->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); rb != 2)
+		ostools::set_current_thread_name(ASTR("ss-cp1"));
+
+        if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
             return;
 
 	}
@@ -44,7 +47,9 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 
 		ss::core::multipass_crypto_pipe multipass(p, core.masterkeys, core.cp);
 
-        if (signed_t rb = multipass.recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); rb != 2)
+		ostools::set_current_thread_name(ASTR("ss-cp2"));
+
+        if (signed_t rb = multipass.recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
             return;
 
         p_enc = NEW ss::core::crypto_pipe(multipass);
@@ -57,38 +62,66 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	switch (packet[0])
 	{
 	case 1: // ip4
-		if (signed_t rb = p_enc->recv(packet + 2, -3, RECV_PREPARE_MODE_TIMEOUT); rb != 3)
+
+		ostools::set_current_thread_name(ASTR("ss-cp3"));
+
+		if (signed_t rb = p_enc->recv(rcvdata, 2+3, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 5)
 			return;
 
-		ep.set_ipap(netkit::ipap::build(packet + 1, 4));
+		ep.set_ipap(netkit::ipap::build(packet.data() + 1, 4));
+		rcvdata.skip(2 + 3);
 		break;
 	case 3: // domain name
 
 		len = packet[1]; // len of domain
-		if (signed_t rb = p_enc->recv(packet, -len, RECV_PREPARE_MODE_TIMEOUT); rb != len)
-			return;
-		ep.set_domain(std::string((const char*)packet, len));
-		break;
+		rcvdata.skip(2);
+
+		ostools::set_current_thread_name(ASTR("ss-cp4"));
+
+		if (signed_t rb = p_enc->recv(rcvdata, len, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb == len)
+		{
+            const char* dm = (const char*)rcvdata.data1st(len);
+            ep.set_domain(str::astr_view(dm, len));
+            rcvdata.skip(len);
+			break;
+		}
+		return;
 
 	case 4: // ipv6
-		if (signed_t rb = p_enc->recv(packet + 2, -15, RECV_PREPARE_MODE_TIMEOUT); rb != 15)// read 15 of 16 bytes of ipv6 address (1st byte already read)
+		if (signed_t rb = p_enc->recv(rcvdata, 2+15, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 17) // read 15 of 16 bytes of ipv6 address (1st byte already read)
 			return;
-		ep.set_ipap(netkit::ipap::build(packet + 1, 16));
+
+		ostools::set_current_thread_name(ASTR("ss-cp5"));
+
+		ep.set_ipap(netkit::ipap::build(packet.data() + 1, 16));
+		rcvdata.skip(2 + 15);
         break;
 	}
 
 	if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
         return;
 
-	if (signed_t rb = p_enc->recv(packet, -2, RECV_PREPARE_MODE_TIMEOUT); rb != 2)
+	ostools::set_current_thread_name(ASTR("ss-cp6"));
+
+	if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
 		return;
 
-	signed_t port = ((signed_t)packet[0]) << 8 | packet[1];
+	const u8* port_ptr = rcvdata.data1st(2);
+	signed_t port = ((signed_t)port_ptr[0]) << 8 | port_ptr[1];
 	ep.set_port(port);
+	rcvdata.skip(2);
+
+	ostools::set_current_thread_name(ASTR("ss-cp7"));
 
 	if (netkit::pipe_ptr outcon = connect(ep, false))
-		glb.e->bridge(std::move(p_enc), std::move(outcon));
+	{
+		ostools::set_current_thread_name(ASTR("ss-cp8"));
 
+		p_enc->unrecv(rcvdata);
+		glb.e->bridge(std::move(p_enc), std::move(outcon));
+	}
+
+	ostools::set_current_thread_name(ASTR("ss-cp9"));
 }
 
 namespace
@@ -115,8 +148,8 @@ namespace
         ctx.data.reset(NEW udp_cipher(core.cp));
     udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
 
-    u8 skey[ss::core::maximum_key_size];
-    std::span<u8> subkey(skey, core.cp.KeySize);
+    ss::core::keyspace skey;
+    std::span<u8> subkey(skey.space, core.cp.KeySize);
 
     ss::outbuffer buf2r;
 	auto mkr = core.masterkeys.lock_read();
@@ -136,8 +169,9 @@ namespace
                 continue;
             }
 
-            ss::deriveAeadSubkey(skey, k.key, std::span<const u8>(p.packet, core.cp.KeySize));
-            bool ok = context->crypto->decipher(buf2r, std::span<const u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), &subkey);
+            ss::derive_aead_subkey(skey.space, k.key.space, p.packet, core.cp.KeySize);
+			tools::circular_buffer_extdata cd(std::span<u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), true);
+            bool ok = context->crypto->decipher(buf2r, cd, &subkey);
 			if (ok)
 			{
 				mkr.unlock();
@@ -154,9 +188,10 @@ namespace
 		if (k.expired < 0)
 			return false;
 
-        ss::deriveAeadSubkey(skey, k.key, std::span<const u8>(p.packet, core.cp.KeySize));
+        ss::derive_aead_subkey(skey.space, k.key.space, p.packet, core.cp.KeySize);
 		mkr.unlock();
-        bool ok = context->crypto->decipher(buf2r, std::span<const u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), &subkey);
+		tools::circular_buffer_extdata cd(std::span<u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), true);
+        bool ok = context->crypto->decipher(buf2r, cd, &subkey);
 		if (!ok)
 			return false;
 	}
@@ -182,12 +217,13 @@ namespace
 	udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
 	context->buf2s.resize(core.cp.KeySize);
 	context->rng.random_vec(context->buf2s);
-    u8 skey[ss::core::maximum_key_size];
-    std::span<u8> subkey(skey, core.cp.KeySize);
+    ss::core::keyspace skey;
+    std::span<u8> subkey(skey.space, core.cp.KeySize);
 
 	auto mkr = core.masterkeys.lock_read();
-    ss::deriveAeadSubkey(subkey, mkr()[context->password_index].key, context->buf2s);
-	mkr.unlock();
+	ss::core::keyspace key(mkr()[context->password_index].key);
+    mkr.unlock();
+    ss::derive_aead_subkey(skey.space, key.space, context->buf2s.data(), core.cp.KeySize);
 
 	netkit::endpoint ep(from);
     signed_t presize = proxy_socks5::atyp_size(ep);

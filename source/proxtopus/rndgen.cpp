@@ -1,34 +1,91 @@
 #include "pch.h"
 
-#include "botan/system_rng.h"
-#include "botan/mac.h"
-#include <botan/internal/sha2_64.h>
+#ifdef _NIX
+#ifdef HAVE_GETRANDOM
+#define HAVE_LINUX_COMPATIBLE_GETRANDOM
+#else
+#include <sys/syscall.h>
+#if defined(SYS_getrandom) && defined(__NR_getrandom)
+#define getrandom(B, S, F) syscall(SYS_getrandom, (B), (int) (S), (F))
+#define HAVE_LINUX_COMPATIBLE_GETRANDOM
+#endif
+#endif
 
-inline std::unique_ptr<Botan::MessageAuthenticationCode> auto_rng_hmac() {
-	
-	return std::make_unique<Botan::HMAC>(std::make_unique<Botan::SHA_512>());
-}
+#endif
 
-randomgen::randomgen(size_t reseed_interval):sfrng(auto_rng_hmac(), Botan::system_rng(), reseed_interval)
+void randomgen::rnd(void* const buf_, size_t size) // extra rnd
 {
+    if (!chacha)
+    {
+        u8 keyiv[64];
+        size_t i = 0;
+        auto add_entropy = [&](u64 val)
+            {
+                for (; val && i < sizeof(keyiv); val >>= 8, ++i)
+                {
+                    keyiv[i] = static_cast<u8>(val & 0xff);
+                }
+                return i == sizeof(keyiv);
+            };
+
+        add_entropy(chrono::tsc());
+        add_entropy(chrono::ms());
+        add_entropy(reinterpret_cast<size_t>(this));
+        add_entropy(spinlock::current_thread_uid());
+
+        chacha.reset(NEW chacha20());
+        chacha->set_key(std::span<const u8, chacha20::key_size>(keyiv, chacha20::key_size));
+        chacha->set_iv(std::span<const u8>(keyiv+ chacha20::key_size, 12));
+        chacha->keystream(keyiv, 64); // skip 1st block
+    }
+    chacha->keystream((u8*)buf_, size);
 }
 
-void randomgen::fill_bytes_with_input(std::span<uint8_t> out, std::span<const uint8_t> in)
+
+#ifdef HAVE_LINUX_COMPATIBLE_GETRANDOM
+static bool getrandom256(void* const buf, const size_t size)
 {
-	if (in.empty()) {
-		sfrng.randomize_with_ts_input(out);
-	}
-	else {
-		sfrng.randomize_with_input(out, in);
-	}
+    int readnb;
+    do {
+        readnb = getrandom(buf, size, 0);
+    } while (readnb < 0 && (errno == EINTR || errno == EAGAIN));
+
+    return readnb == (int)size;
 }
 
+#endif
 
-void randomgen::force_reseed()
+void randomgen::randombytes_buf(void* const buf_, size_t size)
 {
-	sfrng.force_reseed();
-	sfrng.next_byte();
+#ifdef HAVE_LINUX_COMPATIBLE_GETRANDOM
 
-	ASSERT(sfrng.is_seeded());
+    if (size <= 256)
+    {
+        if (!getrandom256(buf_, size))
+            rnd(buf_, size);
+        return;
+    }
+
+    u8* buf = (u8*)buf_;
+    size_t chunk_size = 256U;
+
+    do {
+        if (size < chunk_size) {
+            chunk_size = size;
+        }
+        if (!getrandom256(buf, chunk_size)) {
+
+            rnd(buf_, size);
+            return;
+        }
+        size -= chunk_size;
+        buf += chunk_size;
+    } while (size > (size_t)0U);
+    return;
+#elif defined(_WIN32)
+    if (!glb.win32random(buf_, (ULONG)size)) // ok ok! if is correct
+#endif
+        rnd(buf_, size);
 
 }
+

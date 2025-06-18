@@ -136,6 +136,8 @@ bool watchdog::operator()()
         prev_cpu_usage = cpu_usage;
     }
 
+    //DST(deep_tracer::deep_trace_enabled = cpu_usage > 35);
+
     if (cpu_usage >= 95)
     {
         --overload_event_countdown;

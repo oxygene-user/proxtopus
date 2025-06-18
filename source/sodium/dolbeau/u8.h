@@ -42,13 +42,13 @@
 
 #define VEC8_LINE1(A, B, C, D)              \
     x_##A = _mm256_add_epi32(x_##A, x_##B); \
-    x_##D = _mm256_shuffle_epi8(_mm256_xor_si256(x_##D, x_##A), rot16)
+    x_##D = _mm256_shuffle_epi8(_mm256_xor_si256(x_##D, x_##A), rot16_256)
 #define VEC8_LINE2(A, B, C, D)              \
     x_##C = _mm256_add_epi32(x_##C, x_##D); \
     x_##B = VEC8_ROT(_mm256_xor_si256(x_##B, x_##C), 12)
 #define VEC8_LINE3(A, B, C, D)              \
     x_##A = _mm256_add_epi32(x_##A, x_##B); \
-    x_##D = _mm256_shuffle_epi8(_mm256_xor_si256(x_##D, x_##A), rot8)
+    x_##D = _mm256_shuffle_epi8(_mm256_xor_si256(x_##D, x_##A), rot8_256)
 #define VEC8_LINE4(A, B, C, D)              \
     x_##C = _mm256_add_epi32(x_##C, x_##D); \
     x_##B = VEC8_ROT(_mm256_xor_si256(x_##B, x_##C), 7)
@@ -166,31 +166,20 @@
     _mm256_storeu_si256((__m256i*) (c + 448+offs), t_##D2)
 
 
-if (bytes >= 512) {
-    /* constant for shuffling bytes (replacing multiple-of-8 rotates) */
-    __m256i rot16 =
-        _mm256_set_epi8(13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2,
-                        13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2);
-    __m256i rot8 =
-        _mm256_set_epi8(14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 2, 1, 0, 3,
-                        14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 2, 1, 0, 3);
-
-    /* the naive way seems as fast (if not a bit faster) than the vector way */
-
-    const __m256i orig0  = _mm256_set1_epi32(x[0]);
-    const __m256i orig1 = _mm256_set1_epi32(x[1]);
-    const __m256i orig2 = _mm256_set1_epi32(x[2]);
-    const __m256i orig3 = _mm256_set1_epi32(x[3]);
-    const __m256i orig4 = _mm256_set1_epi32(x[4]);
-    const __m256i orig5 = _mm256_set1_epi32(x[5]);
-    const __m256i orig6 = _mm256_set1_epi32(x[6]);
-    const __m256i orig7 = _mm256_set1_epi32(x[7]);
-    const __m256i orig8 = _mm256_set1_epi32(x[8]);
-    const __m256i orig9 = _mm256_set1_epi32(x[9]);
-    const __m256i orig10 = _mm256_set1_epi32(x[10]);
-    const __m256i orig11 = _mm256_set1_epi32(x[11]);
-    const __m256i orig14 = _mm256_set1_epi32(x[14]);
-    const __m256i orig15 = _mm256_set1_epi32(x[15]);
+#define orig0 _mm256_set1_epi32(0x61707865)
+#define orig1 _mm256_set1_epi32(0x3320646e)
+#define orig2 _mm256_set1_epi32(0x79622d32)
+#define orig3 _mm256_set1_epi32(0x6b206574)
+#define orig4 _mm256_set1_epi32(input4)
+#define orig5 _mm256_set1_epi32(input5)
+#define orig6 _mm256_set1_epi32(input6)
+#define orig7 _mm256_set1_epi32(input7)
+#define orig8 _mm256_set1_epi32(input8)
+#define orig9 _mm256_set1_epi32(input9)
+#define orig10 _mm256_set1_epi32(input10)
+#define orig11 _mm256_set1_epi32(input11)
+#define orig14 _mm256_set1_epi32(input14)
+#define orig15 _mm256_set1_epi32(input15)
 
     while (bytes >= 512) {
         const __m256i addv12  = _mm256_set_epi64x(3, 2, 1, 0);
@@ -255,7 +244,21 @@ if (bytes >= 512) {
         bytes -= 512;
         c += 512;
     }
-}
+
+#undef orig0
+#undef orig1
+#undef orig2
+#undef orig3
+#undef orig4
+#undef orig5
+#undef orig6
+#undef orig7
+#undef orig8
+#undef orig9
+#undef orig10
+#undef orig11
+#undef orig14
+#undef orig15
 
 #undef ONEOCTO
 #undef ONEQUAD_UNPCK

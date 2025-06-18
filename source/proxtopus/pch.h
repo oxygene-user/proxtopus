@@ -5,7 +5,9 @@
 
 #pragma once
 
-#define LOGGER 2
+#include "../conf.h"
+#include "../proxtopus/conf_def.h"
+
 #define PROXTOPUS_PCH
 
 #ifdef _WIN32
@@ -18,7 +20,6 @@
 
 #include <tchar.h>
 #include <in6addr.h>
-#define ARCH_X86 // assume win32 on x86 arch
 #endif // _WIN32
 
 #if defined __linux__
@@ -28,9 +29,6 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #define GCC_OR_CLANG
-#if defined(__i386__) || defined(__x86_64__)
-#define ARCH_X86
-#endif
 #endif
 
 #ifdef _NIX
@@ -67,11 +65,7 @@
 #include <array>
 
 #include <botan/exceptn.h>
-#include <botan/hmac_drbg.h>
-#include <botan/entropy_src.h>
-#include <botan/internal/hkdf.h>
-#include <botan/internal/hmac.h>
-#include <botan/internal/sha1.h>
+#include <botan/rng.h>
 #include <botan/internal/tls_server_impl_12.h>
 #include <botan/cipher_mode.h>
 #include <botan/filter.h>
@@ -80,8 +74,21 @@
 #include "base.h"
 #include "str_helpers.h"
 
+#if MULTI_CORE == 0
+#define IS_SINGLE_CORE (true)
+#define SPINCOUNT_SLEEP(spincount, ...) spinlock::sleep((spincount >> 17) & 0xff); __VA_ARGS__;
+#define SPINCOUNT_SLEEP_EX(spincount, thr) spinlock::sleep((spincount >> 17) & 0xff);
+#elif MULTI_CORE == 1
+#define IS_SINGLE_CORE (false)
+#define SPINCOUNT_SLEEP(spincount, ...) if (spincount > 10000) { spinlock::sleep((spincount >> 17) & 0xff); __VA_ARGS__; } else { spinlock::sleep(); }
+#define SPINCOUNT_SLEEP_EX(spincount, thr) if (spincount > thr) { spinlock::sleep((spincount >> 17) & 0xff); } else { spinlock::sleep(); }
+#else
 extern bool g_single_core;
 #define IS_SINGLE_CORE (g_single_core)
+#define SPINCOUNT_SLEEP(spincount, ...) if (g_single_core || spincount > 10000) { spinlock::sleep((spincount >> 17) & 0xff); __VA_ARGS__; } else { spinlock::sleep(); }
+#define SPINCOUNT_SLEEP_EX(spincount, thr) if (g_single_core || spincount > thr) { spinlock::sleep((spincount >> 17) & 0xff); } else { spinlock::sleep(); }
+#endif
+
 
 #include "spinlock.h"
 
@@ -98,12 +105,16 @@ extern bool g_single_core;
 #include "macro.h"
 #include "netkit.h"
 #include "icpt.h"
+#include "os_tools.h"
 #include "main.h"
 #include "resource.h"
 #include "tls.h"
 
 #include "chacha20.h"
 #include "sodium_poly1305.h"
+#include "botan_hash.h"
+#include "hmac.h"
+#include "hkdf.h"
 
 #include "cmdline.h"
 #include "loader.h"
@@ -113,7 +124,6 @@ extern bool g_single_core;
 #include "engine.h"
 #include "connect.h"
 #include "dnsq.h"
-#include "os_tools.h"
 #include "watchdog.h"
 
 // reference additional headers your program requires here

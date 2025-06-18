@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <spawn.h>
 #include <sys/ptrace.h>
+#include <dlfcn.h>
 bool is_debugger_present()
 {
     if (ptrace(PTRACE_TRACEME, 0, NULL, 0) == -1)
@@ -185,5 +186,35 @@ namespace ostools
 #endif
 
     }
+
+    dynlib::dynlib(str::astr_view library)
+    {
+#ifdef _NIX
+        lib_handler = ::dlopen(str::astr(library).c_str(), RTLD_LAZY);
+#elif defined (_WIN32)
+        lib_handler = ::LoadLibraryW(str::from_utf8(library).c_str());
+#endif
+    }
+
+    dynlib::~dynlib() {
+#ifdef _NIX
+        ::dlclose(lib_handler);
+#elif defined (_WIN32)
+        ::FreeLibrary(reinterpret_cast<HMODULE>(lib_handler));
+#endif
+    }
+
+    void* dynlib::resolve_symbol(const str::astr& symbol)
+    {
+        void* addr = nullptr;
+
+#ifdef _NIX
+        addr = ::dlsym(lib_handler, symbol.c_str());
+#elif defined (_WIN32)
+        addr = reinterpret_cast<void*>(::GetProcAddress(reinterpret_cast<HMODULE>(lib_handler), symbol.c_str()));
+#endif
+        return addr;
+    }
+
 
 } // namespace ostools

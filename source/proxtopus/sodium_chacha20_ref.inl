@@ -24,45 +24,28 @@
 #define PLUS(v, w) (U32V((v) + (w)))
 #define PLUSONE(v) (PLUS((v), 1))
 
-void chacha20::impl::cipher_ref(const uint8_t m[], uint8_t c[], size_t bytes)
+void chacha20::impl::cipher_ref(const uint8_t m[], uint8_t c[], size_t bytes, u64 ic)
 {
     ASSERT((bytes & 63) == 0);
     size_t blocks = bytes >> 6;
 
-    const uint32_t j0 = input[0];
-    const uint32_t j1 = input[1];
-    const uint32_t j2 = input[2];
-    const uint32_t j3 = input[3];
-    const uint32_t j4 = input[4];
-    const uint32_t j5 = input[5];
-    const uint32_t j6 = input[6];
-    const uint32_t j7 = input[7];
-    const uint32_t j8 = input[8];
-    const uint32_t j9 = input[9];
-    const uint32_t j10 = input[10];
-    const uint32_t j11 = input[11];
-    const uint32_t j14 = input[14];
-    const uint32_t j15 = input[15];
-
-    u64 ic = tools::load64_le(reinterpret_cast<const u8*>(input + 12));
-
     for (;blocks > 0; --blocks, ++ic) {
-        uint32_t x0 = j0;
-        uint32_t x1 = j1;
-        uint32_t x2 = j2;
-        uint32_t x3 = j3;
-        uint32_t x4 = j4;
-        uint32_t x5 = j5;
-        uint32_t x6 = j6;
-        uint32_t x7 = j7;
-        uint32_t x8 = j8;
-        uint32_t x9 = j9;
-        uint32_t x10 = j10;
-        uint32_t x11 = j11;
+        uint32_t x0 = 0x61707865;
+        uint32_t x1 = 0x3320646e;
+        uint32_t x2 = 0x79622d32;
+        uint32_t x3 = 0x6b206574;
+        uint32_t x4 = input4;
+        uint32_t x5 = input5;
+        uint32_t x6 = input6;
+        uint32_t x7 = input7;
+        uint32_t x8 = input8;
+        uint32_t x9 = input9;
+        uint32_t x10 = input10;
+        uint32_t x11 = input11;
         uint32_t x12 = uints::low(ic);
         uint32_t x13 = uints::high(ic);
-        uint32_t x14 = j14;
-        uint32_t x15 = j15;
+        uint32_t x14 = input14;
+        uint32_t x15 = input15;
         for (size_t i = 20; i > 0; i -= 2) {
             QUARTERROUND(x0, x4, x8, x12);
             QUARTERROUND(x1, x5, x9, x13);
@@ -76,40 +59,40 @@ void chacha20::impl::cipher_ref(const uint8_t m[], uint8_t c[], size_t bytes)
         
         if (m == nullptr)
         {
-            x0 = PLUS(x0, j0);
-            x1 = PLUS(x1, j1);
-            x2 = PLUS(x2, j2);
-            x3 = PLUS(x3, j3);
-            x4 = PLUS(x4, j4);
-            x5 = PLUS(x5, j5);
-            x6 = PLUS(x6, j6);
-            x7 = PLUS(x7, j7);
-            x8 = PLUS(x8, j8);
-            x9 = PLUS(x9, j9);
-            x10 = PLUS(x10, j10);
-            x11 = PLUS(x11, j11);
+            x0 = PLUS(x0, 0x61707865);
+            x1 = PLUS(x1, 0x3320646e);
+            x2 = PLUS(x2, 0x79622d32);
+            x3 = PLUS(x3, 0x6b206574);
+            x4 = PLUS(x4, input4);
+            x5 = PLUS(x5, input5);
+            x6 = PLUS(x6, input6);
+            x7 = PLUS(x7, input7);
+            x8 = PLUS(x8, input8);
+            x9 = PLUS(x9, input9);
+            x10 = PLUS(x10, input10);
+            x11 = PLUS(x11, input11);
             x12 = PLUS(x12, uints::low(ic));
             x13 = PLUS(x13, uints::high(ic));
-            x14 = PLUS(x14, j14);
-            x15 = PLUS(x15, j15);
+            x14 = PLUS(x14, input14);
+            x15 = PLUS(x15, input15);
         } else 
         {
-            x0 = PLUS(x0, j0);
-            x1 = PLUS(x1, j1);
-            x2 = PLUS(x2, j2);
-            x3 = PLUS(x3, j3);
-            x4 = PLUS(x4, j4);
-            x5 = PLUS(x5, j5);
-            x6 = PLUS(x6, j6);
-            x7 = PLUS(x7, j7);
-            x8 = PLUS(x8, j8);
-            x9 = PLUS(x9, j9);
-            x10 = PLUS(x10, j10);
-            x11 = PLUS(x11, j11);
+            x0 = PLUS(x0, 0x61707865);
+            x1 = PLUS(x1, 0x3320646e);
+            x2 = PLUS(x2, 0x79622d32);
+            x3 = PLUS(x3, 0x6b206574);
+            x4 = PLUS(x4, input4);
+            x5 = PLUS(x5, input5);
+            x6 = PLUS(x6, input6);
+            x7 = PLUS(x7, input7);
+            x8 = PLUS(x8, input8);
+            x9 = PLUS(x9, input9);
+            x10 = PLUS(x10, input10);
+            x11 = PLUS(x11, input11);
             x12 = PLUS(x12, uints::low(ic));
             x13 = PLUS(x13, uints::high(ic));
-            x14 = PLUS(x14, j14);
-            x15 = PLUS(x15, j15);
+            x14 = PLUS(x14, input14);
+            x15 = PLUS(x15, input15);
 
             x0 = XOR(x0, tools::load32_le(m + 0));
             x1 = XOR(x1, tools::load32_le(m + 4));

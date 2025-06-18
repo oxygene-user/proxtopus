@@ -1,16 +1,70 @@
 #pragma once
 
 #define ENOUGH_ACCEPTORS_COUNT 10
-#define BRIDGE_BUFFER_SIZE 65536
-
+#define BRIDGE_BUFFER_SIZE (65536*2)
 
 struct slot_statistics
 {
     slot_statistics(signed_t inatime) :inactive_start(inatime) {}
     signed_t inactive_start = 0;
     bool one_sec_inactive = false;
+#if DEEP_SLOT_TRACE
+    size_t uid = tools::unique_id();
+#endif
 };
 
+#if DEEP_SLOT_TRACE
+struct deep_tracer
+{
+    static bool deep_trace_enabled;
+
+    struct slotrec
+    {
+        std::vector<str::astr> log;
+    };
+
+    struct trace_rec
+    {
+        trace_rec(signed_t t) :time(t) {}
+        signed_t time;
+        size_t tid;
+        size_t utid;
+        size_t numlines = 0;
+        std::map<size_t, slotrec> logs;
+    };
+    std::vector<trace_rec> recs;
+    signed_t cur_thread_id = 0;
+    signed_t cur_thread_uid = 0;
+    size_t cur_slot_uid = 0;
+    size_t traceuid = tools::unique_id();
+
+    void set_current_slot(size_t uid)
+    {
+        cur_slot_uid = uid;
+    }
+
+    void set_current_thread();
+
+    template <typename... T> void log(const char* s, const T&... args) {
+
+        if (!deep_trace_enabled)
+            return;
+
+        signed_t ct = chrono::ms();
+
+        trace_rec& rec = recs.empty() || recs[recs.size() - 1].time < ct ? recs.emplace_back(ct) : recs[recs.size() - 1];
+        rec.tid = cur_thread_id;
+        rec.utid = cur_thread_uid;
+
+        slotrec& sr = rec.logs[cur_slot_uid];
+
+        str::astr& sout = sr.log.emplace_back();
+        str::impl_build_string(sout, s, args...);
+    }
+    void save_log();
+
+};
+#endif
 
 class engine
 {
@@ -49,7 +103,9 @@ class engine
         netkit::pipe_ptr pipe2;
         u64 mask1 = 0;
         u64 mask2 = 0;
-
+#if DEEP_SLOT_TRACE
+        deep_tracer* tracer = nullptr;
+#endif
 #ifdef LOG_TRAFFIC
         traffic_logger loger;
 #endif
@@ -85,21 +141,22 @@ class engine
         enum process_result
         {
             SLOT_DEAD,
-            SLOT_PROCESSES,
             SLOT_SKIPPED,
+            SLOT_PROCESSED,
+            SLOT_PROCESSED_HIGHLOAD,
         };
 
-        process_result process(u8* data, netkit::pipe_waiter::mask& masks); // returns: -1 - dead slot, 0 - slot not processed, 1 - slot processed
+        process_result process(tools::circular_buffer_extdata& data, netkit::pipe_waiter::mask& masks); // returns: -1 - dead slot, 0 - slot not processed, 1 - slot processed
 
     };
-
-    class tcp_processing_thread
+    class tcp_processing_thread DST( : public deep_tracer )
     {
         signed_t name_wrk = -1;
         signed_t numslots = 0;
         netkit::pipe_waiter waiter;
         std::array<bridged, MAXIMUM_SLOTS> slots;
         std::unique_ptr<tcp_processing_thread> next;
+
         volatile bool waiting = false;
 
         void moveslot(signed_t to, signed_t from)
@@ -123,6 +180,9 @@ class engine
             numslots = 1;
             slots[0].pipe1 = pipe1;
             slots[0].pipe2 = pipe2;
+#if DEEP_SLOT_TRACE
+            slots[0].stat.reset(NEW slot_statistics(chrono::ms()));
+#endif
 
             spinlock::atomic_increment(glb.numtcp);
         }
@@ -152,7 +212,7 @@ class engine
             return &next;
         }
         void close();
-        bool tick(u8* data); // returns false to stop
+        bool tick(tools::circular_buffer_extdata &data); // returns false to stop
     };
 
     volatile spinlock::rwlock lock_tcp_list = 0;
@@ -181,6 +241,10 @@ class engine
             br.pipe1._assign(brr.pipe1);
             br.pipe2._assign(brr.pipe2);
             br.stat.reset(brr.stat);
+#if DEEP_SLOT_TRACE
+            br.tracer->set_current_slot(br.stat->uid);
+            br.tracer->log("absorbed");
+#endif
             });
     }
     bool bridge_alienation(bridged& br)
@@ -188,6 +252,7 @@ class engine
         return ready_bridges.put([&br](bridge_ready& brr) {
             brr.pipe1 = br.pipe1._release();
             brr.pipe2 = br.pipe2._release();
+            DST(br.tracer->log("alienation"));
             brr.stat = br.stat.release();
             });
     }
@@ -196,7 +261,11 @@ class engine
         return ready_bridges.put([&](bridge_ready& brr) {
             brr.pipe1 = pipe1;
             brr.pipe2 = pipe2;
+#if DEEP_SLOT_TRACE
+            brr.stat = NEW slot_statistics(chrono::ms());
+#else
             brr.stat = nullptr;
+#endif
         });
     }
 
@@ -205,7 +274,6 @@ class engine
         if (tcp_processing_thread* absorber = reinterpret_cast<tcp_processing_thread*>(current_absorber))
             absorber->signal();
     }
-    void bridge(tcp_processing_thread* npt);
     void release_tcp(tcp_processing_thread* udp_wt);
 
 public:

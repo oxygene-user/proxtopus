@@ -4,48 +4,36 @@
 
 void chacha20::impl::key_setup(const uint8_t* k)
 {
-    input[0] = 0x61707865;
-    input[1] = 0x3320646e;
-    input[2] = 0x79622d32;
-    input[3] = 0x6b206574;
-    input[4] = tools::load32_le(k + 0);
-    input[5] = tools::load32_le(k + 4);
-    input[6] = tools::load32_le(k + 8);
-    input[7] = tools::load32_le(k + 12);
-    input[8] = tools::load32_le(k + 16);
-    input[9] = tools::load32_le(k + 20);
-    input[10] = tools::load32_le(k + 24);
-    input[11] = tools::load32_le(k + 28);
+    input4 = tools::load32_le(k + 0);
+    input5 = tools::load32_le(k + 4);
+    input6 = tools::load32_le(k + 8);
+    input7 = tools::load32_le(k + 12);
+    input8 = tools::load32_le(k + 16);
+    input9 = tools::load32_le(k + 20);
+    input10 = tools::load32_le(k + 24);
+    input11 = tools::load32_le(k + 28);
 }
-void chacha20::impl::ic_setup(size_t ic)
+u64 chacha20::impl::ic_setup(size_t ic)
 {
-    tools::store32_le((u8*)&input[12], static_cast<u32>(ic & 0xffffffff));
-
-#ifdef MODE64
-    u32 ic_high = ic >> 32;
-    tools::store32_le((u8*)&input[13], ic_high);
-#else
-    input[13] = 0;
-#endif
-
+    return ic;
 }
     
-void chacha20::impl::ic_setup_ietf(size_t ic)
+u64 chacha20::impl::ic_setup_ietf(size_t ic)
 {
-    tools::store32_le((u8*)&input[12], static_cast<u32>(ic));
+    return ic | ((u64)ic_high) << 32;
 }
 
 void chacha20::impl::iv_setup(const uint8_t* iv)
 {
-    input[14] = tools::load32_le(iv + 0);
-    input[15] = tools::load32_le(iv + 4);
+    input14 = tools::load32_le(iv + 0);
+    input15 = tools::load32_le(iv + 4);
 }
 
 void chacha20::impl::iv_setup_ietf(const uint8_t* iv)
 {
-    input[13] = tools::load32_le(iv + 0);
-    input[14] = tools::load32_le(iv + 4);
-    input[15] = tools::load32_le(iv + 8);
+    ic_high = tools::load32_le(iv + 0);
+    input14 = tools::load32_le(iv + 4);
+    input15 = tools::load32_le(iv + 8);
 }
 
 #ifdef _MSC_VER
@@ -78,22 +66,21 @@ inline void chacha_quarter_round(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t
 
 void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned char* n)
 {
-    uint32_t x0, x1, x2, x3, x4, x5, x6, x7;
-    uint32_t x8, x9, x10, x11, x12, x13, x14, x15;
+    uint32_t x12, x13, x14, x15;
 
-    x0 = 0x61707865;
-    x1 = 0x3320646e;
-    x2 = 0x79622d32;
-    x3 = 0x6b206574;
+    uint32_t x0 = 0x61707865;
+    uint32_t x1 = 0x3320646e;
+    uint32_t x2 = 0x79622d32;
+    uint32_t x3 = 0x6b206574;
 
-    x4 = tools::load32_le(k + 0);
-    x5 = tools::load32_le(k + 4);
-    x6 = tools::load32_le(k + 8);
-    x7 = tools::load32_le(k + 12);
-    x8 = tools::load32_le(k + 16);
-    x9 = tools::load32_le(k + 20);
-    x10 = tools::load32_le(k + 24);
-    x11 = tools::load32_le(k + 28);
+    uint32_t x4 = tools::load32_le(k + 0);
+    uint32_t x5 = tools::load32_le(k + 4);
+    uint32_t x6 = tools::load32_le(k + 8);
+    uint32_t x7 = tools::load32_le(k + 12);
+    uint32_t x8 = tools::load32_le(k + 16);
+    uint32_t x9 = tools::load32_le(k + 20);
+    uint32_t x10 = tools::load32_le(k + 24);
+    uint32_t x11 = tools::load32_le(k + 28);
         
     if (n == nullptr)
     {
@@ -101,8 +88,8 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
         x13 = 0;
         x14 = 0;
         x15 = 0;
-        input[14] = 0;
-        input[15] = 0;
+        input14 = 0;
+        input15 = 0;
 
     } else
     {
@@ -110,8 +97,8 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
         x13 = tools::load32_le(n + 4);
         x14 = tools::load32_le(n + 8);
         x15 = tools::load32_le(n + 12);
-        input[14] = tools::load32_le(n + 16);
-        input[15] = tools::load32_le(n + 20);
+        input14 = tools::load32_le(n + 16);
+        input15 = tools::load32_le(n + 20);
 
     }
 
@@ -126,18 +113,14 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
         QUARTERROUND(x3, x4, x9, x14);
     }
 
-    input[0] = 0x61707865;
-    input[1] = 0x3320646e;
-    input[2] = 0x79622d32;
-    input[3] = 0x6b206574;
-    input[4] = x0;
-    input[5] = x1;
-    input[6] = x2;
-    input[7] = x3;
-    input[8] = x12;
-    input[9] = x13;
-    input[10] = x14;
-    input[11] = x15;
+    input4 = x0;
+    input5 = x1;
+    input6 = x2;
+    input7 = x3;
+    input8 = x12;
+    input9 = x13;
+    input10 = x14;
+    input11 = x15;
       
 
 }
@@ -161,14 +144,19 @@ void chacha20::impl::prepare(const uint8_t* k, const uint8_t* nonce, uint8_t non
 
 #define GEN_IMPL(ivsz, ext) struct iml##ivsz##_chacha20_##ext : public chacha20::impl { void cipher(const uint8_t in[], uint8_t out[], size_t size, size_t ic) override {\
 if (!size) return;\
-ic_setup##ivsz(ic); cipher_##ext(in,out,size); }; }
+cipher_##ext(in,out,size,ic_setup##ivsz(ic)); }; }
 
+#ifndef SSSE3_SUPPORTED
+GEN_IMPL(, ref);
+GEN_IMPL(_ietf, ref);
+#endif
+#ifndef AVX2_SUPPORTED
+GEN_IMPL(, ssse3);
+GEN_IMPL(_ietf, ssse3);
+#endif
 #ifdef MODE64
-GEN_IMPL(, ref); GEN_IMPL(, avx2); GEN_IMPL(, ssse3);
-GEN_IMPL(_ietf, ref); GEN_IMPL(_ietf, avx2); GEN_IMPL(_ietf, ssse3);
-#else
-GEN_IMPL(, ref); GEN_IMPL(, ssse3);
-GEN_IMPL(_ietf, ref); GEN_IMPL(_ietf, ssse3);
+GEN_IMPL(, avx2);
+GEN_IMPL(_ietf, avx2);
 #endif
 #undef GEN_IMPL
 struct iml_buf
@@ -184,30 +172,30 @@ struct iml_buf
     }
 };
 #define KEB void prepare(const uint8_t* k, const uint8_t* nonce, uint8_t nonce_size) override { if (k != nullptr) tools::memcopy<32>(key, k); impl::prepare(key, nonce, nonce_size); }
+#ifndef SSSE3_SUPPORTED
 struct iml_chacha20_ref_keybuf : public iml_chacha20_ref, iml_buf { KEB };
+#endif
 #ifdef MODE64
 struct iml_chacha20_avx2_keybuf : public iml_chacha20_avx2, iml_buf { KEB };
 #endif
+#ifndef AVX2_SUPPORTED
 struct iml_chacha20_ssse3_keybuf : public iml_chacha20_ssse3, iml_buf { KEB };
+#endif
 #undef KEB
 
+#ifndef SSSE3_SUPPORTED
 #include "sodium_chacha20_ref.inl"
+#endif
+#ifndef AVX2_SUPPORTED
 #include "sodium_chacha20_ssse3.inl"
+#endif
 #ifdef MODE64
 #include "sodium_chacha20_avx2.inl"
 #endif
 
 void chacha20::cipher(const uint8_t in[], uint8_t out[], size_t length)
 {
-    if (!flags.is<f_prepared>())
-    {
-        ASSERT((reinterpret_cast<size_t>(&m_buf) & (15)) == 0);
-
-        if (!flags.is<f_key_set>())
-            return;
-        setup_implementation(24);
-        m_impl->prepare(m_buf, nullptr, 24);
-    }
+    ASSERT(flags.is<f_prepared>());
 
     auto update_buf = [this]
     {
@@ -290,46 +278,38 @@ void chacha20::setup_implementation(size_t iv_size)
     switch (iv_size)
     {
     case 8:
-#ifdef MODE64
-        if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2)) {
-            m_impl = std::make_unique<iml_chacha20_avx2>();
-        }
-#endif
-        if (!m_impl && Botan::CPUID::has(Botan::CPUID::Feature::SSSE3)) {
-            m_impl = std::make_unique<iml_chacha20_ssse3>();
-        }
-        if (!m_impl)
-            m_impl = std::make_unique<iml_chacha20_ref>();
+
+#define IMPLAVX2 iml_chacha20_avx2
+#define IMPLSSSE3 iml_chacha20_ssse3
+#define IMPREF iml_chacha20_ref
+#include "chacha20_select.inl"
+#undef IMPREF
+#undef IMPLSSSE3
+#undef IMPLAVX2
 
         flags.setn<f_impl_size>(1);
         break;
     case 12:
 
-#ifdef MODE64
-        if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2)) {
-            m_impl = std::make_unique<iml_ietf_chacha20_avx2>();
-        }
-#endif
-        if (!m_impl && Botan::CPUID::has(Botan::CPUID::Feature::SSSE3)) {
-            m_impl = std::make_unique<iml_ietf_chacha20_ssse3>();
-        }
-        if (!m_impl)
-            m_impl = std::make_unique<iml_ietf_chacha20_ref>();
+#define IMPLAVX2 iml_ietf_chacha20_avx2
+#define IMPLSSSE3 iml_ietf_chacha20_ssse3
+#define IMPREF iml_ietf_chacha20_ref
+#include "chacha20_select.inl"
+#undef IMPREF
+#undef IMPLSSSE3
+#undef IMPLAVX2
 
         flags.setn<f_impl_size>(2); // means 12 bytes iv_len
         break;
     case 24:
 
-#ifdef MODE64
-        if (Botan::CPUID::has(Botan::CPUID::Feature::AVX2)) {
-            m_impl = std::make_unique<iml_chacha20_avx2_keybuf>();
-        }
-#endif
-        if (!m_impl && Botan::CPUID::has(Botan::CPUID::Feature::SSSE3)) {
-            m_impl = std::make_unique<iml_chacha20_ssse3_keybuf>();
-        }
-        if (!m_impl)
-            m_impl = std::make_unique<iml_chacha20_ref_keybuf>();
+#define IMPLAVX2 iml_chacha20_avx2_keybuf
+#define IMPLSSSE3 iml_chacha20_ssse3_keybuf
+#define IMPREF iml_chacha20_ref_keybuf
+#include "chacha20_select.inl"
+#undef IMPREF
+#undef IMPLSSSE3
+#undef IMPLAVX2
 
         flags.setn<f_impl_size>(3);
         break;

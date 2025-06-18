@@ -4,7 +4,7 @@
 #include "transport.h"
 
 #define RECV_BRIDGE_MODE_TIMEOUT 60000 // 1 min
-#define RECV_PREPARE_MODE_TIMEOUT 10000 // 10 sec
+#define RECV_PREPARE_MODE_TIMEOUT 1000 // 1 sec
 
 class loader;
 class proxy;

@@ -16,7 +16,6 @@
 					<Add option="-m64" />
 					<Add option="-g" />
 					<Add option="-rdynamic" />
-					<Add option="-mcx16" />
 					<Add option="-D_DEBUG" />
 					<Add option="-D_GLIBCXX_DEBUG" />
 					<Add directory="proxtopus" />
@@ -107,7 +106,6 @@
 		<Unit filename="botan/dl_named.cpp" />
 		<Unit filename="botan/dl_scheme.cpp" />
 		<Unit filename="botan/donna.cpp" />
-		<Unit filename="botan/dyn_load.cpp" />
 		<Unit filename="botan/ec_apoint.cpp" />
 		<Unit filename="botan/ec_group.cpp" />
 		<Unit filename="botan/ec_inner_data.cpp" />
@@ -123,7 +121,6 @@
 		<Unit filename="botan/ed25519_key.cpp" />
 		<Unit filename="botan/eme_pkcs.cpp" />
 		<Unit filename="botan/emsa_pkcs1.cpp" />
-		<Unit filename="botan/entropy_src.h" />
 		<Unit filename="botan/exceptn.cpp" />
 		<Unit filename="botan/exceptn.h" />
 		<Unit filename="botan/filter.cpp" />
@@ -139,8 +136,6 @@
 		<Unit filename="botan/hex.h" />
 		<Unit filename="botan/hkdf.cpp" />
 		<Unit filename="botan/hmac.cpp" />
-		<Unit filename="botan/hmac_drbg.cpp" />
-		<Unit filename="botan/hmac_drbg.h" />
 		<Unit filename="botan/internal/aes.h" />
 		<Unit filename="botan/internal/alignment_buffer.h" />
 		<Unit filename="botan/internal/bit_ops.h" />
@@ -150,7 +145,6 @@
 		<Unit filename="botan/internal/ct_utils.h" />
 		<Unit filename="botan/internal/ctr.h" />
 		<Unit filename="botan/internal/donna128.h" />
-		<Unit filename="botan/internal/dyn_load.h" />
 		<Unit filename="botan/internal/gcm.h" />
 		<Unit filename="botan/internal/ghash.h" />
 		<Unit filename="botan/internal/hkdf.h" />
@@ -249,14 +243,10 @@
 		<Unit filename="botan/sha2_64_avx2.cpp" />
 		<Unit filename="botan/sha3.cpp" />
 		<Unit filename="botan/sm3.cpp" />
-		<Unit filename="botan/stateful_rng.cpp" />
-		<Unit filename="botan/stateful_rng.h" />
 		<Unit filename="botan/stream_cipher.h" />
 		<Unit filename="botan/strong_type.h" />
 		<Unit filename="botan/sym_algo.h" />
 		<Unit filename="botan/symkey.h" />
-		<Unit filename="botan/system_rng.cpp" />
-		<Unit filename="botan/system_rng.h" />
 		<Unit filename="botan/tls_alert.cpp" />
 		<Unit filename="botan/tls_algos.cpp" />
 		<Unit filename="botan/tls_callbacks.cpp" />

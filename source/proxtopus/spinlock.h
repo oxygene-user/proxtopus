@@ -21,10 +21,6 @@
 #include <unistd.h>
 #endif
 
-#ifndef IS_SINGLE_CORE
-#define IS_SINGLE_CORE (false)
-#endif
-
 namespace spinlock
 {
 #if defined _WIN32
@@ -279,13 +275,7 @@ SLINLINE void lock_write(volatile rwlock &lock)
         if (atomic_cas_update_expected(lock, expected, newlock))
             break; // write lock was released
 
-        if (IS_SINGLE_CORE || spincount > 10000)
-        {
-            sleep((spincount >> 17) & 0xff);
-            expected = lock;
-        }
-        else
-            sleep();
+        SPINCOUNT_SLEEP(spincount, expected = lock);
 	}
 
     // if there are readers from current thread - deadlock:
@@ -296,10 +286,7 @@ SLINLINE void lock_write(volatile rwlock &lock)
 		if (0 == (lock & lock_read_mask)) // all readers gone // no need to use atomic_load here because we need masked value
 			return;
 
-        if (IS_SINGLE_CORE || spincount > 10000)
-            sleep((spincount >> 17) & 0xff);
-        else
-            sleep();
+        SPINCOUNT_SLEEP(spincount);
     }
 }
 
@@ -321,13 +308,7 @@ SLINLINE void lock_read(volatile rwlock&lock)
         if (atomic_cas_update_expected(lock, expected, val))
             break; // read lock count increased
 
-        if (IS_SINGLE_CORE || spincount > 10000)
-        {
-            sleep((spincount >> 17) & 0xff);
-            expected = lock; // no need use atomic_load here due we need masked value
-        }
-        else
-            sleep();
+        SPINCOUNT_SLEEP(spincount, expected = lock);
     }
 }
 
@@ -433,10 +414,7 @@ inline void simple_lock_spincount(volatile size_t& lock, size_t spincount)
 {
     for (size_t sc = 0; !atomic_cas<size_t>(lock, 0, 1); ++sc)
     {
-        if (IS_SINGLE_CORE || sc > spincount)
-            sleep((sc >> 17) & 0xff);
-        else
-            sleep();
+        SPINCOUNT_SLEEP_EX(sc, spincount);
     }
 }
 

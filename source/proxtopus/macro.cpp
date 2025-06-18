@@ -13,7 +13,7 @@ signed_t macro_context::random(signed_t from, signed_t to)
     if (delta < 2)
         return from;
     size_t rndn;
-    rnd->randomize((u8 *) & rndn, sizeof(rndn));
+    rnd->randombytes_buf((u8 *) & rndn, sizeof(rndn));
 
     return from + (rndn % delta);
 }
