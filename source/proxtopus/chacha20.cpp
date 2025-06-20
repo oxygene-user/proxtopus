@@ -17,7 +17,7 @@ u64 chacha20::impl::ic_setup(size_t ic)
 {
     return ic;
 }
-    
+
 u64 chacha20::impl::ic_setup_ietf(size_t ic)
 {
     return ic | ((u64)ic_high) << 32;
@@ -81,7 +81,7 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
     uint32_t x9 = tools::load32_le(k + 20);
     uint32_t x10 = tools::load32_le(k + 24);
     uint32_t x11 = tools::load32_le(k + 28);
-        
+
     if (n == nullptr)
     {
         x12 = 0;
@@ -121,7 +121,7 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
     input9 = x13;
     input10 = x14;
     input11 = x15;
-      
+
 
 }
 
@@ -230,7 +230,7 @@ void chacha20::cipher(const uint8_t in[], uint8_t out[], size_t length)
     }
 
     ASSERT((m_position & 63) == 0);
-        
+
     size_t pure_size = length & (~63ull);
     size_t ic = m_position >> 6;
     if (flags.is<f_buf_valid>() && pure_size > 0)

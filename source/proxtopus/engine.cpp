@@ -255,14 +255,24 @@ void engine::new_tcp_pipe(handler* h, netkit::tcp_pipe* p)
 {
     ASSERT(p->is_ref_new());
 
+    if (num_acceptors == 0)
+    {
+        std::thread th(&engine::acceptor, this);
+        th.detach();
+    }
+
 	for (size_t spinlockcount = 0;;++spinlockcount)
     {
-        bool done = newpipes.put([&](tcp_pipe_and_handler& buck) {
+        if (newpipes.put([&](tcp_pipe_and_handler& buck) {
             buck.h = h;
             buck.pipe = p;
-        });
-		if (done)
-			break;
+        })) break;
+
+        if (num_acceptors == 0)
+        {
+            std::thread th(&engine::acceptor, this);
+            th.detach();
+        }
 
 		spinlock::sleep(1);
 		if (spinlockcount > 1000)
@@ -271,13 +281,7 @@ void engine::new_tcp_pipe(handler* h, netkit::tcp_pipe* p)
 			return;
 		}
 	}
-	
-	if (num_acceptors == 0)
-    {
-        std::thread th(&engine::acceptor, this);
-        th.detach();
-	}
-	
+
 	cv.notify_one();
 }
 

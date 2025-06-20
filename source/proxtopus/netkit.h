@@ -6,6 +6,7 @@
 #endif
 
 #define LOOP_PERIOD 500 // 0.5 sec
+#define CONNECT_TIMEOUT 10000 // 10 sec
 
 #ifdef _NIX
 inline void closesocket(int s) { ::close(s); };
@@ -506,7 +507,7 @@ namespace netkit
 #endif
 #ifdef _NIX
         pollfd polls[MAXIMUM_WAITABLES + 2];
-        int evt[2] = {INVALID_SOCKET, INVALID_SOCKET}; // socketpair
+        int efd = -1;
 #endif // _NIX
         size_t numw = 0;
 
@@ -596,14 +597,9 @@ namespace netkit
 #ifdef _WIN32
             if (sig)
                 WSACloseEvent(sig);
-#endif
-#ifdef _NIX
-            if (evt[0] >= 0)
-            {
-                ::close(evt[0]);
-                ::close(evt[1]);
-            }
-
+#else
+            if (efd >= 0)
+                ::close(efd);
 #endif // _NIX
         }
 

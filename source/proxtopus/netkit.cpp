@@ -3,6 +3,7 @@
 #include <Ws2tcpip.h>
 #endif
 #ifdef _NIX
+#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <linux/sockios.h> // SIOCOUTQ
 #endif
@@ -285,21 +286,59 @@ namespace netkit
 
     bool ipap::connect(SOCKET s) const
     {
-        if (v4)
+        // non-blocking mode
+#ifdef _WIN32
+        u_long one(1);
+        ioctlsocket(s, FIONBIO, (u_long*)&one);
+#else
+        fcntl(s, F_SETFL, O_NONBLOCK | fcntl(s, F_GETFL));
+#endif
+        auto call_connect = [this](SOCKET s) -> auto
         {
-            sockaddr_in addr = {};
-            addr.sin_family = AF_INET;
-            addr.sin_addr = ipv4;
-            ref_cast<u16be&>(addr.sin_port) = port;
-            return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
-        }
+            if (v4)
+            {
+                sockaddr_in addr = {};
+                addr.sin_family = AF_INET;
+                addr.sin_addr = ipv4;
+                ref_cast<u16be&>(addr.sin_port) = port;
+                return ::connect(s, (const sockaddr*)&addr, sizeof(addr));
+            }
 
-        sockaddr_in6 addr = {};
-        addr.sin6_family = AF_INET6;
-        tools::memcopy<sizeof(ipv6)>(&addr.sin6_addr, &ipv6);
-        ref_cast<u16be&>(addr.sin6_port) = port;
-        return SOCKET_ERROR != ::connect(s, (const sockaddr*)&addr, sizeof(addr));
+            sockaddr_in6 addr = {};
+            addr.sin6_family = AF_INET6;
+            tools::memcopy<sizeof(ipv6)>(&addr.sin6_addr, &ipv6);
+            ref_cast<u16be&>(addr.sin6_port) = port;
+            return ::connect(s, (const sockaddr*)&addr, sizeof(addr));
+        };
 
+        auto result = call_connect(s);
+        if (result == 0)
+            return true;
+
+#ifdef _WIN32
+        if (WSAGetLastError() != WSAEWOULDBLOCK)
+            return false;
+
+        fd_set writefds;
+        FD_ZERO(&writefds);
+        FD_SET(s, &writefds);
+
+        TIMEVAL tv;
+        tv.tv_sec = CONNECT_TIMEOUT/1000;
+        tv.tv_usec = (CONNECT_TIMEOUT%1000) * 1000;
+
+        return select(0, nullptr, &writefds, nullptr, &tv) > 0;
+#else
+        if (errno != EINPROGRESS)
+            return false;
+
+        pollfd pfd;
+
+        pfd.fd = s;
+        pfd.events = POLLOUT;
+
+        return poll(&pfd, 1, CONNECT_TIMEOUT) > 0;
+#endif
     }
 
     bool ipap::sendto(SOCKET s, const std::span<const u8>& p) const
@@ -670,15 +709,6 @@ namespace netkit
             return false;
         }
 
-        #ifdef _WIN32
-        // non-blocking mode
-        u_long one(1);
-        ioctlsocket(sock(), FIONBIO, (u_long*)&one);
-        #endif
-        #ifdef _NIX
-        fcntl(sock(), F_SETFL, O_NONBLOCK | fcntl(sock(),F_GETFL));
-        #endif
-
         // LOG connected
 
         return true;
@@ -818,7 +848,7 @@ namespace netkit
 
                     if (chrono::ms() > deadtime)
                         return -1;
-                    
+
                     auto w = get_waitable();
                     clear_ready(w, READY_PIPE|READY_SYSTEM);
                     wrslt rslt = wait(w, LOOP_PERIOD);
@@ -1451,12 +1481,12 @@ namespace netkit
             return mask();
         }
 
-        if (evt[0] < 0)
+        if (efd < 0)
         {
-            socketpair(PF_LOCAL, SOCK_STREAM, 0, evt);
+            efd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
         }
 
-        polls[numw].fd = evt[0];
+        polls[numw].fd = efd;
         polls[numw].events = POLLIN;
 
         for (size_t i = 0; i < numw; ++i)
@@ -1497,8 +1527,8 @@ namespace netkit
 
         if (0 != (polls[numw].revents & POLLIN))
         {
-            u8 temp[64];
-            ::recv(evt[0], temp, sizeof(temp), 0); // just clear buf of socketpair
+            uint64_t cnt;
+            read(efd, &cnt, sizeof(cnt));
             m.set_by_signal();
         }
 
@@ -1517,11 +1547,12 @@ namespace netkit
 #ifdef _WIN32
         if (sig)
             WSASetEvent(sig);
-#endif
-#ifdef _NIX
-
-        u8 fakedata = 1;
-        ::send(evt[1], &fakedata, 1, 0);
+#else
+        if (efd >= 0)
+        {
+            uint64_t one = 1;
+            write(efd, &one, sizeof(one));
+        }
 #endif
     }
 
