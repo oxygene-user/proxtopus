@@ -13,7 +13,11 @@ public:
 #ifndef MODE64
         uint32_t ic_high;
 #endif
-        uint32_t input14, input15;
+        union
+        {
+            struct { uint32_t input14, input15; };
+            i64 input1415;
+        };
         uint32_t input4, input5, input6, input7, input8, input9, input10, input11;
 #ifdef MODE64
         uint32_t ic_high;

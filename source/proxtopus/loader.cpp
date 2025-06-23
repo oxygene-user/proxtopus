@@ -33,6 +33,8 @@ bool loader::load_conf(const FN& cfp)
 	settings = cfgsts.get(ASTR("settings"));
 	if (settings)
 	{
+        macro_context ctx(settings);
+
 		if (glb.actual)
 		{
 			signed_t ipv4 = settings->get_int(ASTR("ipv4"), 1);
@@ -67,8 +69,6 @@ bool loader::load_conf(const FN& cfp)
 				glb.cfg.dnso = conf::dnso_system;
 
 
-			macro_context ctx(settings);
-
 	#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 			glb.cfg.crash_log_file = tofn(settings->get_string(ASTR("crash_log_file"), glb.emptys));
 			glb.cfg.dump_file = tofn(settings->get_string(ASTR("dump_file"), glb.emptys));
@@ -79,18 +79,20 @@ bool loader::load_conf(const FN& cfp)
             glb.cfg.log_file = tofn(settings->get_string(ASTR("log_file"), glb.emptys));
             macro_expand(&ctx, glb.cfg.log_file);
 
-			glb.cfg.debug_log_file = tofn(settings->get_string(ASTR("debug_log_file"), glb.emptys));
-			macro_expand(&ctx, glb.cfg.debug_log_file);
+        }
 
-			const str::astr &dlm = settings->get_string(ASTR("debug_log_mask"), glb.emptys);
-			enum_tokens_a(tkn, dlm, '|')
-			{
-				if (ASTR("dns") == *tkn)
-					glb.cfg.debug_log_mask |= 1ull << DLCH_DNS;
-				if (ASTR("threads") == *tkn)
-					glb.cfg.debug_log_mask |= 1ull << DLCH_THREADS;
-			}
+        glb.cfg.debug_log_file = tofn(settings->get_string(ASTR("debug_log_file"), glb.emptys));
+        macro_expand(&ctx, glb.cfg.debug_log_file);
 
+        const str::astr& dlm = settings->get_string(ASTR("debug_log_mask"), glb.emptys);
+        enum_tokens_a(tkn, dlm, '|')
+        {
+            if (ASTR("dns") == *tkn)
+                glb.cfg.debug_log_mask |= 1ull << DLCH_DNS;
+            if (ASTR("reboot") == *tkn)
+                glb.cfg.debug_log_mask |= 1ull << DLCH_REBOOT;
+            if (ASTR("socket") == *tkn)
+                glb.cfg.debug_log_mask |= 1ull << DLCH_SOCKET;
         }
 
         const str::astr& opts = settings->get_string(ASTR("options"), glb.emptys);

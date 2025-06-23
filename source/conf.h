@@ -24,4 +24,4 @@
 
 //#define SSE2_SUPPORTED // uncomment to unconditional use of sse2
 //#define SSSE3_SUPPORTED // uncomment to unconditional use of sss3
-//#define AVX2_SUPPORTED // uncomment to unconditional use of avx2
+//#define AVX2_SUPPORTED // uncomment to unconditional use of avx2 (don't forget to add -mavx2 for gcc/clang)

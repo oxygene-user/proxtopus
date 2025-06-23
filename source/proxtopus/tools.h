@@ -1004,7 +1004,7 @@ namespace tools
 			return memory_pair(storage.data() + start, sz1, storage.data(), math::minv(getsize, end));
 		}
 
-        tank get_1st_free(tank storage) // it simply returns the free block following the data; after filling you should call confirm method to apply append
+        tank get_1st_free(tank storage) // it simply returns the 1st free block following the data; after filling you should call confirm method to apply append
 		{
 			if (start <= end)
 			{
@@ -1017,6 +1017,19 @@ namespace tools
 			i32 sz = start - end - 1; if (sz < 0) sz = 0;
 			return tank(storage.data() + end, sz); // , tank(nullptr, 0)
 		}
+        memory_pair get_free(tank storage) // it simply returns the free blocks following the data; after filling you should call confirm method to apply append
+        {
+            if (start <= end)
+            {
+                i32 sz1 = static_cast<i32>(storage.size()) - end;
+                i32 sz2 = start - 1; if (sz2 < 0) sz2 = 0;
+                if (sz1 == 0)
+                    return memory_pair(storage.data(), sz2);
+                return memory_pair(storage.data() + end, sz1, storage.data(), sz2);
+            }
+            i32 sz = start - end - 1; if (sz < 0) sz = 0;
+            return memory_pair(storage.data() + end, sz); // , tank(nullptr, 0)
+        }
 		void confirm(signed_t sz, size_t size)
 		{
 			if (start <= end)
@@ -1279,6 +1292,7 @@ namespace tools
 		void skip(signed_t skipbytes) { circular_buffer_engine::skip(skipbytes, storage.size()); }
 		void confirm(signed_t sz) { circular_buffer_engine::confirm(sz, storage.size()); }
 		tank get_1st_free() { return circular_buffer_engine::get_1st_free(storage); }
+		memory_pair get_free() { return circular_buffer_engine::get_free(storage); }
 		i32 get_free_size() const { return circular_buffer_engine::get_free_size(storage.size()); }
 		
 		template<typename T> T getle()
@@ -1633,21 +1647,3 @@ namespace str
 
 }
 
-namespace stats
-{
-    struct tick_collector
-    {
-		str::astr_view tag;
-        signed_t start_ms = 0;
-        signed_t collect_start_ms = 0;
-
-        std::vector<std::pair<u16, u16>> mss;
-
-		tick_collector(str::astr_view tag);
-		~tick_collector();
-
-		void collect();
-
-    };
-
-}

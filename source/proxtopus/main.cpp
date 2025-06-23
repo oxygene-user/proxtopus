@@ -113,9 +113,18 @@ static void handle_signal(int sig) {
         if (glb.is_stop())
             return;
 
+        if (glb.actual)
+        {
+            DL(DLCH_REBOOT, "actual signal exit: $", sig);
+        }
+        else {
+            DL(DLCH_REBOOT, "watchdog signal exit: $", sig);
+        }
+
         glb.e->exit_code = EXIT_OK_EXIT_SIGNAL;
 
         logger::unmute();
+
         LOG_I("proxtopus has been received stop signal ($)", sig);
         glb.stop();
 
@@ -285,8 +294,10 @@ int run_engine(WINONLY(bool as_service = false))
             {
                 switch (code)
                 {
+                case EXIT_FAIL_NEED_ALL_LISTENERS:
                 case EXIT_FAIL_OVERLOAD:
                 case EXIT_TERMINATED: // presumably
+
                     return false;
                 default:
                     break;
@@ -300,11 +311,14 @@ int run_engine(WINONLY(bool as_service = false))
             if (need_exit(ec))
             {
                 e.exit_code = static_cast<int>(ec);
+                DL(DLCH_REBOOT, "not reboot: $", ec);
                 break;
             }
-        }
-    }
 
+            DL(DLCH_REBOOT, "reboot: $", ec);
+        }
+        DL(DLCH_REBOOT, "watchdog exit: $", e.exit_code);
+    }
     LOG_D("exit with code $", e.exit_code);
     Print();
 

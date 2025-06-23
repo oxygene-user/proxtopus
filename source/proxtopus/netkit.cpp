@@ -5,6 +5,7 @@
 #ifdef _NIX
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
+#include <sys/uio.h>
 #include <linux/sockios.h> // SIOCOUTQ
 #endif
 
@@ -441,6 +442,66 @@ namespace netkit
         }
     }
 
+    signed_t waitable_socket::recv(tools::memory_pair& mp)
+    {
+#ifdef _WIN32
+        WSABUF bufs[2];
+        DWORD flags = 0;
+        DWORD received = 0;
+        DWORD buf_count = 0;
+
+        if (!mp.p0.empty()) {
+            bufs[buf_count].buf = reinterpret_cast<char*>(mp.p0.data());
+            bufs[buf_count].len = static_cast<ULONG>(mp.p0.size());
+            ++buf_count;
+        }
+
+        if (!mp.p1.empty()) {
+            bufs[buf_count].buf = reinterpret_cast<char*>(mp.p1.data());
+            bufs[buf_count].len = static_cast<ULONG>(mp.p1.size());
+            ++buf_count;
+        }
+
+        int ret = WSARecv(sock(), bufs, buf_count, &received, &flags, nullptr, nullptr);
+        if (ret < 0) {
+            int err = WSAGetLastError();
+            if (err == WSAEWOULDBLOCK)
+                return 0;
+            return -1;
+        }
+        if (ret == 0 && received == 0)
+            return -1;
+
+        return static_cast<signed_t>(received);
+#else
+        struct iovec iov[2];
+        int iovcnt = 0;
+
+        if (!mp.p0.empty()) {
+            iov[iovcnt].iov_base = mp.p0.data();
+            iov[iovcnt].iov_len = mp.p0.size();
+            ++iovcnt;
+        }
+
+        if (!mp.p1.empty()) {
+            iov[iovcnt].iov_base = mp.p1.data();
+            iov[iovcnt].iov_len = mp.p1.size();
+            ++iovcnt;
+        }
+
+        auto ret = readv(sock(), iov, iovcnt);
+        if (ret < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                return 0;
+            return -1;
+        }
+        if (ret == 0)
+            return -1;
+        return static_cast<signed_t>(ret);
+#endif
+    }
+
+
     bool waitable_socket::listen(const str::astr& name, const ipap& bind2)
     {
         if (glb.cfg.ipstack == conf::gip_only6 && bind2.v4)
@@ -828,42 +889,38 @@ namespace netkit
 
         for (signed_t deadtime = required > 0 ? (timeout+chrono::ms()) : 0;;)
         {
-            auto tank = data.get_1st_free();
+            auto mp = data.get_free();
 
             DST(if (tracer) tracer->log("tcprecv tank $", tank.size()));
-            signed_t _bytes = ::recv(sock(), (char*)tank.data(), static_cast<int>(tank.size()), 0);
+            signed_t _bytes = waitable_socket::recv(mp);
             DST(if (tracer) tracer->log("tcprecv rcvd $", _bytes));
 
             if (glb.is_stop())
                 return -1;
 
-            if (_bytes == SOCKET_ERROR)
-            {
-                if (CHECK_IF_NOT_NOW)
-                {
-                    DST(if (tracer) tracer->log("tcprecv no data"));
-                    // nothing to read for now
-                    if (required == 0)
-                        return 0;
-
-                    if (chrono::ms() > deadtime)
-                        return -1;
-
-                    auto w = get_waitable();
-                    clear_ready(w, READY_PIPE|READY_SYSTEM);
-                    wrslt rslt = wait(w, LOOP_PERIOD);
-                    if (rslt == WR_CLOSED || glb.is_stop())
-                        return -1;
-                    continue;
-                }
-                close(false);
-                return -1;
-            }
-            if (_bytes == 0)
+            if (_bytes < 0)
             {
                 // connection closed
                 close(false);
                 return -1;
+            }
+
+            if (_bytes == 0)
+            {
+                DST(if (tracer) tracer->log("tcprecv no data"));
+                // nothing to read for now
+                if (required == 0)
+                    return 0;
+
+                if (chrono::ms() > deadtime)
+                    return -1;
+
+                auto w = get_waitable();
+                clear_ready(w, READY_PIPE|READY_SYSTEM);
+                wrslt rslt = wait(w, LOOP_PERIOD);
+                if (rslt == WR_CLOSED || glb.is_stop())
+                    return -1;
+                continue;
             }
 
             clear_ready(get_waitable(), READY_SYSTEM);
@@ -1527,8 +1584,16 @@ namespace netkit
 
         if (0 != (polls[numw].revents & POLLIN))
         {
+#ifdef _NIX
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif // _NIX
             uint64_t cnt;
             read(efd, &cnt, sizeof(cnt));
+#ifdef _NIX
+#pragma GCC diagnostic pop
+#endif // _NIX
+
             m.set_by_signal();
         }
 
@@ -1550,8 +1615,17 @@ namespace netkit
 #else
         if (efd >= 0)
         {
+#ifdef _NIX
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif // _NIX
+
             uint64_t one = 1;
             write(efd, &one, sizeof(one));
+#ifdef _NIX
+#pragma GCC diagnostic pop
+#endif // _NIX
+
         }
 #endif
     }

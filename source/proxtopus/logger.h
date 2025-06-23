@@ -29,7 +29,8 @@ enum severity_e
 enum dlchnl_e
 {
     DLCH_DNS,
-	DLCH_THREADS,
+	DLCH_REBOOT,
+	DLCH_SOCKET,
 };
 
 #define DL(chnl, ...) if (0 != (glb.cfg.debug_log_mask & (1ull << (chnl)))) logger::log2file(glb.cfg.debug_log_file, str::build_string(__VA_ARGS__).c_str())

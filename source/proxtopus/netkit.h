@@ -742,8 +742,8 @@ namespace netkit
         void close(bool flush_before_close);
 
         bool init(signed_t timeout, bool v4);
+        bool recv(udp_packet& p); // udp
         signed_t listen_udp(const str::astr& name, const ipap& bind2); // returns port or -1 if fail
-        bool recv(udp_packet& p);
         bool send(const std::span<const u8>& p, const ipap& tgt_ip);
     };
 
@@ -769,6 +769,8 @@ namespace netkit
         void close(bool flush_before_close);
         bool ready() const { return sock() != INVALID_SOCKET; }
         virtual ~waitable_socket() { close(false); }
+
+        signed_t recv(tools::memory_pair &mp); // tcp non-block socket
 
         bool listen(const str::astr& name, const ipap& bind2);
         tcp_pipe* tcp_accept(const str::astr& name);

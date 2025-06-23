@@ -211,15 +211,20 @@ tcp_listener::tcp_listener(loader& ldr, const str::astr& name, const asts& bb) :
             netkit::tcp_pipe* pipe = sock.tcp_accept(name);
             if (nullptr != pipe)
 				glb.e->new_tcp_pipe(hand.get(), pipe);
+			else
+			{
+				DL(DLCH_SOCKET, "socket accept failed: $", NIXONLY(errno) WINONLY(WSAGetLastError()));
+				break;
+			}
         }
-
         hand->stop();
     }
-    else if (glb.listeners_need_all)
+    
+	if (glb.listeners_need_all)
     {
-        glb.e->exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
 		if (!glb.is_stop())
 		{
+            glb.e->exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
             logger::unmute();
 			LOG_I("proxtopus exit (active option --lna)");
 			glb.stop();
@@ -291,23 +296,35 @@ udp_listener::udp_listener(const netkit::ipap& bind, handler *h):socket_listener
             LOG_N("udp listener {$} has been started (bind: $)", str::clean(name), bind.to_string(port));
 		}
 
-		stats::tick_collector cl(ASTR("udp lst"));
-
 		for (; !glb.is_stop();)
 		{
-			cl.collect();
-
 			netkit::udp_packet p(bind.v4);
 			if (sock.recv(p))
             {
                 if (glb.is_stop())
                     break;
                 hand->udp_dispatch( sock, p );
-            }
+			}
+			else
+			{
+				DL(DLCH_SOCKET, "udp socket recv failed: $", NIXONLY(errno) WINONLY(WSAGetLastError()));
+				break;
+			}
 		}
 
 		hand->stop();
 	}
+
+    if (glb.listeners_need_all)
+    {
+        if (!glb.is_stop())
+        {
+            glb.e->exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
+            logger::unmute();
+            LOG_I("proxtopus exit (active option --lna)");
+            glb.stop();
+        }
+    }
 
 }
 
