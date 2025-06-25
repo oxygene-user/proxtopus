@@ -767,6 +767,7 @@ namespace netkit
         if (!addr.connect(sock()))
         {
             close(false);
+            glb.e->ban(addr);
             return false;
         }
 
@@ -847,7 +848,21 @@ namespace netkit
         if (datasize == 0)
             return SEND_OK;
 
+#ifdef _DEBUG
+        if (tag)
+        {
+            LOG_D("tagged $ send", tag);
+        }
+#endif
+
         signed_t sendrv = ::send(sock(), (const char*)data, int(datasize), NIXONLY(MSG_NOSIGNAL) WINONLY(0));
+
+#ifdef _DEBUG
+        if (tag)
+        {
+            LOG_D("tagged $ send $", tag, sendrv);
+        }
+#endif
 
         if (sendrv == SOCKET_ERROR)
         {
@@ -891,9 +906,23 @@ namespace netkit
         {
             auto mp = data.get_free();
 
+#ifdef _DEBUG
+            if (tag)
+            {
+                LOG_D("tagged $ recv", tag);
+            }
+#endif
+
             DST(if (tracer) tracer->log("tcprecv tank $", tank.size()));
             signed_t _bytes = waitable_socket::recv(mp);
             DST(if (tracer) tracer->log("tcprecv rcvd $", _bytes));
+
+#ifdef _DEBUG
+            if (tag)
+            {
+                LOG_D("tagged $ recv $", tag, _bytes);
+            }
+#endif
 
             if (glb.is_stop())
                 return -1;

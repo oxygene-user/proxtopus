@@ -21,6 +21,9 @@
 #endif
 #endif
 
+#if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 25)
+#define HAVE_GETRANDOM
+#endif
 
 #if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
 // 64 bit

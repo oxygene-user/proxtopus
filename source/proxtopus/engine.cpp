@@ -821,6 +821,29 @@ bool engine::heartbeat()
 		return true;
 	}
 
+    time_t ct = chrono::now();
+    if (next_unban_time == 0 || ct >= next_unban_time)
+    {
+        time_t minunbantime = math::maximum<time_t>::value;
+        bool ers = false;
+        auto w = banned.lock_write();
+        for (auto& banip : w())
+        {
+            if (ct >= banip.unbantime)
+            {
+                w().erase(banip);
+                next_unban_time = w().empty() ? math::maximum<time_t>::value : 0;
+                ers = true;
+                break;
+            }
+            if (banip.unbantime < minunbantime)
+                minunbantime = banip.unbantime;
+        }
+        w.unlock();
+        if (!ers)
+            next_unban_time = minunbantime;
+    }
+
 	return false;
 }
 

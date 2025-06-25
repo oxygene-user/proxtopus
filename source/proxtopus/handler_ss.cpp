@@ -29,8 +29,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
         mkr.unlock();
 		p_enc = NEW ss::core::crypto_pipe(p, key, core.cp);
 
-		ostools::set_current_thread_name(ASTR("ss-cp1"));
-
         if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
             return;
 
@@ -47,8 +45,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 
 		ss::core::multipass_crypto_pipe multipass(p, core.masterkeys, core.cp);
 
-		ostools::set_current_thread_name(ASTR("ss-cp2"));
-
         if (signed_t rb = multipass.recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
             return;
 
@@ -63,8 +59,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	{
 	case 1: // ip4
 
-		ostools::set_current_thread_name(ASTR("ss-cp3"));
-
 		if (signed_t rb = p_enc->recv(rcvdata, 2+3, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 5)
 			return;
 
@@ -75,8 +69,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 
 		len = packet[1]; // len of domain
 		rcvdata.skip(2);
-
-		ostools::set_current_thread_name(ASTR("ss-cp4"));
 
 		if (signed_t rb = p_enc->recv(rcvdata, len, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb == len)
 		{
@@ -91,8 +83,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 		if (signed_t rb = p_enc->recv(rcvdata, 2+15, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 17) // read 15 of 16 bytes of ipv6 address (1st byte already read)
 			return;
 
-		ostools::set_current_thread_name(ASTR("ss-cp5"));
-
 		ep.set_ipap(netkit::ipap::build(packet.data() + 1, 16));
 		rcvdata.skip(2 + 15);
         break;
@@ -100,8 +90,6 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 
 	if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
         return;
-
-	ostools::set_current_thread_name(ASTR("ss-cp6"));
 
 	if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
 		return;
@@ -111,17 +99,11 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	ep.set_port(port);
 	rcvdata.skip(2);
 
-	ostools::set_current_thread_name(ASTR("ss-cp7"));
-
 	if (netkit::pipe_ptr outcon = connect(ep, false))
 	{
-		ostools::set_current_thread_name(ASTR("ss-cp8"));
-
 		p_enc->unrecv(rcvdata);
 		glb.e->bridge(std::move(p_enc), std::move(outcon));
 	}
-
-	ostools::set_current_thread_name(ASTR("ss-cp9"));
 }
 
 namespace

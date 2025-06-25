@@ -150,7 +150,7 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
                 {
                     auto w = pipe->get_waitable();
                     clear_ready(w, READY_PIPE | READY_SYSTEM);
-                    netkit::wrslt rslt = wait(w, LOOP_PERIOD);
+                    netkit::wrslt rslt = netkit::wait(w, LOOP_PERIOD);
                     if (rslt == netkit::WR_CLOSED || glb.is_stop())
                         return -1;
 
@@ -171,7 +171,7 @@ size_t tls_pipe::from_peer(const std::span<const u8>& data)
             {
                 auto w = pipe->get_waitable();
                 clear_ready(w, READY_PIPE | READY_SYSTEM);
-                netkit::wrslt rslt = wait(w, LOOP_PERIOD);
+                netkit::wrslt rslt = netkit::wait(w, LOOP_PERIOD);
                 if (rslt == netkit::WR_CLOSED || glb.is_stop())
                     return -1;
 

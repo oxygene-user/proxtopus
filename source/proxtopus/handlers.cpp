@@ -1033,6 +1033,14 @@ void handler_socks::worker(tools::circular_buffer_extdata& rcvd, netkit::pipe* p
     {
         answ( pipe, EC_GRANTED );
         p->unrecv(rcvd);
+
+#ifdef _DEBUG
+        if (inf.domain() == "rutracker.org")
+        {
+            outcon->tag = 1;
+        }
+#endif
+
         glb.e->bridge(std::move(p), std::move(outcon));
     }
     else {

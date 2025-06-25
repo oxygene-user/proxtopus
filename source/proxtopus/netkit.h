@@ -395,6 +395,27 @@ namespace netkit
             return to_string(with_port ? (signed_t)port : (signed_t)0);
         }
 
+        bool operator<(const ipap& other) const {
+            
+            if (v4 && !other.v4)
+                return true; // v4 always less then v6
+            if (!v4 && other.v4)
+                return false;
+
+            // Note: port is compared first for performance reasons,
+            // even though this affects overall sort order
+
+            if (port < other.port)
+                return true;
+            if (port > other.port)
+                return false;
+
+            if (v4)
+                return ipv4.s_addr < other.ipv4.s_addr;
+            
+            return std::memcmp(&ipv6, &other.ipv6, 16) < 0;
+        }
+
         bool copmpare(const ipap& a) const // compare address and port
         {
             if (v4 && a.v4)
@@ -788,6 +809,10 @@ namespace netkit
             SEND_UNDEFINED,
         };
 
+#ifdef _DEBUG
+        signed_t tag = 0;
+#endif
+
         pipe() {}
         virtual ~pipe() {}
 
@@ -862,6 +887,12 @@ namespace netkit
 
         /*virtual*/ void close(bool flush_before_close) override
         {
+#ifdef _DEBUG
+            if (tag)
+            {
+                LOG_D("tagged $ close", tag);
+            }
+#endif
             waitable_socket::close(flush_before_close);
         }
 

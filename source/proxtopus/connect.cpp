@@ -55,6 +55,11 @@ namespace conn
 
 		if (addr.state() == netkit::EPS_RESLOVED)
 		{
+			if (glb.e->is_banned(addr.get_ip()))
+			{
+				LOG_W("ip address ($) is temporary banned", addr.get_ip().to_string(true));
+				return nullptr;
+			}
 
 			netkit::tcp_pipe* con = NEW netkit::tcp_pipe();
 			con->set_address(addr);

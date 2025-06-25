@@ -13,8 +13,6 @@
 */
 #define LOGGER 2
 
-#define HAVE_GETRANDOM // linux only
-
 /*
 *   MULTI_CORE 0 // single core machine
 *   MULTI_CORE 1 // multiple core machine

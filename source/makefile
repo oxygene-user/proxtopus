@@ -11,11 +11,11 @@ LD = g++
 WINDRES = windres
 
 INC = -I.
-CFLAGS = -Wfatal-errors -Wall -m64 -mcx16 -fexceptions -std=c++20
+CFLAGS = -Wfatal-errors -Wall -m64 -mcx16 -fexceptions -std=c++20 -static-libstdc++
 RESINC = 
 LIBDIR = 
 LIB = 
-LDFLAGS = -m64
+LDFLAGS = -m64 -static-libstdc++
 
 INC_RELEASE = $(INC)
 CFLAGS_RELEASE = $(CFLAGS) -fomit-frame-pointer -fexpensive-optimizations -flto -O3

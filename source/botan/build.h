@@ -17,7 +17,9 @@
 #endif
 #define BOTAN_TARGET_OS_HAS_GETRANDOM
 #define BOTAN_TARGET_OS_HAS_POSIX1
+#if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 25)
 #define BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO
+#endif
 
 #if defined(__i386__) || defined(__x86_64__)
 #define BOTAN_TARGET_CPU_IS_X86_FAMILY

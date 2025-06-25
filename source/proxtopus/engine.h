@@ -2,6 +2,7 @@
 
 #define ENOUGH_ACCEPTORS_COUNT 10
 #define BRIDGE_BUFFER_SIZE (65536*2)
+#define BAN_TIME 3600 // 1 hour
 
 struct slot_statistics
 {
@@ -93,6 +94,35 @@ class engine
 
 	alignas(8) tools::bucket<tcp_pipe_and_handler> newpipes;
 	alignas(8) tools::bucket<bridge_ready> ready_bridges;
+
+    struct banned_ip
+    {
+        netkit::ipap ip;
+        time_t unbantime;
+
+        banned_ip(const netkit::ipap& ip, time_t &next_unban_time) :ip(ip), unbantime(chrono::now()+BAN_TIME)
+        {
+            if (next_unban_time > unbantime)
+                next_unban_time = unbantime;
+        }
+    };
+
+    struct banned_ip_cmp {
+        using is_transparent = void;
+        bool operator()(const banned_ip& a, const banned_ip& b) const {
+            return a.ip < b.ip;
+        }
+        bool operator()(const banned_ip& a, const netkit::ipap& b) const {
+            return a.ip < b;
+        }
+        bool operator()(const netkit::ipap& a, const banned_ip& b) const {
+            return a < b.ip;
+        }
+    };
+
+
+    spinlock::syncvar<std::set<banned_ip, banned_ip_cmp>> banned;
+    time_t next_unban_time = math::maximum<time_t>::value;
 
 	void acceptor();
 
@@ -304,6 +334,16 @@ public:
 	}
 
     void bridge(netkit::pipe_ptr&& pipe1, netkit::pipe_ptr&& pipe2); // either does job in current thread or forwards job to another thread with same endpoint
+
+
+    void ban(const netkit::ipap& ip)
+    {
+        banned.lock_write()().emplace(ip, next_unban_time);
+    }
+    bool is_banned(const netkit::ipap& ip) const
+    {
+        return banned.lock_read()().contains(ip);
+    }
 
 };
 
