@@ -232,13 +232,11 @@ void crash_test()
 
 void chacha_test()
 {
-	randomgen rng;
-
 	u8 key[32];
 	u8 iv[12];
 
-    rng.random_vec(std::span(key));
-    rng.random_vec(std::span(iv));
+	randomgen::get().random_vec(std::span(key));
+	randomgen::get().random_vec(std::span(iv));
 
 	buffer ib, ob1, ob2;
 
@@ -249,7 +247,7 @@ void chacha_test()
 			ib.resize(all);
 			ob1.resize(all);
 			ob2.resize(all);
-			rng.random_vec(std::span(ib));
+			randomgen::get().random_vec(std::span(ib));
 
             chacha20 sodium_chacha20;
 
@@ -352,12 +350,11 @@ void mul_test()
     //auto z = uint<128>::umul(x, y, &w);
 
 
-    randomgen rng;
 	uints::uint<32> a = 0, b = 0;
     for (int i = 0; i < 1000000; ++i)
     {
-        rng.random_vec(std::span((u8*)&a, sizeof(a)));
-        rng.random_vec(std::span((u8*)&b, sizeof(b)));
+		randomgen::get().random_vec(std::span((u8*)&a, sizeof(a)));
+		randomgen::get().random_vec(std::span((u8*)&b, sizeof(b)));
 		u64 v = static_cast<u64>(ref_cast<u32> (a))* ref_cast<u32>(b);
         u32 hi1 = v >> 32;
         u32 lo1 = v & 0xffffffff;
@@ -430,8 +427,73 @@ void sync_test()
 	DEBUGBREAK();
 }
 
+void bloom_test()
+{
+	u8 blob[32];
+	randomgen::get().randombytes_buf(&blob, 32);
+
+	uints::uint<256> zz;
+	zz = ref_cast<uints::uint<256>>(blob);
+
+	str::astr zzs = str::build_string("$", HEX(-1, zz));
+
+	for (int i = 0; i < 400; i+=17)
+	{
+		//size_t x = math::subnum<17>(std::span(blob), i);
+		//LOG_N("bbbb $", x);
+	}
+
+	tools::bloom_filter<16384, 5> f;
+	//tools::bloom_filter_x<2048> f;
+
+	size_t inds[5];
+
+	for (int sot = 0;;++sot)
+    {
+        int cnt1 = 0, cnt2 = 0;
+		for (int i = 0; i < 100; ++i)
+		{
+			randomgen::get().randombytes_buf(&blob, 32);
+
+			f.build_indices(inds, blob);
+			bool q = f.test_and_add(inds);
+			if (q)
+				++cnt1;
+			else
+				++cnt2;
+		}
+		LOG_N("$: $ / $", sot, cnt1, cnt2);
+		Print();
+		if (cnt2 == 100)
+            DEBUGBREAK();
+	}
+
+	//__debugbreak();
+}
+
+void ssp_test()
+{
+
+	ss::core::keyspace ssp_key, iv;
+	randomgen::get().random_vec(ssp_key.space);
+
+	ss::ssp_iv_gen(iv.space, ssp_key.space, 0);
+
+
+    if (signed_t shift = ss::ssp_iv_pretest(iv.space); shift >= 0)
+    {
+		bool ssp = ss::ssp_iv_test(iv.space, ssp_key.space, shift);
+		if (!ssp)
+			DEBUGBREAK();
+
+    }
+
+}
+
 void do_tests()
 {
+	//ssp_test();
+	//bloom_test();
 	//sync_test();
 	//mul_test();
 	//chacha_test();
@@ -455,12 +517,11 @@ inline u64 get_takts()
 
 void mulspeed()
 {
-    randomgen rng;
     u64 a = 0, b = 0;
     for (int i = 0; i < 1000; ++i)
     {
-        rng.random_vec(std::span((u8*)&a, 8));
-        rng.random_vec(std::span((u8*)&b, 8));
+		randomgen::get().random_vec(std::span((u8*)&a, 8));
+		randomgen::get().random_vec(std::span((u8*)&b, 8));
         u64 hi1;
         u64 lo1 = _umul128(a, b, &hi1);
 
@@ -476,13 +537,12 @@ void mulspeed()
 void speed_test()
 {
 	glb.log_muted = false;
-    randomgen rng;
 	u8 random[1024], outbuf1[1024] = {}, outbuf2[1024], outbuf3[1024] = {};
 	u8 key[32], iv[24];
 
-	rng.random_vec(std::span(key));
-	rng.random_vec(std::span(iv));
-	rng.random_vec(std::span(random));
+	randomgen::get().random_vec(std::span(key));
+	randomgen::get().random_vec(std::span(iv));
+	randomgen::get().random_vec(std::span(random));
 
 	//u8 m[64] = {}, c[64] = {};
 	//chacha_cpu(c, m, iv, key);
@@ -522,7 +582,7 @@ void speed_test()
 
         for (signed_t i = 0; i < 1000; ++i)
         {
-            rng.random_vec(std::span(random));
+			randomgen::get().random_vec(std::span(random));
 			//memset(outbuf1, 0, sizeof(outbuf1));
             //memset(outbuf2, 0, sizeof(outbuf2));
 

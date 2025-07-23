@@ -4,6 +4,22 @@
 
 #define SS_AEAD_CHUNK_SIZE_MASK 0x3FFF
 #define SS_AEAD_TAG_SIZE 16
+#define SSP_VERSION 0
+
+
+
+
+// ssp packet spec
+//
+// client: [special-iv, 32 bytes][chunk type 0, variable size][chunk2 type 1, variable size][chunk2 type 1, variable size]...
+//
+//  chunk format:
+//
+//   [big endian, 2 bytes, 0..13 - size, 14..15 == 0][payload][aead tag, 16 bytes]
+//
+//   size - is only size of payload part
+
+
 
 class proxy_shadowsocks;
 class handler_ss;
@@ -93,7 +109,7 @@ namespace ss
 
             /*virtual*/ void write(const uint8_t input[], size_t length) override
             {
-                current_output->copy(handled, input, length);
+                current_output->copy_in(handled, input, length);
                 handled += length;
             }
         };
@@ -102,6 +118,19 @@ namespace ss
     using outbuffer = tools::chunk_buffer<16384>;
 
     void derive_aead_subkey(u8* skey, const u8* master_key, const u8* salt, unsigned keylen);
+    void derive_ssp_subkey(u8* skey, const u8* master_key, const u8* salt); // keylen == 32
+
+    inline signed_t ssp_iv_pretest(const u8* iv) // fast iv check for compliance with the protocol ssp (32 bytes expected)
+    {
+        for (signed_t i = 0; i < 16-5; ++i)
+        {
+            if ((iv[i] ^ iv[i+5]) == 0xff)
+                return i;
+        }
+        return -1;
+    }
+    signed_t ssp_iv_test(const u8* iv, const u8* ssp_key, signed_t shift); // slow iv check for compliance with the protocol ssp (32 bytes expected)
+    void ssp_iv_gen(u8* iv, const u8* ssp_key, u8 par);
 
     struct core
     {
@@ -117,14 +146,33 @@ namespace ss
 
         class cryptor;
 
+        enum crypto_type
+        {
+            CRYPTO_TCP,
+            CRYPTO_TCP_SSP,
+            CRYPTO_UDP,
+        };
+
 #pragma pack(push,1)
         struct crypto_par
         {
             u8 KeySize = 0; // key size = salt size
             u8 NonceSize = 0; // reused as iv size
             u8 cryptoalg = 0;
-            u8 _dummy2 = 0;
-            std::unique_ptr<cryptor> build_crypto(bool udp) const;
+            u8 flags = 0; // |1 - ssp
+            std::unique_ptr<cryptor> build_crypto(crypto_type) const;
+            bool is_ssp_compliant() const
+            {
+                return crypto_chachapoly == cryptoalg;
+            }
+            bool is_ssp() const
+            {
+                return 0 != (flags & 1);
+            }
+            void set_ssp()
+            {
+                flags |= 1;
+            }
         };
 #pragma pack(pop)
 
@@ -145,8 +193,6 @@ namespace ss
 
             cryptor(crypto_par p) :pars(p) {}
             virtual ~cryptor() {}
-
-            virtual bool is_decryptor_init() const { return false; }
 
             virtual void init_encryptor(std::span<const u8> /*key*/) {}
             virtual void init_decryptor(std::span<const u8> /*key*/) {}
@@ -169,8 +215,6 @@ namespace ss
         {
         public:
             none_cryptor() :cryptor(crypto_par()) {}
-
-            virtual bool is_decryptor_init() const { return true; }
 
             /*virtual*/ void init_encryptor(std::span<const u8> /*key*/) {}
             /*virtual*/ void init_decryptor(std::span<const u8> /*key*/) {}
@@ -212,6 +256,30 @@ namespace ss
             /*virtual*/ signed_t get_unprocessed_size() const { return unprocessed.size(); }
         };
 
+        class ssp_cryptor : public cryptor
+        {
+        protected:
+            aead_chacha20poly1305 encryptor;
+            aead_chacha20poly1305 decryptor;
+            u32 nonce_enc = 0; // 32 bits for nonce is enough
+            u32 nonce_dec = 0;
+
+            tools::skip_buf unprocessed; // buffer for unprocessed data
+        public:
+            ssp_cryptor(crypto_par p) :cryptor(p) {}
+
+            /*virtual*/ void init_decryptor(std::span<const u8> /*key*/) override { }
+
+            /*virtual*/ bool prebuf(tools::circular_buffer_extdata& cipher_data, signed_t size) override {
+                cipher_data.peek(unprocessed, size);
+                return true;
+            }
+            /*virtual*/ dec_rslt decipher_prebuffered(outbuffer& plain) override;
+            /*virtual*/ signed_t get_unprocessed_size() const { return unprocessed.size(); }
+
+            void ssp_encipher(std::span<const u8> plain, buffer& cipher);
+        };
+
         class botan_aead_cryptor : public buffered_decryptor
         {
         protected:
@@ -227,16 +295,14 @@ namespace ss
         public:
             botan_aead_cryptor(crypto_par p, ss::botan_aead::cipher_builder cb) :buffered_decryptor(p), encryptor(cb(true)), decryptor(cb(false)) {}
 
-            /*virtual*/ bool is_decryptor_init() const { return decryptor.ready(); }
-
             /*virtual*/ void init_encryptor(std::span<const u8> key) override;
             /*virtual*/ void init_decryptor(std::span<const u8> key) override;
             /*virtual*/ void encipher(std::span<const u8> plain, buffer& cipher, const std::span<u8>* key) override;
             /*virtual*/ bool decipher(outbuffer& plain, tools::circular_buffer_extdata& cipher, const std::span<u8>* key) override; // prebuf and decipher_prebuffered (see buffered_decryptor)
         };
 
-        template<size_t nonce_size, bool udp> struct aead_chacha20poly1305_cryptor_core;
-        template<size_t nonce_size> struct aead_chacha20poly1305_cryptor_core<nonce_size, true> : public cryptor
+        template<size_t nonce_size, crypto_type crt> struct aead_chacha20poly1305_cryptor_core;
+        template<size_t nonce_size> struct aead_chacha20poly1305_cryptor_core<nonce_size, CRYPTO_UDP> : public cryptor
         {
             aead_chacha20poly1305 encryptor;
             aead_chacha20poly1305 decryptor;
@@ -261,7 +327,7 @@ namespace ss
             }
 
         };
-        template<size_t nonce_size> struct aead_chacha20poly1305_cryptor_core<nonce_size, false> : public buffered_decryptor
+        template<size_t nonce_size> struct aead_chacha20poly1305_cryptor_core<nonce_size, CRYPTO_TCP> : public buffered_decryptor
         {
             aead_chacha20poly1305 encryptor;
             aead_chacha20poly1305 decryptor;
@@ -294,35 +360,60 @@ namespace ss
             }
         };
 
-        template<size_t nonce_size, bool udp> class aead_chacha20poly1305_cryptor : public aead_chacha20poly1305_cryptor_core<nonce_size, udp>
+        template<size_t nonce_size> struct aead_chacha20poly1305_cryptor_core<nonce_size, CRYPTO_TCP_SSP> : public ssp_cryptor
         {
-            using super = aead_chacha20poly1305_cryptor_core<nonce_size, udp>;
+            aead_chacha20poly1305_cryptor_core() :ssp_cryptor({ chacha20::key_size, nonce_size }) {}
+
+            /*virtual*/ bool decipher(outbuffer& plain, tools::circular_buffer_extdata& cipher_data, [[maybe_unused]] const std::span<u8>* key) override
+            {
+                ASSERT(key == nullptr);
+                cipher_data.peek(unprocessed);
+                return decipher_prebuffered(plain) != dr_fail;
+            }
+            /*virtual*/ bool prebuf(tools::circular_buffer_extdata& cipher_data, signed_t size) override {
+                cipher_data.peek(unprocessed, size);
+                return true;
+            }
+        };
+
+
+        template<size_t nonce_size, crypto_type crt> class aead_chacha20poly1305_cryptor : public aead_chacha20poly1305_cryptor_core<nonce_size, crt>
+        {
+            using super = aead_chacha20poly1305_cryptor_core<nonce_size, crt>;
 
         public:
             aead_chacha20poly1305_cryptor() {}
 
-            /*virtual*/ bool is_decryptor_init() const { return super::decryptor.ready(); }
-
             /*virtual*/ void init_encryptor(std::span<const u8> key) override
             {
-                if constexpr (!udp)
+                if constexpr (crt == CRYPTO_TCP)
                     memset(super::nonce_enc, 0, nonce_size);
                 super::encryptor.set_key(std::span<const u8, chacha20::key_size>(key.data(), chacha20::key_size));
+                if constexpr (crt == CRYPTO_TCP_SSP)
+                    super::encryptor.set_iv_size(nonce_size);
             }
 
             /*virtual*/ void init_decryptor(std::span<const u8> key) override
             {
-                if constexpr (!udp)
+                if constexpr (crt == CRYPTO_TCP)
                 {
-                    buffered_decryptor::init_decryptor(key); // clear buffer
+                    super::init_decryptor(key); // clear buffer
                     memset(super::nonce_dec, 0, nonce_size);
                 }
                 super::decryptor.set_key(std::span<const u8, chacha20::key_size>(key.data(), chacha20::key_size));
+                if constexpr (crt == CRYPTO_TCP_SSP)
+                    super::decryptor.set_iv_size(nonce_size);
             }
 
-            /*virtual*/ void encipher(std::span<const u8> plain, buffer& cipher, const std::span<u8>* key) override
+            /*virtual*/ void encipher(std::span<const u8> plain, buffer& cipher, [[maybe_unused]] const std::span<u8>* key) override
             {
-                auto encode = [this, &cipher](const u8* d, size_t sz)
+                if constexpr (crt == CRYPTO_TCP_SSP)
+                {
+                    super::ssp_encipher(plain, cipher);
+                }
+                else
+                {
+                    auto encode = [this, &cipher](const u8* d, size_t sz)
                     {
                         //memset(iv_enc, 0, pars.NonceSize); // Each UDP packet is encrypted/decrypted independently, using the derived subkey and a nonce with all zero bytes.
 
@@ -333,33 +424,34 @@ namespace ss
                             return cipher.data() + osz;
                         });
 
-                        if constexpr (!udp)
+                        if constexpr (crt != CRYPTO_UDP)
                             nonce_increment(super::nonce_enc, nonce_size);
 
                     };
 
-                if constexpr (udp)
-                {
-                    ASSERT(key != nullptr);
-                    super::encryptor.set_key(std::span<const u8, chacha20::key_size>(key->data(), chacha20::key_size));
-                    encode(plain.data(), plain.size());
-                    return;
-                }
-                else
-                {
-                    u16 inLen = (u16)(0xffff & (plain.size() > SS_AEAD_CHUNK_SIZE_MASK ? SS_AEAD_CHUNK_SIZE_MASK : plain.size()));
-                    u16be size_be = inLen;
+                    if constexpr (crt == CRYPTO_UDP)
+                    {
+                        ASSERT(key != nullptr);
+                        super::encryptor.set_key(std::span<const u8, chacha20::key_size>(key->data(), chacha20::key_size));
+                        encode(plain.data(), plain.size());
+                    }
+                    else
+                    {
+                        u16 inLen = (u16)(0xffff & (plain.size() > SS_AEAD_CHUNK_SIZE_MASK ? SS_AEAD_CHUNK_SIZE_MASK : plain.size()));
+                        u16be size_be = inLen;
 
-                    // size block encode
-                    encode(reinterpret_cast<const u8*>(&size_be), sizeof(size_be));
-                    // payload block encode
-                    encode(plain.data(), inLen);
+                        // size block encode
+                        encode(reinterpret_cast<const u8*>(&size_be), sizeof(size_be));
+                        // payload block encode
+                        encode(plain.data(), inLen);
 
-                    if (inLen < plain.size()) {
-                        // Append the remaining part recursively if there is any
-                        encipher(std::span(plain.data() + inLen, plain.size() - inLen), cipher, nullptr);
+                        if (inLen < plain.size()) {
+                            // Append the remaining part recursively if there is any
+                            encipher(std::span(plain.data() + inLen, plain.size() - inLen), cipher, nullptr);
+                        }
                     }
                 }
+
             }
         };
 
@@ -383,6 +475,9 @@ namespace ss
             i64 expired = 0; // deadline time (seconds) // -1 means expired
             str::astr name;
             keyspace key;
+            keyspace ssp_key;
+
+            void gen_ssp_key();
         };
 
         using masterkey_array = spinlock::syncvar<std::vector<masterkey>>;
@@ -412,14 +507,13 @@ namespace ss
             std::unique_ptr<cryptor> crypto;
             buffer encrypted_data; // ready 2 send data
             outbuffer decrypted_data;
-            crypto_par cp;
             friend class proxy_shadowsocks;
 
-            virtual bool init_decryptor(tools::circular_buffer_extdata& tempbuf) = 0;
-            void generate_outgoing_salt();  // make initial salt as starting sequence
+        protected:
+            signed_t recv(tools::circular_buffer_extdata& outdata, tools::circular_buffer_extdata& temp, signed_t required, signed_t timeout DST(, deep_tracer*));
 
         public:
-            crypto_pipe_base(netkit::pipe_ptr pipe, crypto_par cp) :pipe(pipe), cp(cp) {}
+            crypto_pipe_base(netkit::pipe_ptr pipe) :pipe(pipe) {}
             /*virtual*/ ~crypto_pipe_base()
             {
                 close(true);
@@ -436,36 +530,59 @@ namespace ss
             /*virtual*/ void unrecv(tools::circular_buffer_extdata& data) override;
             /*virtual*/ netkit::WAITABLE get_waitable() override;
             /*virtual*/ void close(bool flush_before_close) override;
+            /*virtual*/ str::astr get_info(info i) const override
+            {
+                if (pipe)
+                    return pipe->get_info(i);
+                return glb.emptys;
+            }
         };
 
-        class multipass_crypto_pipe;
         class crypto_pipe : public crypto_pipe_base
         {
-            std::unique_ptr<ss::core::keyspace> master_key;
-
             friend class proxy_shadowsocks;
 
-            /*virtual*/ bool init_decryptor(tools::circular_buffer_extdata& tempbuf);
-
         public:
-            crypto_pipe(multipass_crypto_pipe& mpcp);
-            crypto_pipe(netkit::pipe_ptr pipe, ss::core::keyspace* key, crypto_par cp);
+            crypto_pipe(netkit::pipe_ptr pipe) : crypto_pipe_base(pipe) {}
+            crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<ss::core::cryptor> &&cry, outbuffer &&dcd, buffer &&ecd);
             /*virtual*/ ~crypto_pipe() {}
+
+            /*
+            * build server ss pipe (based on 1st 32 + 18 bytes received in cipherdata)
+            */
+            static crypto_pipe *build(masterkey_array &masterkeys, crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata & cipherdata, signed_t sspk);
         };
 
-        class multipass_crypto_pipe : public crypto_pipe_base
+        class crypto_pipe_server : public crypto_pipe
         {
-            friend class crypto_pipe;
-
-            /*virtual*/ bool init_decryptor(tools::circular_buffer_extdata& tempbuf);
-
+            str::astr username;
         public:
+            crypto_pipe_server(netkit::pipe_ptr pipe, std::unique_ptr<ss::core::cryptor>&& cry, outbuffer&& dcd, buffer&& ecd, const str::astr& un) :crypto_pipe(pipe, std::move(cry), std::move(dcd), std::move(ecd)), username(un) {}
+            /*virtual*/ ~crypto_pipe_server() {}
 
-            multipass_crypto_pipe(netkit::pipe_ptr pipe, masterkey_array& mks, crypto_par cp);
-            /*virtual*/ ~multipass_crypto_pipe() {}
+            /*virtual*/ str::astr get_info(info i) const
+            {
+                if (i == I_USERNANE)
+                    return username;
 
-            netkit::pipe_ptr get_pipe() { return pipe; }
-            crypto_par get_pars() { return cp; }
+                if (!pipe)
+                    return glb.emptys;
+
+                if (i == I_SUMMARY)
+                    return str::astr(username).append(ASTR("/")) + pipe->get_info(I_SUMMARY);
+                
+                return pipe->get_info(i);
+            }
+        };
+
+        class crypto_pipe_client : public crypto_pipe
+        {
+            std::unique_ptr<ss::core::masterkey> master_key;
+            crypto_par cp;
+        public:
+            crypto_pipe_client(netkit::pipe_ptr pipe, ss::core::masterkey* key, crypto_par cp);
+            /*virtual*/ signed_t recv(tools::circular_buffer_extdata& outdata, signed_t required, signed_t timeout DST(, deep_tracer*)) override;
+
         };
 
         str::astr load(loader& ldr, const str::astr& name, const asts& bb); // returns addr (if url field present)
@@ -477,7 +594,6 @@ namespace ss
             netkit::udp_pipe* transport;
             std::unique_ptr<cryptor> crypto;
             crypto_par cp;
-            randomgen rng;
             buffer buf2s;
 
             netkit::endpoint ssproxyep;

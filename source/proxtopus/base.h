@@ -84,12 +84,12 @@ template<typename T> concept not_native = !native<T>;
 template<typename Tout, typename Tin> Tout& ref_cast(Tin& t)
 {
     static_assert(sizeof(Tout) <= sizeof(Tin), "ref cast fail");
-    return (Tout&)t;
+    return reinterpret_cast<Tout&>(t);
 }
 template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
 {
     static_assert(sizeof(Tout) <= sizeof(Tin), "ref cast fail");
-    return *(const Tout*)&t;
+    return reinterpret_cast<const Tout&>(t);
 }
 
 #ifdef _MSC_VER

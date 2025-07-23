@@ -32,6 +32,10 @@ struct u16be
     u16 beval = 0;
 
     u16be() {}
+    u16be(const u16be& val) :beval(val.beval)
+    {
+    }
+
     template <typename N> u16be(N nval)
     {
         if constexpr (Endian::little)
@@ -41,6 +45,24 @@ struct u16be
         else {
             beval = (u16)(nval & 0xffff);
         }
+    }
+
+    u16be& operator=(u16be val)
+    {
+        beval = val.beval;
+        return *this;
+    }
+
+    template <std::unsigned_integral N> u16be& operator=(N nval)
+    {
+        if constexpr (Endian::little)
+        {
+            beval = ((nval & 0xff) << 8) | ((nval >> 8) & 0xff);
+        }
+        else {
+            beval = (u16)(nval & 0xffff);
+        }
+        return *this;
     }
 
     operator u16() const
@@ -68,6 +90,9 @@ struct u32be
     u32 beval = 0;
 
     u32be() {}
+    u32be(const u32be &val):beval(val.beval)
+    {
+    }
     u32be(u32 nval)
     {
         if constexpr (Endian::little)
@@ -77,6 +102,23 @@ struct u32be
         else {
             beval = nval;
         }
+    }
+    u32be& operator=(u32be val)
+    {
+        beval = val.beval;
+        return *this;
+    }
+
+    u32be &operator =(u32 nval)
+    {
+        if constexpr (Endian::little)
+        {
+            beval = ((nval & 0xff) << 24) | ((nval & 0xff00) << 8) | ((nval & 0xff0000) >> 8) | ((nval & 0xff000000) >> 24);
+        }
+        else {
+            beval = nval;
+        }
+        return *this;
     }
 
     operator u32() const
@@ -809,6 +851,13 @@ namespace netkit
             SEND_UNDEFINED,
         };
 
+        enum info
+        {
+            I_REMOTE,   // remote addr
+            I_USERNANE, // for crypto server
+            I_SUMMARY
+        };
+
 #ifdef _DEBUG
         signed_t tag = 0;
 #endif
@@ -832,6 +881,7 @@ namespace netkit
         virtual WAITABLE get_waitable() = 0;
         virtual void close(bool flush_before_close) = 0;
         virtual bool alive() = 0;
+        virtual str::astr get_info(info i) const = 0;
     };
 
     using pipe_ptr = ptr::shared_ptr<pipe>;
@@ -934,7 +984,7 @@ namespace netkit
                 unrcv = (unrecv_data*)MA(sizeof(unrecv_data) + dsz);
                 tools::memory_pair mp = data.data(dsz);
                 unrcv->size = static_cast<u32>(dsz);
-                mp.copy(0, unrcv->data(), dsz);
+                mp.copy_out(unrcv->data(), dsz);
                 data.clear();
             }
         }
@@ -953,6 +1003,8 @@ namespace netkit
             }
         }
         */
+
+        /*virtual*/ str::astr get_info(info i) const override;
     };
 
     static_assert(sizeof(tcp_pipe) <= 65536);

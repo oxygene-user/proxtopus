@@ -232,7 +232,7 @@ namespace netkit
 
             addr.sin_family = AF_INET;
             addr.sin_addr = ipv4;
-            ref_cast<u16be&>(addr.sin_port) = port;
+            ref_cast<u16be>(addr.sin_port) = port;
 
             bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
             if (!ok)
@@ -246,7 +246,6 @@ namespace netkit
                 getsockname(s, (sockaddr*)&addr, &x);
                 rp = u16be::from_be(addr.sin_port);
 //#endif
-
             }
             return rp;
         }
@@ -255,7 +254,7 @@ namespace netkit
 
         addr.sin6_family = AF_INET6;
         tools::memcopy<sizeof(ipv6)>(&addr.sin6_addr, &ipv6);
-        ref_cast<u16be&>(addr.sin6_port) = port;
+        ref_cast<u16be>(addr.sin6_port) = port;
 
         bool ok = SOCKET_ERROR != ::bind(s, (const sockaddr*)&addr, sizeof(addr));
 
@@ -642,7 +641,6 @@ namespace netkit
         if (glb.is_stop())
             return nullptr;
 
-
 #ifdef _NIX
         int dom = -1;
         socklen_t doml = sizeof(dom);
@@ -974,6 +972,13 @@ namespace netkit
     /*virtual*/ WAITABLE tcp_pipe::get_waitable()
     {
         return waitable_socket::get_waitable();
+    }
+
+    /*virtual*/ str::astr tcp_pipe::get_info(info i) const
+    {
+        if (i == I_REMOTE || i == I_SUMMARY)
+            return addr.to_string(true);
+        return glb.emptys;
     }
 
 #if 0

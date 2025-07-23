@@ -13,6 +13,12 @@
 
 #endif
 
+randomgen& randomgen::get()
+{
+    static thread_local randomgen rndg;
+    return rndg;
+}
+
 void randomgen::rnd(void* const buf_, size_t size) // extra rnd
 {
     if (!chacha)

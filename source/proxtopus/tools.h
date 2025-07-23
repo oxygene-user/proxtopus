@@ -97,9 +97,9 @@ namespace tools
             f ^= mask;
 			return prev;
         }
-		template<type mask> size_t getn() const
+		template<type mask, size_t shiftleft = 0> size_t getn() const
 		{
-			return (f & mask) >> lowbit<mask>();
+			return ((f & mask) >> lowbit<mask>()) << shiftleft;
 		}
         template<type mask> void setn(size_t v)
         {
@@ -145,6 +145,43 @@ namespace chrono
 
 namespace math
 {
+    constexpr size_t log2_floor(size_t x) {
+        return x ? std::bit_width(x) - 1 : 0;
+    }
+
+	template<size_t numbits> size_t subnum(std::span<const u8> blob, size_t frombit)
+	{
+		ASSERT(blob.size() % sizeof(size_t) == 0);
+
+		size_t blobbits = blob.size() * 8;
+
+		if (frombit >= blobbits)
+			return subnum<numbits>(blob, frombit - blobbits);
+
+        size_t bitwnd = sizeof(size_t) * 8;
+
+		size_t shift = frombit / bitwnd;
+		size_t shift1 = (frombit+numbits-1) / bitwnd;
+		size_t maxshift = blob.size() / sizeof(size_t);
+
+		auto getw = [&](size_t s) -> size_t
+		{
+			return *reinterpret_cast<const size_t*>(blob.data() + (s * 8));
+		};
+
+        size_t v = getw(shift) >> frombit;
+
+		if (shift1 > shift)
+		{
+			if (shift1 >= maxshift)
+				shift1 = 0;
+
+			v |= getw(shift1) << (bitwnd-frombit);
+		}
+		
+		return v & ((1 << numbits) - 1);
+	}
+
     template<typename T> struct is_signed { static const bool value = (((T)-1) < 0); };
     template<> struct is_signed<float> { static const bool value = true; };
     template<> struct is_signed < double > { static const bool value = true; };
@@ -564,7 +601,7 @@ namespace tools
 			return p0.size() + p1.size();
 		}
 
-		void copy(size_t offset, const u8* data, size_t sz)
+		void copy_in(size_t offset, const u8* data, size_t sz)
 		{
 			if (offset < p0.size())
 			{
@@ -582,6 +619,21 @@ namespace tools
 				memcpy(p1.data() + offset, data, sz);
 			}
 		}
+        void copy_out(u8* data, size_t sz)
+        {
+            if (p0.size())
+            {
+                // some space in 1st buf
+                size_t ost = math::minv(p0.size(), sz);
+                memcpy(data, p0.data(), ost);
+                sz -= ost;
+                data += ost;
+            }
+            if (sz > 0 && p1.size() > 0)
+            {
+                memcpy(data, p1.data(), sz);
+            }
+        }
 	};
 
 	template<signed_t size> class chunk_buffer
@@ -1584,6 +1636,185 @@ namespace tools
         return cmp == std::strong_ordering::equal;
     }
 
+
+	template<size_t size, size_t numh> class bloom_filter
+	{
+		static_assert( std::has_single_bit(size) );
+
+		static constexpr const size_t bitsperhash = math::log2_floor(size);
+
+		u8 bitmap[size / 8] = {0};
+
+		bool is_set(size_t bi) const
+		{
+            if (bi >= size) return false;
+            return 0 != (bitmap[bi >> 3] & (1 << (bi & 7)));
+		}
+
+        void set_bit(size_t bi)
+        {
+			if (bi >= size)
+				return;
+
+            bitmap[bi >> 3] |= (1 << (bi & 7));
+        }
+
+
+	public:
+
+		static void build_indices(std::span<size_t, numh> inds, std::span<const u8> blob)
+		{
+			memset(inds.data(), 0, sizeof(size_t) * numh);
+            size_t blobbits = blob.size() * 8;
+            size_t i = 0;
+            bool loop = false;
+            for (size_t bi0 = 0; bi0 < blobbits || !loop; bi0 += bitsperhash)
+            {
+                inds.data()[i] ^= math::subnum<bitsperhash>(blob, bi0);
+                ++i;
+                if (i >= numh)
+                {
+                    i = 0;
+                    loop = true;
+                }
+            }
+		}
+
+
+        void add(std::span<const size_t, numh> inds)
+        {
+            for (size_t i = 0; i < numh; ++i)
+                set_bit(inds.data()[i]);
+        }
+
+		/*
+		* return true if blob not present (blob will be present after call of this function)
+		*/
+		bool test_and_add(std::span<const size_t, numh> inds)
+		{
+			for(size_t i = 0; i<numh; ++i)
+			{
+				if (!is_set(inds[i]))
+				{
+					// not present, so set and return false
+					for (size_t j = i; j < numh; ++j)
+						set_bit(inds.data()[j]);
+
+					return true; // pass
+				}
+			}
+
+			return false; // not pass
+		}
+		bool test(std::span<const size_t, numh> inds) const
+        {
+            for (size_t i = 0; i < numh; ++i)
+            {
+                if (!is_set(inds.data()[i]))
+                    return true; // pass
+            }
+
+            return false; // not pass
+        }
+
+		void clear()
+		{
+			memset(bitmap, 0, sizeof(bitmap));
+		}
+	};
+
+	template<size_t size, size_t numh, size_t keep_full = 3600> class bloom_filter_set
+	{
+		volatile size_t lock = 0;
+
+		struct bf : public bloom_filter<size, numh>
+		{
+			time_t delete_time = 0;
+			size_t count = size/10; // average capacity
+			std::unique_ptr<bf> next;
+			bf(time_t delete_time, std::span<const size_t, numh> inds):delete_time(delete_time)
+			{
+				bloom_filter<size, numh>::add(inds);
+			}
+			void reuse(time_t delete_time1, std::span<const size_t, numh> inds)
+			{
+				delete_time = delete_time1;
+				bloom_filter<size, numh>::clear();
+				bloom_filter<size, numh>::add(inds);
+				ASSERT(next.get() == nullptr);
+			}
+		};
+		std::unique_ptr<bf> first;
+	public:
+		template<size_t blobsize> bool test_and_add(std::span<const u8, blobsize> blob)
+		{
+            size_t inds[numh];
+            bloom_filter<size, numh>::build_indices(inds, blob);
+
+            time_t ct = chrono::now();
+
+			spinlock::auto_simple_lock l(lock);
+
+            if (!first)
+            {
+                first.reset(NEW bf(ct + keep_full, inds));
+                return true;
+            }
+
+			std::unique_ptr<bf> freefb;
+            while (first->count == 0 && ct > first->delete_time)
+            {
+				bf* n = first->next.release();
+				if (nullptr == n)
+				{
+                    first->reuse(ct + keep_full, inds);
+					l.unlock(); // unlock first
+                    return true;
+				}
+				first->next = std::move(freefb);
+				freefb = std::move(first);
+                first.reset(n);
+            }
+
+			bf* last = nullptr;
+			for (bf* x = first.get(); x; x = x->next.get())
+			{
+				last = x;
+				if (x->count == 0)
+				{
+					if (!x->test(inds))
+					{
+						x->delete_time = ct + keep_full;
+						l.unlock();
+						return false;
+					}
+				}
+				else {
+                    x->delete_time = ct + keep_full;
+					if (x->test_and_add(inds))
+					{
+						--x->count;
+						l.unlock();
+                        return true;
+					}
+					l.unlock();
+					return false;
+				}
+			}
+			if (freefb)
+			{
+				auto x = std::move(freefb->next);
+				freefb->reuse(ct + keep_full, inds);
+				last->next = std::move(freefb);
+				l.unlock();
+			}
+			else
+            {
+                last->next.reset(NEW bf(ct + keep_full, inds));
+			}
+			return true;
+		}
+	};
 
 
 } // namespace tools

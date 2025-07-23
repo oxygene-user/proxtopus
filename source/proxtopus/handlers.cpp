@@ -105,7 +105,7 @@ void handler::make_bridge(tools::circular_buffer_extdata& rcvd, const str::astr&
     netkit::endpoint ep;
     ep.preparse(epa);
 
-    if (netkit::pipe_ptr outcon = connect(ep, false))
+    if (netkit::pipe_ptr outcon = connect(clientpipe->get_info(netkit::pipe::I_SUMMARY), ep, false))
     {
         res(true);
         p->unrecv(rcvd);
@@ -222,17 +222,15 @@ void handler::release_udp(udp_processing_thread* udp_wt)
 }
 
 
-netkit::pipe_ptr handler::connect(netkit::endpoint& addr, bool direct)
+netkit::pipe_ptr handler::connect(str::astr_view loginfo, netkit::endpoint& addr, bool direct)
 {
-    static size_t tag = 1;
-
     if (direct || proxychain.size() == 0)
     {
         if (netkit::pipe* pipe = conn::connect(addr))
         {
             if (proxychain.size() == 0)
             {
-                LOG_N("connected to ($) via listener [$]", addr.desc(), str::clean(owner->get_name()));
+                LOG_N("[$/$] connected to ($)", str::clean(owner->get_name()), loginfo, addr.desc());
             }
 
             netkit::pipe_ptr pp(pipe);
@@ -241,33 +239,45 @@ netkit::pipe_ptr handler::connect(netkit::endpoint& addr, bool direct)
 
         if (proxychain.size() == 0)
         {
-            LOG_N("not connected to ($) via listener [$]", addr.desc(), str::clean(owner->get_name()));
+            LOG_N("[$/$] not connected to ($)", str::clean(owner->get_name()), loginfo, addr.desc());
         }
 
         return netkit::pipe_ptr();
     }
 
-    size_t t = spinlock::atomic_increment(tag);
-    str::astr stag(ASTR("[")); str::append_num(stag,t,0); stag.append(ASTR("] "));
-
-    size_t tl = stag.size();
+    u8 stagb[sizeof(str::astr)];
+    size_t tl = 0;
+    auto stag = [&]() ->str::astr&
+    {
+        return ref_cast<str::astr>(stagb);
+    };
 
     auto ps = [&](const str::astr_view& s)
     {
-        stag.resize(tl);
-        stag.append(s);
+        stag().resize(tl);
+        stag().append(s);
     };
 
-    //LOG_N("listener {$} has been started (bind ip: $, port: $)", str::printable(name), bind2.to_string(), port);
+    if (log_enabled())
+    {
+        static volatile size_t tag = 1;
 
-    if (proxychain.size() == 1)
-    {
-        ps("connecting to upstream proxy ($) via listener [$]"); LOG_N(stag.c_str(), proxychain[0]->desc(), str::clean(owner->get_name()));
-    }
-    else
-    {
-        ps("connecting through proxy chain via listener [$]"); LOG_N(stag.c_str(), str::clean(owner->get_name()));
-        ps("connecting to proxy ($)"); LOG_N(stag.c_str(), proxychain[0]->desc());
+        size_t t = spinlock::atomic_increment(tag);
+        new (& stag()) str::astr(ASTR("["));
+        str::append_num(stag(), t, 0);
+        stag().append(ASTR("] "));
+
+        tl = stag().size();
+
+        if (proxychain.size() == 1)
+        {
+            ps("[$/$] connecting to upstream proxy ($)"); LOG_N(stag().c_str(), str::clean(owner->get_name()), loginfo, proxychain[0]->desc());
+        }
+        else
+        {
+            ps("[$/$] connecting through proxy chain"); LOG_N(stag().c_str(), str::clean(owner->get_name()), loginfo);
+            ps("connecting to proxy ($)"); LOG_N(stag().c_str(), proxychain[0]->desc());
+        }
     }
 
     netkit::endpoint prx_ep;
@@ -277,23 +287,31 @@ netkit::pipe_ptr handler::connect(netkit::endpoint& addr, bool direct)
             return prx_ep;
         };
 
-    netkit::pipe_ptr pp = connect(get_proxy_addr(0), true);
+    netkit::pipe_ptr pp = connect(loginfo, get_proxy_addr(0), true);
 
     for (signed_t i = 0; pp != nullptr && i < (signed_t)proxychain.size(); ++i)
     {
         bool finala = i + 1 >= (signed_t)proxychain.size();
         netkit::endpoint &na = finala ? addr : get_proxy_addr(i + 1);
-        if (finala)
+
+        if (log_enabled())
         {
-            ps("connecting to address ($)"); LOG_N(stag.c_str(), na.desc());
-        }
-        else
-        {
-            ps("connecting to proxy ($)"); LOG_N(stag.c_str(), proxychain[i + 1]->desc());
+            if (finala)
+            {
+                ps("connecting to address ($)"); LOG_N(stag().c_str(), na.desc());
+            }
+            else
+            {
+                ps("connecting to proxy ($)"); LOG_N(stag().c_str(), proxychain[i + 1]->desc());
+            }
         }
 
         pp = proxychain[i]->prepare(pp, na);
     }
+
+    if (log_enabled())
+        stag().~basic_string();
+
     return pp;
 }
 
@@ -506,7 +524,7 @@ void handler_direct::handle_pipe(netkit::pipe* pipe)
     netkit::pipe_ptr p(pipe);
     ep.preparse(to_addr);
 
-    if (netkit::pipe_ptr outcon = connect(ep, false))
+    if (netkit::pipe_ptr outcon = connect(pipe->get_info(netkit::pipe::I_SUMMARY), ep, false))
     {
         glb.e->bridge(std::move(p), std::move(outcon));
     }
@@ -1029,7 +1047,7 @@ void handler_socks::worker(tools::circular_buffer_extdata& rcvd, netkit::pipe* p
     // now try to connect to out
 
     netkit::pipe_ptr p(pipe);
-    if (netkit::pipe_ptr outcon = connect(inf, false))
+    if (netkit::pipe_ptr outcon = connect(pipe->get_info(netkit::pipe::I_SUMMARY), inf, false))
     {
         answ( pipe, EC_GRANTED );
         p->unrecv(rcvd);

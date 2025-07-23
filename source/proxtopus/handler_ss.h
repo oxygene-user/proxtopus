@@ -5,6 +5,7 @@
 class handler_ss : public handler // socks4 and socks5
 {
 	ss::core core;
+    tools::bloom_filter_set<8192,5> flt;
     signed_t udp_timeout_ms = 10000;
     bool allow_private = false;
 

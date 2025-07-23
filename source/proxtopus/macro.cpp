@@ -2,9 +2,6 @@
 
 signed_t macro_context::random(signed_t from, signed_t to)
 {
-    if (!rnd)
-        rnd.reset( NEW randomgen() );
-
     if (to < from)
     {
         tools::swap(from, to);
@@ -13,7 +10,7 @@ signed_t macro_context::random(signed_t from, signed_t to)
     if (delta < 2)
         return from;
     size_t rndn;
-    rnd->randombytes_buf((u8 *) & rndn, sizeof(rndn));
+    randomgen::get().randombytes_buf((u8 *) & rndn, sizeof(rndn));
 
     return from + (rndn % delta);
 }

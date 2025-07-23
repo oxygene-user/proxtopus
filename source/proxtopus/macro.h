@@ -2,7 +2,6 @@
 
 struct macro_context
 {
-    std::unique_ptr<randomgen> rnd;
     const asts* block;
     std::vector<str::astr> vars;
 

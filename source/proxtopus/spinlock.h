@@ -23,11 +23,12 @@
 
 namespace spinlock
 {
-#if defined _WIN32
     inline void sleep()
     {
         _mm_pause();
     }
+
+#if defined _WIN32
     inline void sleep(int ms)
     {
         Sleep(ms);
@@ -48,10 +49,6 @@ namespace spinlock
 #endif
 
 #if defined(__linux__)
-inline void sleep()
-{
-    sched_yield();
-}
 inline void sleep(int ms)
 {
     if (0 == ms)

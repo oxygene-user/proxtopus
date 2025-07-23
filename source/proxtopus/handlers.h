@@ -203,7 +203,7 @@ public:
     virtual ~handler() { stop(); }
 
     void stop();
-    netkit::pipe_ptr connect(netkit::endpoint& addr, bool direct); // connect to remote host using current handler's proxy settings
+    netkit::pipe_ptr connect(str::astr_view loginfo, netkit::endpoint& addr, bool direct); // connect to remote host using current handler's proxy settings
 
     using mbresult = std::function< void(bool connection_established) >;
     void make_bridge(tools::circular_buffer_extdata &rcvd, const str::astr& epa, netkit::pipe* clientpipe, mbresult res);

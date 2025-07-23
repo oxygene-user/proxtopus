@@ -81,18 +81,28 @@ private:
     tools::flags<1> flags;
     u8 dummy[7];
 
-    static uint8_t ivsize(size_t x)
+    static uint8_t ivsize2(size_t x)
     {
-        if (x == 1)
-            return 8;
-        if (x == 2)
-            return 12;
-        if (x == 3)
-            return 24;
-        return 0;
+        //return (((8 << 8) | (12 << 16) | (24 << 24)) >> (x * 8)) & 0xff;
+        return (((8 << 8) | (12 << 16) | (24 << 24)) >> x) & 0xff;
+
+        //if (x == 1)
+        //    return 8;
+        //if (x == 2)
+        //    return 12;
+        //if (x == 3)
+        //    return 24;
+        //return 0;
     }
 
 public:
+
+
+    uint8_t get_iv_size() const
+    {
+        return ivsize2(flags.getn<f_impl_size, 3>());
+    }
+
     void set_key(std::span<const uint8_t, key_size> key)
     {
         m_position = 0;
@@ -110,7 +120,7 @@ public:
             flags.setup<f_key_set, f_buf_valid| f_prepared>();
         }
         else {
-            m_impl->prepare(key.data(), m_buf + key_size, ivsize(flags.getn<f_nonce_set>()));
+            m_impl->prepare(key.data(), m_buf + key_size, ivsize2(flags.getn<f_nonce_set,3>()));
             flags.setup<f_prepared, f_key_set>();
         }
     }
@@ -124,7 +134,7 @@ public:
         m_position = 0; // always restart position on iv change
         flags.unset<f_buf_valid>();
 
-        if (ivsize(flags.getn<f_impl_size>()) != iv.size())
+        if (ivsize2(flags.getn<f_impl_size,3>()) != iv.size())
             setup_implementation(iv.size());
 
         if (flags.is<f_key_set>())

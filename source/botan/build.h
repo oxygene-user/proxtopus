@@ -54,7 +54,6 @@
 
 #define BOTAN_HAS_CPUID
 #define BOTAN_HAS_CPUID_DETECTION
-#define BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN
 #define BOTAN_TARGET_CPU_SUPPORTS_SSSE3
 #define BOTAN_TARGET_CPU_SUPPORTS_AVX2
 #define BOTAN_HAS_GHASH_CLMUL_CPU
@@ -67,16 +66,7 @@
 #define BOTAN_HAS_AES_NI
 #define BOTAN_HAS_AES_VAES
 
-#define BOTAN_HAS_HMAC
 #define BOTAN_HAS_KECCAK_PERM_BMI2
-
-#define BOTAN_HAS_CHACHA
-#define BOTAN_HAS_CHACHA_SIMD32
-#define BOTAN_HAS_CHACHA_AVX2
-#define BOTAN_HAS_CHACHA_AVX512
-
-#define BOTAN_HAS_POLY1305
-#define BOTAN_HAS_BLOCK_CIPHER
 
 #define BOTAN_HAS_AEAD_CHACHA20_POLY1305
 #define BOTAN_HAS_AEAD_GCM
@@ -114,16 +104,21 @@
 #define BOTAN_HAS_BLAKE2B
 #define BOTAN_HAS_SALSA20
 
-#define BOTAN_HAS_SHA1
 #define BOTAN_HAS_SHA1_X86_SHA_NI
 #define BOTAN_HAS_SHA1_SIMD_4X32
-#define BOTAN_HAS_SHA1_SSE2
-#define BOTAN_HAS_SHA2_32
 #define BOTAN_HAS_SHA2_32_SIMD
 #define BOTAN_HAS_SHA2_32_X86_AVX2
 #define BOTAN_HAS_SHA2_32_X86
 #define BOTAN_HAS_SHA2_64
+#define BOTAN_HAS_SHA2_64_X86_AVX2
+#if defined(__GNUC__)
+#if __GNUC__ > 13 || (__GNUC__ == 13 && __GNUC_MINOR__ >= 1)
 #define BOTAN_HAS_SHA2_64_X86
+#endif
+#endif
+#if defined(_MSC_VER) && _MSC_VER >= 1938
+#define BOTAN_HAS_SHA2_64_X86
+#endif
 #define BOTAN_HAS_SHA2_64_X86_AVX2
 #define BOTAN_HAS_SHA3
 #define BOTAN_HAS_SHA_256
@@ -141,11 +136,6 @@ struct IUnknown;
 #include <cstring>
 #include <utility>
 #endif // _NIX
-
-#if defined(__GNUC__) && (__GNUC__ <= 14)
-// looks like gcc does not support sha512 intrinsics
-#undef BOTAN_HAS_SHA2_64_X86
-#endif // defined
 
 #include <bit>
 #include <optional>

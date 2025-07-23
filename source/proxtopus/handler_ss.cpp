@@ -16,41 +16,67 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 {
 	netkit::pipe_ptr p(raw_pipe);
 	netkit::pipe_ptr p_enc;
-	auto mkr = core.masterkeys.lock_read();
-	if (mkr().size() == 0)
-		return; // inactive
 
-    std::array<u8,512> packet;
-	tools::circular_buffer_extdata rcvdata(packet);
+    std::array<u8, 4096> packet;
+    tools::circular_buffer_extdata rcvdata(packet);
 
-	if (mkr().size() == 1)
+	// 1st of all recv iv and 1st chunk (1st chunk is 18 bytes length)
+
+	const signed_t need = core.cp.KeySize + 2 + SS_AEAD_TAG_SIZE;
+
+    if (signed_t rb = p->recv(rcvdata, need, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != need)
+        return;
+
+	const u8* iv = rcvdata.data1st(core.cp.KeySize);
+	if (!flt.test_and_add(std::span<const u8>(iv, core.cp.KeySize)))
 	{
-		ss::core::keyspace* key = NEW ss::core::keyspace(mkr()[0].key);
-        mkr.unlock();
-		p_enc = NEW ss::core::crypto_pipe(p, key, core.cp);
-
-        if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
-            return;
-
+		// not pass! Replay Attack detected! (or false positive)
+		// 
+		LOG_W("reply-attack-filter rejects packet from $ ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
+		return;
 	}
-	else
+
+	signed_t sspk = -1;
+	if (signed_t shift = ss::ssp_iv_pretest(iv); shift >= 0)
 	{
+		i64 cur_sec = chrono::now();
+        signed_t mk = -1;
+		auto mkr = core.masterkeys.lock_read();
+		for (const ss::core::masterkey& k : mkr())
+        {
+			++mk;
+			if (signed_t par = ss::ssp_iv_test(iv, k.ssp_key.space, shift); par >= 0)
+			{
+				if (k.expired < 0)
+				{
+				dsc:
+					mkr.unlock();
+                    LOG_W("unable to establish crypto-connection (key expired) for [$] connection ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
+					return;
+				}
+                if (k.expired > 0 && k.expired < cur_sec)
+                {
+                    const_cast<ss::core::masterkey&>(k).expired = -1; // acceptable hack because it final state of masterkey
+					goto dsc;
+                }
+
+				sspk = mk;
+				break;
+			}
+		}
 		mkr.unlock();
-
-		/*
-		p_enc = NEW ss::core::multipass_crypto_pipe(p, std::move(core.build_crypto(false)), core.masterkeys, core.cp);
-        if (signed_t rb = p_enc->recv(packet, -2); rb != 2)
-            return;
-			*/
-
-		ss::core::multipass_crypto_pipe multipass(p, core.masterkeys, core.cp);
-
-        if (signed_t rb = multipass.recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
-            return;
-
-        p_enc = NEW ss::core::crypto_pipe(multipass);
-
 	}
+
+
+    p_enc = ss::core::crypto_pipe::build(core.masterkeys, core.cp, p, rcvdata, sspk);
+	if (!p_enc)
+	{
+        LOG_W("unable to establish crypto-connection for [$] connection ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
+		return;
+	}
+
+    if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
+        return;
 
 	netkit::endpoint ep;
 	signed_t len;
@@ -99,7 +125,7 @@ void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 	ep.set_port(port);
 	rcvdata.skip(2);
 
-	if (netkit::pipe_ptr outcon = connect(ep, false))
+	if (netkit::pipe_ptr outcon = connect(p_enc->get_info(netkit::pipe::I_SUMMARY), ep, false))
 	{
 		p_enc->unrecv(rcvdata);
 		glb.e->bridge(std::move(p_enc), std::move(outcon));
@@ -111,13 +137,12 @@ namespace
 	struct udp_cipher : netkit::thread_storage_data
 	{
 		std::unique_ptr<ss::core::cryptor> crypto;
-        randomgen rng;
 		buffer buf2s;
 		signed_t password_index = -1;
 
 		udp_cipher(ss::core::crypto_par cp)
 		{
-			crypto = cp.build_crypto(true);
+			crypto = cp.build_crypto(ss::core::CRYPTO_UDP);
 		}
 	};
 }
@@ -198,7 +223,7 @@ namespace
 	// encipher to send to client
 	udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
 	context->buf2s.resize(core.cp.KeySize);
-	context->rng.random_vec(context->buf2s);
+	randomgen::get().random_vec(context->buf2s);
     ss::core::keyspace skey;
     std::span<u8> subkey(skey.space, core.cp.KeySize);
 

@@ -64,4 +64,12 @@ public:
     /*virtual*/ netkit::WAITABLE get_waitable() override;
     /*virtual*/ void close(bool flush_before_close) override;
 
+    /*virtual*/ str::astr get_info(info i) const override
+    {
+        if (pipe)
+            return pipe->get_info(i);
+        return glb.emptys;
+    }
+
+
 };

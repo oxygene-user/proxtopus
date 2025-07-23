@@ -61,8 +61,8 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
 		return netkit::pipe_ptr();
 
-	ss::core::keyspace* key = NEW ss::core::keyspace(core.masterkeys.lock_read()()[0].key);
-	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe(pipe_2_proxy, key, core.cp));
+    ss::core::masterkey* key = NEW ss::core::masterkey(core.masterkeys.lock_read()()[0]);
+	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe_client(pipe_2_proxy, key, core.cp));
 
 	// just send connect request (shadowsocks 2012 protocol spec)
 	// no need to wait answer: stream mode just after request
@@ -70,7 +70,7 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
 	u8 packet[512];
 	netkit::pgen pg(packet, 512);
 
-	proxy_socks5::push_atyp(pg, addr2);
+	proxy_socks5::push_atyp(pg, addr2);                  
 
     return (p_enc->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL) ? netkit::pipe_ptr() : p_enc;
 }
@@ -86,5 +86,57 @@ netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netki
     j.field(ASTR("type"), ASTR("shadowsocks"));
 }
 
+
+
+
+proxy_ssp::proxy_ssp(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb, false)
+{
+    str::astr a = core.load(ldr, name, bb);
+    if (!a.empty())
+        addr.preparse(a);
+
+	if (!core.cp.is_ssp_compliant())
+    {
+        ldr.exit_code = EXIT_FAIL_SSP_NOT_COMPLIANT;
+        LOG_FATAL("encryption method does not meet the requirements of the ssp protocol for proxy [$] (only {chacha20-ietf-poly1305} supported)", str::clean(name));
+        return;
+	}
+
+    if (addr.state() == netkit::EPS_EMPTY)
+    {
+        ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
+        LOG_FATAL("addr not defined for proxy [$]", str::clean(name));
+        return;
+    }
+
+	core.cp.set_ssp();
+}
+
+netkit::pipe_ptr proxy_ssp::prepare(netkit::pipe_ptr pipe_2_proxy, netkit::endpoint& addr2) const
+{
+    if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
+        return netkit::pipe_ptr();
+
+    ss::core::masterkey* key = NEW ss::core::masterkey(core.masterkeys.lock_read()()[0]);
+    netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe_client(pipe_2_proxy, key, core.cp));
+
+    u8 packet[512];
+    netkit::pgen pg(packet, 512);
+
+    proxy_socks5::push_atyp(pg, addr2);
+
+    return (p_enc->send(packet, -pg.ptr /*negative - dont send now*/ ) == netkit::pipe::SEND_FAIL) ? netkit::pipe_ptr() : p_enc;
+}
+
+/*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_ssp::prepare(netkit::udp_pipe* transport) const
+{
+    return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, core.masterkeys.lock_read()()[0].key, core.cp);
+}
+
+/*virtual*/ void proxy_ssp::api(json_saver& j) const
+{
+    proxy::api(j);
+    j.field(ASTR("type"), ASTR("ssp"));
+}
 
 

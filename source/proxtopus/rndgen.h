@@ -13,6 +13,8 @@ public:
     void clear() { chacha.reset(); }
     void randombytes_buf(void* const buf, size_t size);
     void random_vec(std::span<uint8_t> v) { this->randombytes_buf(v.data(), v.size()); }
+
+    static randomgen& get();
 };
 
 

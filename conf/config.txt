@@ -109,6 +109,7 @@ listeners {
 
 	// run shadowsocks server on 8989 port (both tcp and udp)
 	// 'shadow-serv' is just name of listener and used only in logs
+	// shadowsocks server also supports ssp protocol (see ssp proxy)
 	shadow-serv {
 		type=tcp|udp
 		bind=127.0.0.1:8989
@@ -116,12 +117,20 @@ listeners {
 			type=shadowsocks
 			method=chacha20-ietf-poly1305
 			
-			//method=xchacha20-ietf-poly1305
+			//method=xchacha20-poly1305 // xchacha20 supported, but not recommended because has no any advatages
 			//method=aes-256-gcm
 			//method=aes-192-gcm
 			//method=aes-128-gcm
 
-			password=sspass
+			//password=sspass // define only one password
+
+			// it is possible to define set of passwords
+	    	passwords {
+				def=12345
+				userx=abcd
+				pass4friends=sspass
+			}
+
 			udp-timeout=10000
 		}
 	}
@@ -147,5 +156,16 @@ proxy {
 		password=sspass
 		// or direct ss url (addr, method and password can be omitted)
 		//url=`ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpzc3Bhc3M@127.0.0.1:8989#server`
+	}
+	ssp {
+	    // ssp (shadowsocks-proxtopus) is modified shadowsocks protocol used only proxtopus-client -> proxtopus-server shadowsocks connections
+		// shadowsocks proxtopus server automatically detects ssp session
+		// advantages: 	more secure (kdf based on sha256 instead of sha1, only chacha20-poly1305 aead alg supported)
+		// 				less traffic overhead (removed size chunk)
+
+		type=ssp
+		addr=127.0.0.1:8989
+		method=chacha20-ietf-poly1305
+		password=sspass
 	}
 }

@@ -10,6 +10,7 @@
 
 namespace Botan {
 
+#if defined(BOTAN_HAS_SHA2_64_X86)
 namespace {
 
 BOTAN_FUNC_ISA_INLINE("sha512,avx2") void sha512_msg_expand(__m256i& m0, __m256i& m1, __m256i& m2, __m256i& m3) {
@@ -110,5 +111,6 @@ void SHA_512::compress_digest_x86(digest_type& digest, std::span<const uint8_t> 
    _mm256_storeu_si256(digest_mm, state0);
    _mm256_storeu_si256(digest_mm + 1, state1);
 }
+#endif
 
 }  // namespace Botan

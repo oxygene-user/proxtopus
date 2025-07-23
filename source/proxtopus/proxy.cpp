@@ -44,6 +44,17 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
         return p;
     }
 
+    if (ASTR("ssp") == t)
+    {
+        proxy_ssp* p = NEW proxy_ssp(ldr, name, bb);
+        if (ldr.exit_code != 0)
+        {
+            delete p;
+            return nullptr;
+        }
+        return p;
+    }
+
     if (ASTR("http") == t)
     {
         proxy_http* p = NEW proxy_http(ldr, name, bb);
@@ -102,8 +113,8 @@ namespace {
 #pragma pack(push,1)
     struct connect_packet_socks4
     {
-        u8 vn = 4;
-        u8 cd = 1;
+        u8 vn;
+        u8 cd;
         u16be destport;
         u32be destip;
     };
@@ -135,8 +146,8 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
     connect_packet_socks4* pd = (connect_packet_socks4 *)ALLOCA(dsz);
     pd->vn = 4; pd->cd = 1;
     pd->destport = addr2.port();
-    pd->destip = addr2.get_ip();
-    memcpy(pd + 1, userid.c_str(), userid.length());
+    pd->destip = (u32be)addr2.get_ip();
+    memcpy(reinterpret_cast<u8 *>(pd + 1), userid.c_str(), userid.length());
     ((u8*)pd)[dsz - 1] = 0;
 
     if (pipe_to_proxy->send((u8*)pd, dsz) == netkit::pipe::SEND_FAIL)
