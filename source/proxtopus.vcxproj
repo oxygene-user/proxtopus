@@ -46,8 +46,6 @@
       <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CreateHotpatchableImage Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CreateHotpatchableImage>
-      <GuardEHContMetadata Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</GuardEHContMetadata>
-      <GuardSignedReturns Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</GuardSignedReturns>
       <EnforceTypeConversionRules Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</EnforceTypeConversionRules>
       <RuntimeTypeInfo Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</RuntimeTypeInfo>
       <OpenMPSupport Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</OpenMPSupport>
@@ -809,10 +807,6 @@
     <ClCompile Include="proxtopus\sodium_chacha20_ssse3.inl">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Configuration)'=='Debug'">
-    <ClCompile Include="debug\excpn.cpp" />
-    <ClCompile Include="debug\stkwlk.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="proxtopus.natvis" />

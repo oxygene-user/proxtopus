@@ -702,10 +702,10 @@
       <Filter>src\algs\aead</Filter>
     </ClCompile>
     <ClCompile Include="debug\excpn.cpp">
-      <Filter>src</Filter>
+      <Filter>src\debug</Filter>
     </ClCompile>
     <ClCompile Include="debug\stkwlk.cpp">
-      <Filter>src</Filter>
+      <Filter>src\debug</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
