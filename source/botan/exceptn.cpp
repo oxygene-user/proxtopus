@@ -119,8 +119,10 @@ Lookup_Error::Lookup_Error(std::string_view type, std::string_view algo) :
 
 Internal_Error::Internal_Error(std::string_view err) : Exception("Internal error:", err) {}
 
+#if FEATURE_TLS
 Unknown_PK_Field_Name::Unknown_PK_Field_Name(ALG algo_name, std::string_view field_name) :
       Invalid_Argument(str::build_string("Unknown field '$' for algorithm $", field_name, algo_name)) {}
+#endif
 
 Invalid_Key_Length::Invalid_Key_Length(std::string_view name, size_t length) :
       Invalid_Argument(str::build_string("$ cannot accept a key of length $", name, length)) {}

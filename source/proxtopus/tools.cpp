@@ -216,21 +216,39 @@ void GetPrint(printfunc pf)
 }
 */
 
+#ifdef ANDROID
+void android_prepare_env();
+void android_release_env();
+void android_log(global_data::print_line &s);
+#endif
+
 void Print()
 {
 	std::vector<global_data::print_line> cp;
 	cp = std::move(glb.prints.lock_write()());
-	
-	static volatile size_t lock = 0;
-	spinlock::auto_simple_lock slock(lock);
+
+#ifdef ANDROID
+    if (cp.size() > 0)
+        android_prepare_env();
+#endif
+
+    static volatile size_t lock = 0;
+	spinlock::simple_lock(lock);
 
 	for(auto &s : cp)
 	{
+#if FEATURE_FILELOG
         if (!glb.cfg.log_file.empty())
             logger::log2file(glb.cfg.log_file, s.view());
+#endif
 
-		if (glb.log_muted)
+#if LOGGER==2 && !defined(ANDROID)
+        if (glb.log_muted)
 			continue;
+#endif
+#ifdef ANDROID
+        android_log(s);
+#endif
 
 #ifdef _WIN32
         if (s.oem_convert)
@@ -251,6 +269,13 @@ void Print()
             cprintf(&cc, s.data, s.data_len);
 		}
 	}
+
+    spinlock::simple_unlock(lock);
+
+#ifdef ANDROID
+    if (cp.size() > 0)
+        android_release_env();
+#endif
 
 }
 
@@ -302,12 +327,35 @@ namespace tools
 		return spinlock::atomic_increment(idpool);
 	}
 
+    double calculate_entropy(std::span<const u8> data)
+    {
+        if (data.empty())
+            return 0.0;
+
+        std::array<size_t, 256> frequency = {};
+
+        for (u8 byte : data)
+            ++frequency[byte];
+
+        double entropy = 0.0;
+        const double inv_data_size = 1.0 / static_cast<double>(data.size());
+
+        for (size_t count : frequency) {
+            if (count > 0) {
+                double probability = static_cast<double>(count) * inv_data_size;
+                entropy += probability * std::log2(probability);
+            }
+        }
+
+        return std::max(-entropy, 0.0) * 100 / log2(static_cast<double>(data.size()));
+    }
+
 }
 
 namespace str
 {
 
-#ifdef _NIX
+#if defined(_NIX) && !defined(ANDROID)
 	struct inconv_stuff_s
 	{
 		iconv_t ucs2_to_ansi = (iconv_t)-1;
@@ -338,10 +386,57 @@ namespace str
 
 #endif
 
+    // UCS-2 → UTF-8
+    size_t ucs2_to_utf8(const wchar *in, size_t in_len, char *out, size_t out_len) {
+        size_t i = 0, j = 0;
+        while (i < in_len && j < out_len) {
+            uint16_t ch = in[i++];
+            if (ch < 0x80) {
+                out[j++] = tools::as_byte(ch);
+            } else if (ch < 0x800) {
+                if (j + 1 >= out_len) break;
+                out[j++] = tools::as_byte(0xC0 | (ch >> 6));
+                out[j++] = tools::as_byte(0x80 | (ch & 0x3F));
+            } else {
+                if (j + 2 >= out_len) break;
+                out[j++] = tools::as_byte(0xE0 | (ch >> 12));
+                out[j++] = tools::as_byte(0x80 | ((ch >> 6) & 0x3F));
+                out[j++] = tools::as_byte(0x80 | (ch & 0x3F));
+            }
+        }
+        if (j < out_len) out[j] = '\0';
+        return j; // number of bytes of UTF-8
+    }
+    size_t ucs2_to_ansi(const wchar *in, size_t in_len, char *out, size_t out_len) {
+        size_t i = 0, j = 0;
+        while (i < in_len && j < out_len) {
+            uint16_t ch = in[i++];
+            if (ch < 0x80) {
+                out[j++] = tools::as_byte(ch);
+            } else {
+                out[j++] = '_';
+            }
+        }
+        if (j < out_len) out[j] = '\0';
+        return j; // number of bytes
+    }
+
 	size_t  _text_from_ucs2(char* out, size_t maxlen, const str::wstr_view &from, codepage_e cp)
 	{
 		if ((maxlen == 0) || (from.length() == 0)) return 0;
 
+#ifdef ANDROID
+        if (codepage_e::UTF8 == cp)
+        {
+            size_t l = ucs2_to_utf8(from.data(), from.size(), out, maxlen);
+            out[l] = 0;
+            return l;
+        }
+
+        size_t l = ucs2_to_ansi(from.data(), from.size(), out, maxlen);
+        out[l] = 0;
+        return l;
+#else
 #ifdef _WIN32
 		UINT CodePage = CP_ACP;
 		switch (cp)
@@ -386,13 +481,55 @@ namespace str
 		return 0;
 
 #endif
+#endif
 
 	}
+
+    // UTF-8 → UCS-2
+    size_t utf8_to_ucs2(const char *in, size_t in_len, wchar *out, size_t out_len) {
+        size_t i = 0, j = 0;
+        while (i < in_len && j < out_len) {
+            u8 c = in[i];
+            if (c < 0x80) {
+                if (c == 0)
+                    break;
+                out[j++] = c;
+                ++i;
+            } else if ((c & 0xE0) == 0xC0) {
+                if (i+1 < in_len) {
+                    out[j++] = ((c & 0x1F) << 6) | (in[i + 1] & 0x3F);
+                    i += 2;
+                }
+            } else if ((c & 0xF0) == 0xE0) {
+                if (i + 3 < in_len) {
+                    out[j++] = ((c & 0x0F) << 12) | ((in[i + 1] & 0x3F) << 6) | (in[i + 2] & 0x3F);
+                    i += 3;
+                }
+            } else if ((c & 0xF8) == 0xF0) {
+                if (i + 4 < in_len ||
+                    (in[1] & 0xC0) != 0x80 ||
+                    (in[2] & 0xC0) != 0x80 ||
+                    (in[3] & 0xC0) != 0x80) {
+                    out[j++] = 0xFFFDu;
+                    ++i;
+                    continue;
+                }
+                out[j++] = '_';
+                i += 4;
+            }
+        }
+        return j; // number of UCS-2 chars
+    }
 
 	size_t   _text_to_ucs2(wchar * out, size_t maxlen, const str::astr_view& from, codepage_e cp)
 	{
 		if ((maxlen == 0) || (from.length() == 0)) return 0;
 
+#ifdef ANDROID
+        size_t l = utf8_to_ucs2(from.data(), from.length(), out, maxlen);
+        out[l] = 0;
+        return l;
+#else
 #ifdef _WIN32
 		UINT CodePage = CP_ACP;
 		switch (cp)
@@ -450,6 +587,7 @@ namespace str
 				return maxlen - osz / sizeof(wchar);
 		}
 		return 0;
+#endif
 #endif
 	}
 

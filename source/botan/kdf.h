@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_KDF_BASE_H_
 #define BOTAN_KDF_BASE_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/concepts.h>
 #include <botan/exceptn.h>
@@ -278,4 +280,5 @@ inline KDF* get_kdf(std::string_view algo_spec) {
 
 }  // namespace Botan
 
+#endif
 #endif

@@ -6,6 +6,7 @@
 */
 
 #include <botan/pkix_types.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
@@ -518,3 +519,4 @@ std::istream& operator>>(std::istream& in, X509_DN& dn) {
    return in;
 }
 }  // namespace Botan
+#endif

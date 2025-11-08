@@ -9,6 +9,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_messages.h>
 
@@ -208,3 +209,4 @@ bool Certificate_Verify_13::verify(const Public_Key& public_key,
 #endif  // BOTAN_HAS_TLS_13
 
 }  // namespace Botan::TLS
+#endif

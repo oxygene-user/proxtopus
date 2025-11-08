@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/pem.h>
 
@@ -164,3 +165,4 @@ bool matches(DataSource& source, std::string_view extra, size_t search_range) {
 }
 
 }  // namespace Botan::PEM_Code
+#endif

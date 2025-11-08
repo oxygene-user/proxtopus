@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_CBC_HMAC_AEAD_H_
 #define BOTAN_TLS_CBC_HMAC_AEAD_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/aead.h>
 #include <botan/block_cipher.h>
@@ -176,4 +178,5 @@ BOTAN_TEST_API uint16_t check_tls_cbc_padding(const uint8_t record[], size_t rec
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

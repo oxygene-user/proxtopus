@@ -28,7 +28,7 @@ struct IUnknown;
 //#define MEMSPY_DEBUG_OUT OutputDebugStringA
 #define MEMSPY_DEBUG_OUT printf
 
-#if defined (_M_AMD64) || defined (WIN64) || defined (__LP64__) || defined(__GNUC__)
+#if defined (_M_AMD64) || defined (WIN64) || defined (__LP64__) || defined(__GNUC__) || defined(ARCH_64BIT)
 #undef MEMSPY_CALL_STACK
 #define MEMSPY_CALL_STACK 0
 #endif

@@ -16,7 +16,6 @@
    #define BOTAN_SIMD_USE_SSSE3
    #define BOTAN_SIMD_2X64_ISA "ssse3"
    #define BOTAN_SIMD_2X64_FN BOTAN_FUNC_ISA(BOTAN_SIMD_2X64_ISA)
-#endif
 
 namespace Botan {
 
@@ -152,4 +151,5 @@ class SIMD_2x64 final {
 
 }  // namespace Botan
 
+#endif
 #endif

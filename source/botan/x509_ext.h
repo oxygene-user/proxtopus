@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_X509_EXTENSIONS_H_
 #define BOTAN_X509_EXTENSIONS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pkix_types.h>
 
@@ -616,4 +618,5 @@ class BOTAN_PUBLIC_API(2, 4) Unknown_Extension final : public Certificate_Extens
 
 }  // namespace Botan
 
+#endif
 #endif

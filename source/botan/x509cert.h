@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_X509_CERTS_H_
 #define BOTAN_X509_CERTS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/x509_obj.h>
 #include <memory>
@@ -437,4 +439,5 @@ BOTAN_PUBLIC_API(2, 0) bool operator!=(const X509_Certificate& cert1, const X509
 
 }  // namespace Botan
 
+#endif
 #endif

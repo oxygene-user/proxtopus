@@ -9,7 +9,7 @@
 */
 
 #include "../proxtopus/pch.h"
-
+#if FEATURE_TLS
 #include <botan/ec_group.h>
 
 #include <botan/ber_dec.h>
@@ -783,3 +783,4 @@ bool EC_Group::Mul2Table::mul2_vartime_x_mod_order_eq(const EC_Scalar& v,
 }
 
 }  // namespace Botan
+#endif

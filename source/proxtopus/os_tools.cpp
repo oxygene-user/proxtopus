@@ -51,6 +51,7 @@ namespace ostools
         return Botan::OS::get_cpu_available();
     }
 
+#if APP && FEATURE_WATCHDOG
     void terminate()
     {
 #ifdef _WIN32
@@ -64,7 +65,76 @@ namespace ostools
 #endif
     }
 
-    signed_t execute(const FNARR &cmdl WINONLY(, bool from_service)) // with arguments
+    signed_t silent_execute(const FNview &cmdl) // with arguments
+    {
+        signed_t exit_code = EXIT_OK;
+#ifdef _WIN32
+
+        STARTUPINFO si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+
+        FN path(cmdl);
+        if (CreateProcessW(
+            nullptr,
+            path.data(),
+            nullptr,
+            nullptr,
+            FALSE,
+            CREATE_NO_WINDOW,
+            nullptr,
+            nullptr,
+            &si,
+            &pi)) {
+
+
+            DWORD waitResult = WaitForSingleObject(pi.hProcess, INFINITE);
+
+            if (waitResult == WAIT_OBJECT_0) {
+                DWORD exitCode;
+                GetExitCodeProcess(pi.hProcess, &exitCode);
+                exit_code = exitCode;
+            }
+            else {
+
+            }
+
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+        else
+        {
+            exit_code = EXIT_FAIL_CHILD_CREATE;
+        }
+#else
+        FNARR args;
+        str::qsplit(args, cmdl);
+        signed_t pcnt = args.size();
+        const char ** argv = (const char **)alloca( sizeof(char *) * (pcnt + 1) );
+        for(int i=0;i<pcnt;++i)
+            argv[i] = args[i].c_str();
+        argv[pcnt] = nullptr;
+
+        pid_t pid = 0;
+        posix_spawn(&pid, argv[0], nullptr, nullptr, (char * const*)argv, nullptr);
+
+        pid_t r;
+        int status = 0;
+        do
+        {
+            r = waitpid(pid, &status, 0);
+        } while (r == -1 && errno == EINTR);
+
+        if (WIFEXITED(status)) {
+            exit_code = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            exit_code = EXIT_OK_EXIT_SIGNAL;
+        }
+
+#endif
+        return exit_code;
+    }
+
+    signed_t execute(const FNARR& cmdl WINONLY(, bool from_service)) // with arguments
     {
         signed_t exit_code = EXIT_OK;
 #ifdef _WIN32
@@ -72,7 +142,7 @@ namespace ostools
         if (glb.actual_proc.evt == nullptr)
         {
             str::wstr evn(str::wstr_view(PROXTOPUS_EVT, strsize(PROXTOPUS_EVT)));
-            str::append_hex( evn, GetCurrentProcessId() );
+            str::append_hex(evn, GetCurrentProcessId());
 
             glb.actual_proc.evt = CreateEvent(
                 nullptr,            // default security attributes
@@ -125,12 +195,12 @@ namespace ostools
         }
 #else
         signed_t pcnt = cmdl.size();
-        const char ** argv = (const char **)alloca( sizeof(char *) * (pcnt + 1) );
-        for(int i=0;i<pcnt;++i)
+        const char** argv = (const char**)alloca(sizeof(char*) * (pcnt + 1));
+        for (int i = 0; i < pcnt; ++i)
             argv[i] = cmdl[i].c_str();
         argv[pcnt] = nullptr;
 
-        posix_spawn(&glb.actual_proc.pid, argv[0], nullptr, nullptr, (char * const*)argv, nullptr);
+        posix_spawn(&glb.actual_proc.pid, argv[0], nullptr, nullptr, (char* const*)argv, nullptr);
 
 
         pid_t r;
@@ -143,7 +213,8 @@ namespace ostools
         if (WIFEXITED(status)) {
             exit_code = WEXITSTATUS(status);
             LOG_I("Child process has been terminated with code $", exit_code);
-        } else if (WIFSIGNALED(status)) {
+        }
+        else if (WIFSIGNALED(status)) {
             exit_code = EXIT_OK_EXIT_SIGNAL;
             int s = WTERMSIG(status);
             LOG_I("Child process has been terminated by signal $", s);
@@ -153,6 +224,8 @@ namespace ostools
 #endif
         return exit_code;
     }
+
+#endif
 
     void set_current_thread_name(const str::astr_view& name)
     {
@@ -187,25 +260,37 @@ namespace ostools
 
     }
 
-    dynlib::dynlib(str::astr_view library)
+    dynlib::dynlib(const FN& library)
     {
 #ifdef _NIX
-        lib_handler = ::dlopen(str::astr(library).c_str(), RTLD_LAZY);
+        lib_handler = ::dlopen(library.c_str(), RTLD_LAZY);
 #elif defined (_WIN32)
-        lib_handler = ::LoadLibraryW(str::from_utf8(library).c_str());
+        lib_handler = ::LoadLibraryW(library.c_str());
 #endif
     }
 
     dynlib::~dynlib() {
+        unload();
+    }
+
+    void dynlib::unload()
+    {
+        if (lib_handler)
+        {
 #ifdef _NIX
-        ::dlclose(lib_handler);
+            ::dlclose(lib_handler);
 #elif defined (_WIN32)
-        ::FreeLibrary(reinterpret_cast<HMODULE>(lib_handler));
+            ::FreeLibrary(reinterpret_cast<HMODULE>(lib_handler));
 #endif
+            lib_handler = nullptr;
+        }
     }
 
     void* dynlib::resolve_symbol(const str::astr& symbol)
     {
+        if (!lib_handler)
+            return nullptr;
+
         void* addr = nullptr;
 
 #ifdef _NIX
@@ -214,6 +299,56 @@ namespace ostools
         addr = reinterpret_cast<void*>(::GetProcAddress(reinterpret_cast<HMODULE>(lib_handler), symbol.c_str()));
 #endif
         return addr;
+    }
+
+    bool add_route(const netkit::ipap& dst, const netkit::ipap& gate, signed_t ifci)
+    {
+#ifdef _WIN32
+
+        MIB_IPINTERFACE_ROW ifRow = { 0 };
+        InitializeIpInterfaceEntry(&ifRow);
+        ifRow.Family = AF_INET;
+        ifRow.InterfaceIndex = tools::as_dword(ifci);
+        if (GetIpInterfaceEntry(&ifRow) != NO_ERROR)
+            ifRow.Metric = 9;
+
+        MIB_IPFORWARDROW row = {0};
+        row.dwForwardDest = dst.ipv4.s_addr;
+        row.dwForwardMask = netkit::prefix_to_mask_4(dst.port);
+        row.dwForwardIfIndex = tools::as_dword(ifci);
+        row.dwForwardType = MIB_IPROUTE_TYPE_DIRECT;
+        row.dwForwardProto = MIB_IPPROTO_NETMGMT;
+        row.dwForwardNextHop = gate.ipv4.s_addr;
+        row.dwForwardMetric1 = ifRow.Metric + 1;
+        row.dwForwardMetric2 = 0xffffffff;
+        row.dwForwardMetric3 = 0xffffffff;
+        row.dwForwardMetric4 = 0xffffffff;
+        row.dwForwardMetric5 = 0xffffffff;
+
+        return NO_ERROR == CreateIpForwardEntry(&row);
+
+        /*
+        str::astr cmd = str::build_string("route add $ mask $ $ if $", dst.to_string(false), netkit::ipap(netkit::prefix_to_mask_4(dst.port), 0).to_string(false), ifc.to_string(false), ifci);
+        ostools::silent_execute(str::from_utf8(cmd));
+        */
+#else
+        DEBUGBREAK();
+#endif
+
+    }
+
+    netkit::ipap get_best_route(const netkit::ipap& ipa)
+    {
+#ifdef _WIN32
+        if (!ipa.v4())
+            return netkit::ipap();
+        
+        MIB_IPFORWARDROW row;
+        GetBestRoute( ipa.ipv4.s_addr, 0, &row );
+        return netkit::ipap( row.dwForwardNextHop, tools::as_word(row.dwForwardIfIndex) );
+#else
+        DEBUGBREAK();
+#endif
     }
 
 

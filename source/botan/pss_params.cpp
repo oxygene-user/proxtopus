@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/pss_params.h>
 
@@ -76,3 +77,4 @@ void PSS_Params::decode_from(BER_Decoder& from) {
 }
 
 }  // namespace Botan
+#endif

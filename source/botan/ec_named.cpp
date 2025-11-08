@@ -6,6 +6,7 @@
 */
 
 #include <botan/ec_group.h>
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -576,3 +577,4 @@ const std::set<std::string>& EC_Group::known_named_groups() {
 }  // namespace Botan
 
 // clang-format on
+#endif

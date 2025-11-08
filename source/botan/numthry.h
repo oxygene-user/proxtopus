@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_NUMBER_THEORY_H_
 #define BOTAN_NUMBER_THEORY_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 
@@ -180,4 +182,5 @@ extern const uint16_t BOTAN_PUBLIC_API(2, 0) PRIMES[];
 
 }  // namespace Botan
 
+#endif
 #endif

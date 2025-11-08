@@ -7,6 +7,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/internal/prf_tls.h>
 
@@ -53,3 +54,4 @@ std::unique_ptr<KDF> TLS_12_PRF::new_object() const {
 }
 
 }  // namespace Botan
+#endif

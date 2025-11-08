@@ -43,7 +43,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)proxtopus</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_ALLOW_RTCc_IN_STL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CreateHotpatchableImage Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CreateHotpatchableImage>
       <EnforceTypeConversionRules Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</EnforceTypeConversionRules>
@@ -146,6 +146,9 @@
     <ClInclude Include="botan\x509_key.h" />
     <ClInclude Include="botan\x509_obj.h" />
     <ClInclude Include="conf.h" />
+    <ClInclude Include="proxtopus\expression.h" />
+    <ClInclude Include="proxtopus\ip_machine.h" />
+    <ClInclude Include="proxtopus\adapter.h" />
     <ClInclude Include="proxtopus\botan_hash.h" />
     <ClInclude Include="proxtopus\chacha20.h" />
     <ClInclude Include="debug\handler_dbg.h" />
@@ -199,7 +202,6 @@
     <ClInclude Include="botan\internal\sha2_64_f.h" />
     <ClInclude Include="botan\internal\sha3.h" />
     <ClInclude Include="botan\internal\simd_avx2.h" />
-    <ClInclude Include="botan\internal\simd_avx512.h" />
     <ClInclude Include="botan\internal\stl_util.h" />
     <ClInclude Include="botan\kdf.h" />
     <ClInclude Include="botan\mac.h" />
@@ -230,10 +232,10 @@
     <ClInclude Include="proxtopus\handler_ss.h" />
     <ClInclude Include="proxtopus\mem.h" />
     <ClInclude Include="proxtopus\spinlock.h" />
+    <ClInclude Include="proxtopus\spooky_hash.h" />
     <ClInclude Include="proxtopus\transport.h" />
     <ClInclude Include="proxtopus\transport_tls.h" />
     <ClInclude Include="proxtopus\http_api.h" />
-    <ClInclude Include="proxtopus\icpt.h" />
     <ClInclude Include="proxtopus\json.h" />
     <ClInclude Include="proxtopus\listener.h" />
     <ClInclude Include="proxtopus\loader.h" />
@@ -251,8 +253,10 @@
     <ClInclude Include="proxtopus\tls.h" />
     <ClInclude Include="proxtopus\tools.h" />
     <ClInclude Include="proxtopus\main.h" />
+    <ClInclude Include="proxtopus\udp.h" />
     <ClInclude Include="proxtopus\uints.h" />
     <ClInclude Include="proxtopus\watchdog.h" />
+    <ClInclude Include="proxtopus\upstream.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="botan\aes.cpp">
@@ -753,6 +757,10 @@
     <ClCompile Include="botan\sha1_simd.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="debug\excpn.cpp" />
+    <ClCompile Include="debug\stkwlk.cpp" />
+    <ClCompile Include="proxtopus\expression.cpp" />
+    <ClCompile Include="proxtopus\adapter.cpp" />
     <ClCompile Include="proxtopus\chacha20.cpp" />
     <ClCompile Include="debug\handler_dbg.cpp" />
     <ClCompile Include="debug\memspy.cpp">
@@ -774,7 +782,6 @@
     <ClCompile Include="proxtopus\transport.cpp" />
     <ClCompile Include="proxtopus\transport_tls.cpp" />
     <ClCompile Include="proxtopus\http_api.cpp" />
-    <ClCompile Include="proxtopus\icpt.cpp" />
     <ClCompile Include="proxtopus\json.cpp" />
     <ClCompile Include="proxtopus\known_oids.cpp" />
     <ClCompile Include="proxtopus\listener.cpp" />
@@ -793,6 +800,7 @@
     <ClCompile Include="proxtopus\sts.cpp" />
     <ClCompile Include="proxtopus\tls.cpp" />
     <ClCompile Include="proxtopus\tools.cpp" />
+    <ClCompile Include="proxtopus\udp.cpp" />
     <ClCompile Include="proxtopus\watchdog.cpp" />
     <ClCompile Include="proxtopus\tests.cpp" />
     <ClCompile Include="rasp\compile_oids.cpp">
@@ -807,6 +815,8 @@
     <ClCompile Include="proxtopus\sodium_chacha20_ssse3.inl">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="proxtopus\ip_machine.cpp" />
+    <ClCompile Include="proxtopus\upstream.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="proxtopus.natvis" />

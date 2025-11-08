@@ -6,6 +6,7 @@
 */
 
 #include <botan/bigint.h>
+#if FEATURE_TLS
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/mp_core.h>
@@ -276,3 +277,4 @@ BigInt& BigInt::operator>>=(size_t shift) {
 }
 
 }  // namespace Botan
+#endif

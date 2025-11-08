@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_TLS_SESSION_KEYS_H_
 #define BOTAN_TLS_SESSION_KEYS_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/tls_magic.h>
 
@@ -69,4 +71,5 @@ class Session_Keys final {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

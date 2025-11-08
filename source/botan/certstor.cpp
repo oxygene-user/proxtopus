@@ -7,6 +7,7 @@
 */
 
 #include <botan/certstor.h>
+#if FEATURE_TLS
 
 #include <botan/data_src.h>
 #include <botan/hash.h>
@@ -202,3 +203,4 @@ Certificate_Store_In_Memory::Certificate_Store_In_Memory(std::string_view dir) {
 #endif
 
 }  // namespace Botan
+#endif

@@ -9,6 +9,7 @@
 */
 
 #include <botan/tls_callbacks.h>
+#if FEATURE_TLS
 
 #include <botan/dh.h>
 #include <botan/dl_group.h>
@@ -417,3 +418,4 @@ void TLS::Callbacks::tls_ssl_key_log_data(std::string_view label,
 }
 
 }  // namespace Botan
+#endif

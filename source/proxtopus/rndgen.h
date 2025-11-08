@@ -14,6 +14,13 @@ public:
     void randombytes_buf(void* const buf, size_t size);
     void random_vec(std::span<uint8_t> v) { this->randombytes_buf(v.data(), v.size()); }
 
+    template<typename T> T rnd()
+    {
+        T t;
+        randombytes_buf(&t, sizeof(T));
+        return t;
+    }
+
     static randomgen& get();
 };
 

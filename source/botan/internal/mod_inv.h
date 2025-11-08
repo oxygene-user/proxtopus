@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_MOD_INV_H_
 #define BOTAN_MOD_INV_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <optional>
@@ -113,4 +115,5 @@ BigInt BOTAN_TEST_API compute_rsa_secret_exponent(const BigInt& e,
 
 }  // namespace Botan
 
+#endif
 #endif

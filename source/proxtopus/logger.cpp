@@ -3,6 +3,7 @@
 
 #if LOGGER==2
 
+#if FEATURE_FILELOG
 void logger::log2file(const FN &logfn, const str::astr_view& msg)
 {
 	if (file_appender apndr(logfn); apndr)
@@ -17,7 +18,7 @@ void logger::log2file(const FN &logfn, const str::astr_view& msg)
 	}
 
 }
-
+#endif
 #include <codecvt>
 
 /*
@@ -46,6 +47,7 @@ logger& logger::operator<<(signed_t x)
 }
 */
 
+#ifndef ANDROID
 void logger::unmute()
 {
 	glb.log_muted = false;
@@ -55,6 +57,7 @@ void logger::mute()
 {
     glb.log_muted = true;
 }
+#endif
 
 void logger::newline(int sev, const str::astr_view& s)
 {
@@ -75,14 +78,14 @@ void logger::newline(int sev, const str::astr_view& s)
 	switch (sev)
 	{
 	case SEV_WARNING:
-		if (!glb.log_muted || !glb.cfg.log_file.empty())
+		if (log_enabled())
 		{
 			str::impl_build_string(sout, "warning: $\n", s);
 			Print(FOREGROUND_RED | FOREGROUND_GREEN, str::view(sout));
 		}
 		break;
     case SEV_IMPORTANT:
-		if (!glb.log_muted || !glb.cfg.log_file.empty())
+		if (log_enabled())
 		{
 			str::impl_build_string(sout, "beep: $\n", s);
 			Print(FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY, str::view(sout));
@@ -90,7 +93,7 @@ void logger::newline(int sev, const str::astr_view& s)
 		break;
 	case SEV_ERROR:
 
-		if (!glb.log_muted || !glb.cfg.log_file.empty())
+		if (log_enabled())
         {
             if (s[s.length() - 1] == '^')
                 str::impl_build_string(sout, "error: $\b; see help for more information\n", s);
@@ -101,10 +104,10 @@ void logger::newline(int sev, const str::astr_view& s)
 		break;
 	case SEV_DEBUG:
 		str::impl_build_string(sout, "$ $\n", tid(), s);
-		Print(str::view(sout));
+		Print(FOREGROUND_GREEN | FOREGROUND_BLUE, str::view(sout));
 		break;
 	default:
-		if (!glb.log_muted || !glb.cfg.log_file.empty())
+		if (log_enabled())
 		{
 			str::impl_build_string(sout, "note: $\n", s);
 			Print(str::view(sout));

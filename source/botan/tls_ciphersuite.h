@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_TLS_CIPHER_SUITES_H_
 #define BOTAN_TLS_CIPHER_SUITES_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/tls_algos.h>
 #include <botan/tls_version.h>
@@ -171,4 +173,5 @@ class BOTAN_PUBLIC_API(2, 0) Ciphersuite final {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

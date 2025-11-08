@@ -4,11 +4,11 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/keccak_perm.h>
 
 #include <botan/internal/keccak_perm_round.h>
 
+#ifdef ARCH_X86
 namespace Botan {
 
 void Keccak_Permutation::permute_bmi2() {
@@ -28,3 +28,4 @@ void Keccak_Permutation::permute_bmi2() {
 }
 
 }  // namespace Botan
+#endif

@@ -10,6 +10,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_messages.h>
 
@@ -830,3 +831,4 @@ Hello_Retry_Request::Hello_Retry_Request(const Client_Hello_13& ch,
 #endif  // BOTAN_HAS_TLS_13
 
 }  // namespace Botan::TLS
+#endif

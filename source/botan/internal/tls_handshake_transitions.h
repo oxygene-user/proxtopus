@@ -9,6 +9,8 @@
 
 #ifndef BOTAN_TLS_HANDSHAKE_TRANSITIONS_H_
 #define BOTAN_TLS_HANDSHAKE_TRANSITIONS_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <vector>
 
@@ -62,4 +64,5 @@ class BOTAN_TEST_API Handshake_Transitions {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

@@ -7,6 +7,7 @@
  */
 
 #include <botan/tls_session_manager_memory.h>
+#if FEATURE_TLS
 
 #include <botan/rng.h>
 #include <botan/internal/stl_util.h>
@@ -129,3 +130,4 @@ size_t Session_Manager_In_Memory::remove_all() {
 }
 
 }  // namespace Botan::TLS
+#endif

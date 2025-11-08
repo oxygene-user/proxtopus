@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_CHANNEL_IMPL_12_H_
 #define BOTAN_TLS_CHANNEL_IMPL_12_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/tls_alert.h>
 #include <botan/tls_callbacks.h>
@@ -262,4 +264,5 @@ class Channel_Impl_12 : public Channel_Impl {
 
 }  // namespace Botan
 
+#endif
 #endif

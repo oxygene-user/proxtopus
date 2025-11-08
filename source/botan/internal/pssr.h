@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PSSR_H_
 #define BOTAN_PSSR_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/hash.h>
 #include <botan/internal/emsa.h>
@@ -91,4 +93,5 @@ class PSSR_Raw final : public EMSA {
 
 }  // namespace Botan
 
+#endif
 #endif

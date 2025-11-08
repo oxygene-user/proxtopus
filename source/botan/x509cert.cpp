@@ -7,6 +7,7 @@
 */
 
 #include <botan/x509cert.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/bigint.h>
@@ -837,3 +838,4 @@ std::string X509_Certificate::to_string() const {
 #endif
 
 }  // namespace Botan
+#endif

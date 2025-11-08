@@ -39,7 +39,7 @@ template<typename CC> bool handle_macro(macro_context* ctx, const str::xstr_view
     {
         tkn();
         signed_t vi = str::parse_int(*tkn, 0);
-        if (vi < 0 || vi >= (signed_t)ctx->vars.size())
+        if (vi < 0 || vi >= SIGNED % ctx->vars.size())
         {
             rslt.clear();
             return true;

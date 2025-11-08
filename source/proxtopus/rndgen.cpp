@@ -35,7 +35,7 @@ void randomgen::rnd(void* const buf_, size_t size) // extra rnd
             };
 
         add_entropy(chrono::tsc());
-        add_entropy(chrono::ms());
+        add_entropy(chrono::ms().raw());
         add_entropy(reinterpret_cast<size_t>(this));
         add_entropy(spinlock::current_thread_uid());
 

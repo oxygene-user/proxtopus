@@ -9,6 +9,8 @@
 
 #ifndef BOTAN_ECC_DOMAIN_PARAMETERS_H_
 #define BOTAN_ECC_DOMAIN_PARAMETERS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/bigint.h>
@@ -733,4 +735,5 @@ inline bool operator!=(const EC_Group& lhs, const EC_Group& rhs) {
 
 }  // namespace Botan
 
+#endif
 #endif

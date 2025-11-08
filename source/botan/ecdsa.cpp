@@ -9,6 +9,7 @@
 */
 
 #include <botan/ecdsa.h>
+#if FEATURE_TLS
 
 #include <botan/internal/keypair.h>
 #include <botan/internal/pk_ops_impl.h>
@@ -246,3 +247,4 @@ std::unique_ptr<PK_Ops::Signature> ECDSA_PrivateKey::create_signature_op(RandomN
 }
 
 }  // namespace Botan
+#endif

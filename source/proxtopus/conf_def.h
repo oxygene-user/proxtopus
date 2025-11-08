@@ -25,7 +25,7 @@
 #define HAVE_GETRANDOM
 #endif
 
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
+#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__) || defined(ARCH_64BIT)
 // 64 bit
 #ifdef ARCH_X86
 #ifndef SSE2_SUPPORTED
@@ -52,4 +52,16 @@
 
 #ifdef SSE2_SUPPORTED
 #include <emmintrin.h>
+#endif
+
+
+#ifdef ANDROID
+#undef FEATURE_ADAPTER
+#undef FEATURE_TLS
+#undef FEATURE_FILELOG
+#undef FEATURE_WATCHDOG
+#define FEATURE_ADAPTER 0
+#define FEATURE_TLS 0
+#define FEATURE_FILELOG 0
+#define FEATURE_WATCHDOG 0
 #endif

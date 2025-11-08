@@ -4,9 +4,8 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/cpuid.h>
-
+#ifdef ARCH_X86
 #include <botan/assert.h>
 #include <botan/mem_ops.h>
 #include <botan/internal/loadstor.h>
@@ -218,3 +217,4 @@ uint32_t CPUID::CPUID_Data::detect_cpu_features(uint32_t allowed) {
 }
 
 }  // namespace Botan
+#endif

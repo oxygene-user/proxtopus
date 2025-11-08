@@ -51,5 +51,5 @@ struct host_mode_api : public host_mode
     virtual ~host_mode_api() {}
     virtual bool load(const asts& b) override;
 
-    mode_result do_GET(http_server& s);
+    /*virtual*/ mode_result do_GET(http_server& s) override;
 };

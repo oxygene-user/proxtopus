@@ -7,7 +7,7 @@
  */
 
 #include <botan/tls_session_manager.h>
-
+#if FEATURE_TLS
 #include <botan/assert.h>
 #include <botan/rng.h>
 #include <botan/tls_callbacks.h>
@@ -235,3 +235,4 @@ std::optional<std::pair<Session, uint16_t>> Session_Manager::choose_from_offered
 #endif
 
 }  // namespace Botan::TLS
+#endif

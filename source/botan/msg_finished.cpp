@@ -8,6 +8,7 @@
 */
 
 #include <botan/tls_messages.h>
+#if FEATURE_TLS
 
 #include <botan/kdf.h>
 #include <botan/internal/ct_utils.h>
@@ -86,3 +87,4 @@ bool Finished_13::verify(Cipher_State* cipher_state, const Transcript_Hash& tran
 }
 #endif
 }  // namespace Botan::TLS
+#endif

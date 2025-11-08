@@ -1,5 +1,5 @@
 #include "pch.h"
-#if defined(_DEBUG) && defined(_WIN32)
+#if defined(_DEBUG) && defined(_WIN32) && FEATURE_TLS
 
 namespace
 {
@@ -32,8 +32,8 @@ namespace
         }
 
         static bool sort_ba(const rec& a, const rec& b) {
-            u64 x1 = Botan::load_le<u64>((const u8 *) & a.ag, 0);
-            u64 x2 = Botan::load_le<u64>((const u8* ) & b.ag, 0);
+            u64 x1 = load_le<8>((const u8 *) & a.ag, 0);
+            u64 x2 = load_le<8>((const u8* ) & b.ag, 0);
 
             return x1 < x2;
         }

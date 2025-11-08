@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/emsa_pkcs1.h>
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
@@ -137,3 +138,4 @@ bool EMSA_PKCS1v15_Raw::verify(std::span<const uint8_t> coded, std::span<const u
 #endif
 
 }  // namespace Botan
+#endif

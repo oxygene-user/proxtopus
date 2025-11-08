@@ -3,81 +3,88 @@
 /*
 class jpipe : public netkit::pipe
 {
-	buffer buf;
+    buffer buf;
 public:
-	jpipe* opipe = nullptr;;
+    jpipe* opipe = nullptr;;
 
-	jpipe() {}
-	jpipe(jpipe* opipe) :opipe(opipe) {}
+    jpipe() {}
+    jpipe(jpipe* opipe) :opipe(opipe) {}
 
-	virtual bool send(const u8* data, signed_t datasize)
-	{
-		std::span<const u8>x(data, datasize);
-		buf.insert(buf.end(), x.begin(), x.end());
-		return true;
-	}
-	virtual signed_t recv(u8* data, signed_t maxdatasz)
-	{
-		if (maxdatasz < 0)
-		{
-			ASSERT(opipe->buf.size() >= (-maxdatasz));
-			maxdatasz = -maxdatasz;
-		}
+    virtual bool send(const u8* data, signed_t datasize)
+    {
+        std::span<const u8>x(data, datasize);
+        buf.insert(buf.end(), x.begin(), x.end());
+        return true;
+    }
+    virtual signed_t recv(u8* data, signed_t maxdatasz)
+    {
+        if (maxdatasz < 0)
+        {
+            ASSERT(opipe->buf.size() >= (-maxdatasz));
+            maxdatasz = -maxdatasz;
+        }
 
-		signed_t mmm = math::minv(maxdatasz, opipe->buf.size());
-		memcpy(data, opipe->buf.data(), mmm);
-		opipe->buf.erase(opipe->buf.begin(), opipe->buf.begin() + mmm);
-		return mmm;
-	}
-	virtual bool wait(long microsec)
-	{
-		return true;
-	}
+        signed_t mmm = math::minv(maxdatasz, opipe->buf.size());
+        memcpy(data, opipe->buf.data(), mmm);
+        opipe->buf.erase(opipe->buf.begin(), opipe->buf.begin() + mmm);
+        return mmm;
+    }
+    virtual bool wait(long microsec)
+    {
+        return true;
+    }
 
-	virtual void close(bool flush_before_close)
-	{
+    virtual void close(bool flush_before_close)
+    {
 
-	}
+    }
 
 };
 */
 
-proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb, false)
+proxy_shadowsocks::proxy_shadowsocks(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb, false, false)
 {
-	str::astr a = core.load(ldr, name, bb);
-	if (!a.empty())
-		addr.preparse(a);
+    str::astr a = core.load(ldr, name, bb);
+    if (!a.empty())
+        addr.preparse(a);
 
-	if (addr.state() == netkit::EPS_EMPTY)
-	{
-		ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
-		LOG_FATAL("addr not defined for proxy [$]", str::clean(name));
-		return;
-	}
+    if (addr.state() == netkit::EPS_EMPTY)
+    {
+        ldr.exit_code = EXIT_FAIL_ADDR_UNDEFINED;
+        LOG_FATAL("addr not defined for proxy [$]", str::clean(name));
+        return;
+    }
+
+    if (addr.port() == 0)
+    {
+        ldr.exit_code = EXIT_FAIL_PORT_UNDEFINED;
+        LOG_FATAL("remote port not defined for proxy [$]", str::clean(name));
+    }
+
 }
 
 netkit::pipe_ptr proxy_shadowsocks::prepare(netkit::pipe_ptr pipe_2_proxy, netkit::endpoint& addr2) const
 {
-	if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
-		return netkit::pipe_ptr();
+    if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
+        return netkit::pipe_ptr();
 
     ss::core::masterkey* key = NEW ss::core::masterkey(core.masterkeys.lock_read()()[0]);
-	netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe_client(pipe_2_proxy, key, core.cp));
+    netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe_client(pipe_2_proxy, key, core.cp, glb.emptys));
 
-	// just send connect request (shadowsocks 2012 protocol spec)
-	// no need to wait answer: stream mode just after request
+    // just send connect request (shadowsocks 2012 protocol spec)
+    // no need to wait answer: stream mode just after request
 
-	u8 packet[512];
-	netkit::pgen pg(packet, 512);
+    u8 packet[512];
+    netkit::pgen pg(packet, 512);
 
-	proxy_socks5::push_atyp(pg, addr2);                  
+    proxy_socks5::push_atyp(pg, addr2);                  
 
     return (p_enc->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL) ? netkit::pipe_ptr() : p_enc;
 }
 
 /*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_shadowsocks::prepare(netkit::udp_pipe* transport) const
 {
-	return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, core.masterkeys.lock_read()()[0].key, core.cp);
+    return std::make_unique<ss::core::udp_crypto_pipe>(addr, transport, core.masterkeys.lock_read()()[0].key, core.cp);
 }
 
 /*virtual*/ void proxy_shadowsocks::api(json_saver& j) const
@@ -95,12 +102,14 @@ proxy_ssp::proxy_ssp(loader& ldr, const str::astr& name, const asts& bb) :proxy(
     if (!a.empty())
         addr.preparse(a);
 
-	if (!core.cp.is_ssp_compliant())
+    sni = bb.get_string(ASTR("sni"), str::astr(ASTR("ya.ru")));
+
+    if (!core.cp.is_ssp_compliant())
     {
         ldr.exit_code = EXIT_FAIL_SSP_NOT_COMPLIANT;
         LOG_FATAL("encryption method does not meet the requirements of the ssp protocol for proxy [$] (only {chacha20-ietf-poly1305} supported)", str::clean(name));
         return;
-	}
+    }
 
     if (addr.state() == netkit::EPS_EMPTY)
     {
@@ -109,7 +118,7 @@ proxy_ssp::proxy_ssp(loader& ldr, const str::astr& name, const asts& bb) :proxy(
         return;
     }
 
-	core.cp.set_ssp();
+    core.cp.set_ssp();
 }
 
 netkit::pipe_ptr proxy_ssp::prepare(netkit::pipe_ptr pipe_2_proxy, netkit::endpoint& addr2) const
@@ -117,15 +126,22 @@ netkit::pipe_ptr proxy_ssp::prepare(netkit::pipe_ptr pipe_2_proxy, netkit::endpo
     if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
         return netkit::pipe_ptr();
 
+    macro_context mc(glb.emptys);
+    str::astr s = sni;
+    macro_expand(&mc, s);
+
     ss::core::masterkey* key = NEW ss::core::masterkey(core.masterkeys.lock_read()()[0]);
-    netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe_client(pipe_2_proxy, key, core.cp));
+    netkit::pipe_ptr p_enc(NEW ss::core::crypto_pipe_client(pipe_2_proxy, key, core.cp, s));
 
     u8 packet[512];
     netkit::pgen pg(packet, 512);
 
     proxy_socks5::push_atyp(pg, addr2);
 
-    return (p_enc->send(packet, -pg.ptr /*negative - dont send now*/ ) == netkit::pipe::SEND_FAIL) ? netkit::pipe_ptr() : p_enc;
+    if (p_enc->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL)
+        return netkit::pipe_ptr();
+
+    return p_enc;
 }
 
 /*virtual*/ std::unique_ptr<netkit::udp_pipe> proxy_ssp::prepare(netkit::udp_pipe* transport) const

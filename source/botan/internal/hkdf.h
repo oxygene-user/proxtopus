@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_HKDF_H_
 #define BOTAN_HKDF_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/kdf.h>
 #include <botan/mac.h>
@@ -103,4 +105,5 @@ secure_vector<uint8_t> BOTAN_TEST_API hkdf_expand_label(std::string_view hash_fn
 
 }  // namespace Botan
 
+#endif
 #endif

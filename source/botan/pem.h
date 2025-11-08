@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PEM_H_
 #define BOTAN_PEM_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/api.h>
 #include <string>
@@ -83,4 +85,5 @@ BOTAN_PUBLIC_API(2, 0) bool matches(DataSource& source, std::string_view extra =
 
 }  // namespace Botan
 
+#endif
 #endif

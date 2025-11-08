@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_DIFFIE_HELLMAN_H_
 #define BOTAN_DIFFIE_HELLMAN_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 #include <memory>
@@ -126,4 +128,5 @@ BOTAN_DIAGNOSTIC_POP
 
 }  // namespace Botan
 
+#endif
 #endif

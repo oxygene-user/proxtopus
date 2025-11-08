@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/monty.h>
+#if FEATURE_TLS
 
 #include <botan/numthry.h>
 #include <botan/reducer.h>
@@ -443,3 +444,4 @@ Montgomery_Int& Montgomery_Int::mul_by_8(secure_vector<word>& ws) {
 }
 
 }  // namespace Botan
+#endif

@@ -3,10 +3,10 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/ghash.h>
 
 #include <botan/compiler.h>
+#ifdef ARCH_X86
 #include <immintrin.h>
 
 namespace Botan {
@@ -57,3 +57,4 @@ void GHASH::ghash_multiply_vperm(uint8_t x[16], const uint64_t HM[256], const ui
 }
 
 }  // namespace Botan
+#endif

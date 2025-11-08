@@ -10,6 +10,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_messages.h>
 
@@ -1073,3 +1074,4 @@ std::optional<Protocol_Version> Client_Hello_13::highest_supported_version(const
 #endif  // BOTAN_HAS_TLS_13
 
 }  // namespace Botan::TLS
+#endif

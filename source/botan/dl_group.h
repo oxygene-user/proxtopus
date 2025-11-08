@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_DL_PARAM_H_
 #define BOTAN_DL_PARAM_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <memory>
@@ -399,4 +401,5 @@ class BOTAN_PUBLIC_API(2, 0) DL_Group final {
 
 }  // namespace Botan
 
+#endif
 #endif

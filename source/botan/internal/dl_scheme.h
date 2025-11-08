@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_DL_SCHEME_H_
 #define BOTAN_DL_SCHEME_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <botan/dl_group.h>
@@ -91,4 +93,5 @@ class DL_PrivateKey final {
 
 }  // namespace Botan
 
+#endif
 #endif

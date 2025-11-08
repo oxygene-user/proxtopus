@@ -6,6 +6,7 @@
 */
 
 #include <botan/tls_session.h>
+#if FEATURE_TLS
 
 #include <botan/aead.h>
 #include <botan/asn1_obj.h>
@@ -417,9 +418,9 @@ secure_vector<uint8_t> Session::extract_master_secret() {
 namespace {
 
 // The output length of the HMAC must be a valid keylength for the AEAD
-const char* const TLS_SESSION_CRYPT_HMAC = "HMAC(SHA-512-256)";
+//const char* const TLS_SESSION_CRYPT_HMAC = "HMAC(SHA-512-256)";
 // SIV would be better, but we can't assume it is available
-const char* const TLS_SESSION_CRYPT_AEAD = "AES-256/GCM";
+//const char* const TLS_SESSION_CRYPT_AEAD = "AES-256/GCM";
 const char* const TLS_SESSION_CRYPT_KEY_NAME = "BOTAN TLS SESSION KEY NAME";
 const uint64_t TLS_SESSION_CRYPT_MAGIC = 0x068B5A9D396C0000;
 const size_t TLS_SESSION_CRYPT_MAGIC_LEN = 8;
@@ -533,3 +534,4 @@ Session Session::decrypt(std::span<const uint8_t> in, const SymmetricKey& key) {
 }
 
 }  // namespace Botan::TLS
+#endif

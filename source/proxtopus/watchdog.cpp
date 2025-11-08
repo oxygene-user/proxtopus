@@ -2,6 +2,10 @@
 
 #define DEBUG_OVERLOADER 0 // overload in (DEBUG_OVERLOADER * 5) secs, zero - disable
 
+#ifdef ANDROID
+void android_overload_notify();
+#endif
+
 watchdog::watchdog()
 {
 #ifdef _WIN32
@@ -127,15 +131,6 @@ bool watchdog::operator()()
 
 #endif
 
-    if (prev_cpu_usage != cpu_usage)
-    {
-        if (cpu_usage > 0)
-            ostools::set_current_thread_name(str::build_string("cpu load $%", cpu_usage));
-        else
-            ostools::set_current_thread_name(ASTR("cpu load ok"));
-        prev_cpu_usage = cpu_usage;
-    }
-
     //DST(deep_tracer::deep_trace_enabled = cpu_usage > 35);
 
     if (cpu_usage >= 95)
@@ -157,6 +152,7 @@ bool watchdog::operator()()
                 LOG_I("it seems that one or more threads are freeze; proxtopus is now exit");
                 //glb.restart();
 
+#if APP && FEATURE_WATCHDOG
                 glb.e->exit_code = EXIT_FAIL_OVERLOAD;
                 glb.stop();
 
@@ -166,6 +162,11 @@ bool watchdog::operator()()
                     ostools::terminate();
                     });
                 th.detach();
+#elif ANDROID
+                android_overload_notify();
+#endif
+
+
 #ifdef _DEBUG
             }
 #endif

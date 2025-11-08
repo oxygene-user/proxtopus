@@ -10,6 +10,8 @@
 
 #ifndef BOTAN_TLS_CALLBACKS_H_
 #define BOTAN_TLS_CALLBACKS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/dl_group.h>
 #include <botan/ocsp.h>
@@ -650,4 +652,5 @@ class BOTAN_PUBLIC_API(2, 0) Callbacks {
 
 }  // namespace Botan
 
+#endif
 #endif

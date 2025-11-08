@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/internal/pk_ops_impl.h>
 
@@ -254,3 +255,4 @@ if (!kdf.is_raw())
 PK_Ops::KEM_Decryption_with_KDF::~KEM_Decryption_with_KDF() = default;
 
 }  // namespace Botan
+#endif

@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_KDF_XMD_H_
 #define BOTAN_KDF_XMD_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/types.h>
 #include <span>
@@ -37,4 +39,5 @@ inline void expand_message_xmd(Hash_Algo hash_fn,
 
 }  // namespace Botan
 
+#endif
 #endif

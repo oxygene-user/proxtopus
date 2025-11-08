@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_PUBKEY_EME_H_
 #define BOTAN_PUBKEY_EME_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/types.h>
 #include <botan/internal/ct_utils.h>
@@ -64,4 +66,5 @@ class BOTAN_TEST_API EME {
 
 }  // namespace Botan
 
+#endif
 #endif

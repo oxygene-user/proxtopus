@@ -6,7 +6,7 @@
 */
 
 #include <botan/internal/ghash.h>
-
+#ifdef BOTAN_HAS_GHASH_CLMUL_CPU
 #include <botan/internal/simd_4x32.h>
 #include <bit>
 
@@ -23,10 +23,14 @@ BOTAN_FUNC_ISA_INLINE(BOTAN_SIMD_ISA) SIMD_4x32 reverse_vector(const SIMD_4x32& 
 #if defined(BOTAN_SIMD_USE_SSSE3)
    const __m128i BSWAP_MASK = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
    return SIMD_4x32(_mm_shuffle_epi8(in.raw(), BSWAP_MASK));
-#elif defined(BOTAN_SIMD_USE_NEON)
+#elif defined(BOTAN_SIMD_USE_NEON) && defined(ARCH_64BIT)
    const uint8_t maskb[16] = {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
    const uint8x16_t mask = vld1q_u8(maskb);
    return SIMD_4x32(vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32(in.raw()), mask)));
+#elif defined(BOTAN_SIMD_USE_NEON) && defined(ARCH_32BIT)
+   uint8x16_t v = vreinterpretq_u8_u32(in.raw());
+   v = vrev64q_u8(v);
+   return SIMD_4x32(vreinterpretq_u32_u8(vcombine_u8(vget_high_u8(v), vget_low_u8(v))));
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
    const __vector unsigned char mask = {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
    return SIMD_4x32(vec_perm(in.raw(), in.raw(), mask));
@@ -208,3 +212,4 @@ void GHASH::ghash_multiply_cpu(uint8_t x[16], const uint64_t H_pow[8], const uin
 }
 
 }  // namespace Botan
+#endif

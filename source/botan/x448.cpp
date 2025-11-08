@@ -7,6 +7,7 @@
 */
 
 #include <botan/x448.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
@@ -146,3 +147,4 @@ std::unique_ptr<PK_Ops::Key_Agreement> X448_PrivateKey::create_key_agreement_op(
 }
 
 }  // namespace Botan
+#endif

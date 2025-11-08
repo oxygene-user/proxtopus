@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_SESSION_MANAGER_H_
 #define BOTAN_TLS_SESSION_MANAGER_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/mutex.h>
 #include <botan/tls_session.h>
@@ -280,4 +282,5 @@ class BOTAN_PUBLIC_API(3, 0) Session_Manager {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

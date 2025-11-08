@@ -10,6 +10,8 @@
 
 #ifndef BOTAN_PKIX_TYPES_H_
 #define BOTAN_PKIX_TYPES_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 
@@ -649,4 +651,5 @@ class BOTAN_PUBLIC_API(2, 0) Extensions final : public ASN1_Object {
 
 }  // namespace Botan
 
+#endif
 #endif

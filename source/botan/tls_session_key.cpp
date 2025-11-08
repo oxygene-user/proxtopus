@@ -6,6 +6,8 @@
 */
 
 #include <botan/internal/tls_session_key.h>
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/kdf.h>
 #include <botan/mem_ops.h>
@@ -83,3 +85,4 @@ Session_Keys::Session_Keys(const Handshake_State* state,
 }
 
 }  // namespace Botan::TLS
+#endif

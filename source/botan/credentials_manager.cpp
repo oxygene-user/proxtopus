@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/credentials_manager.h>
 
@@ -135,3 +136,4 @@ std::vector<Certificate_Store*> Credentials_Manager::trusted_certificate_authori
 }
 
 }  // namespace Botan
+#endif

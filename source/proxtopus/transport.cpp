@@ -1,6 +1,6 @@
 #include "pch.h"
 
-transport* transport::new_transport(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st, handler *h)
+transport* transport::new_transport(loader& ldr, listener* owner, const asts& bb, [[maybe_unused]] netkit::socket_type_e st, [[maybe_unused]] handler *h)
 {
     const str::astr& typ = bb.get_string(ASTR("type"), glb.emptys);
     if (typ.empty())
@@ -11,10 +11,12 @@ transport* transport::new_transport(loader& ldr, listener* owner, const asts& bb
     }
 
     transport* t = nullptr;
+#if FEATURE_TLS
     if (ASTR("tls") == typ)
     {
         t = NEW transport_tls(ldr, owner, bb, st, h);
     }
+#endif
 
     if (t != nullptr)
     {

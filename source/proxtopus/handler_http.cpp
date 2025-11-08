@@ -33,7 +33,7 @@ str::astr_view code_text(http_codes code)
 handler_http::handler_http(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e /*st*/) :handler(ldr, owner, bb)
 {
 
-    for (auto it = bb.begin(); it; ++it)
+    for (auto it = bb.begin_skip_comments(); it; ++it)
     {
         if (it->has_elements())
         {
@@ -90,7 +90,7 @@ namespace
         str::astr_view token()
         {
             signed_t p2 = pos;
-            for (; ln[p2] != ' ' && p2 < (signed_t)ln.length(); ++p2);
+            for (; ln[p2] != ' ' && p2 < SIGNED % ln.length(); ++p2);
             str::astr_view v = str::astr_view( ln.c_str() + pos, p2-pos );
             pos = p2;
             skip_spaces();
@@ -103,7 +103,7 @@ bool iscmd(sline& scmd, const str::astr_view c)
 {
     if (scmd.ln.length() <= c.length())
         return false;
-    for (signed_t i = 0; i < (signed_t)c.length(); ++i)
+    for (signed_t i = 0; i < SIGNED % c.length(); ++i)
     {
         if ((scmd.ln[i] & (~32)) != c[i])
             return false;
@@ -158,9 +158,9 @@ bool http_server::receive_fields()
     if (x == fl.npos)
         return false;
 
-    str::astr_view fn = str::view(fl).substr(0, x);
+    str::astr_view fn = str::substr(fl, 0, x);
     for (++x; fl[x] == ' '; ++x);
-    fields.insert_or_assign(std::move(str::astr(fn)), std::move(fl.substr(x)));
+    fields.insert_or_assign(str::astr(fn), fl.substr(x));
     return true;
 }
 
@@ -236,7 +236,7 @@ void host_mode_simple::compile(buffer& b)
                 size_t ei = d.find('}', 5);
                 if (ei != str::astr::npos)
                 {
-                    FN fn = path_concat(root_path, tofn(d.substr(5, ei-5)));
+                    FN fn = path_concat(root_path, tofn(str::substr(d, 5, ei)));
                     buffer ib;
                     load_buf(fn, ib);
                     str::replace_all(ib, ASTR("\r\n"), ASTR("<br>"));

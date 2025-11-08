@@ -23,22 +23,24 @@
 #include "pch.h"
 #include <botan/internal/cpuid.h>
 
+#ifdef ARCH_X86
 # ifdef __clang__
 #  pragma clang attribute push(__attribute__((target("sse2"))), apply_to = function)
 # elif defined(__GNUC__)
 #  pragma GCC target("sse2")
 # endif
+#endif
 
 #ifndef SSE2_SUPPORTED
 void poly1305::internal_donna::init(const uint8_t* k)
 {
     ASSERT( (reinterpret_cast<size_t>(&buffer) & (15)) == 0);
 
-#ifdef MODE64
+#ifdef ARCH_64BIT
 
     /* r &= 0xffffffc0ffffffc0ffffffc0fffffff */
-    u64 t0 = tools::load64_le(k + 0);
-    u64 t1 = tools::load64_le(k + 8);
+    u64 t0 = load_le<8>(k + 0);
+    u64 t1 = load_le<8>(k + 8);
 
     /* wiped after finalization */
     r[0] = (t0) & 0xffc0fffffffull;
@@ -51,8 +53,8 @@ void poly1305::internal_donna::init(const uint8_t* k)
     h[2] = 0;
 
     /* save pad for later */
-    pad[0] = tools::load64_le(k + 16);
-    pad[1] = tools::load64_le(k + 24);
+    pad[0] = load_le<8>(k + 16);
+    pad[1] = load_le<8>(k + 24);
 
 #else
     /* r &= 0xffffffc0ffffffc0ffffffc0fffffff - wiped after finalization */
@@ -80,6 +82,7 @@ void poly1305::internal_donna::init(const uint8_t* k)
 }
 #endif
 
+#ifdef ARCH_X86
 void poly1305::internal_sse2::init(const uint8_t* k)
 {
     using xmmi = __m128i;
@@ -95,15 +98,15 @@ void poly1305::internal_sse2::init(const uint8_t* k)
     /* clamp key */
     struct
     {
-        uint64_t t0, t1;
+        u64 t0, t1;
     } t01;
     tools::memcopy<16>(&t01, k);
-    uint64_t r0 = t01.t0 & 0xffc0fffffff;
+    u64 r0 = t01.t0 & 0xffc0fffffff;
     t01.t0 >>= 44;
     t01.t0 |= t01.t1 << 20;
-    uint64_t r1 = t01.t0 & 0xfffffc0ffff;
+    u64 r1 = t01.t0 & 0xfffffc0ffff;
     t01.t1 >>= 24;
-    uint64_t r2 = t01.t1 & 0x00ffffffc0f;
+    u64 r2 = t01.t1 & 0x00ffffffc0f;
 
     /* r^1 */
     R[0] = static_cast<u32>(r0 & 0x3ffffff);
@@ -120,12 +123,12 @@ void poly1305::internal_sse2::init(const uint8_t* k)
     u64 rt2 = r2;
 
     /* r^2, r^4 */
-    uint32_t* RR = R2;
+    u32* RR = R2;
     for (size_t i = 0; i < 2; i++) {
         if (i == 1) {
             RR = R4;
         }
-        uint64_t st2 = rt2 * (5 << 2);
+        u64 st2 = rt2 * (5 << 2);
 
         u128 d0 = (u128(rt0) * rt0) + (u128(rt1 * 2) * st2);
         u128 d1 = (u128(rt2) * st2) + (u128(rt0 * 2) * rt1);
@@ -157,6 +160,7 @@ void poly1305::internal_sse2::init(const uint8_t* k)
     flags = 0;
     leftover = 0U;
 }
+#endif
 
 #define MUL(out, x, y) out = (u128(x) * y)
 #define ADD(out, in) out += in
@@ -167,7 +171,7 @@ void poly1305::internal_sse2::init(const uint8_t* k)
 #ifndef SSE2_SUPPORTED
 void poly1305::internal_donna::poly1305_blocks(const uint8_t* m, size_t len)
 {
-#ifdef MODE64
+#ifdef ARCH_64BIT
     const u64 hibit = (final) ? 0ULL : (1ULL << 40); /* 1 << 128 */
 
     u64 r0 = r[0];
@@ -184,8 +188,8 @@ void poly1305::internal_donna::poly1305_blocks(const uint8_t* m, size_t len)
     while (len >= poly1305_block_size) {
 
         /* h += m[i] */
-        u64 t0 = tools::load64_le(m);
-        u64 t1 = tools::load64_le(m+8);
+        u64 t0 = load_le<8>(m);
+        u64 t1 = load_le<8>(m+8);
 
         h0 += t0 & 0xfffffffffff;
         h1 += ((t0 >> 44) | (t1 << 20)) & 0xfffffffffff;
@@ -301,6 +305,7 @@ void poly1305::internal_donna::poly1305_blocks(const uint8_t* m, size_t len)
 }
 #endif
 
+#ifdef ARCH_X86
 void poly1305::internal_sse2::poly1305_blocks(const uint8_t* m, size_t len)
 {
     using xmmi = __m128i;
@@ -806,26 +811,26 @@ void poly1305::internal_sse2::poly1305_blocks(const uint8_t* m, size_t len)
         T3 = _mm_add_epi64(T3, _mm_srli_si128(T3, 8));
         T4 = _mm_add_epi64(T4, _mm_srli_si128(T4, 8));
 
-        uint32_t t0 = _mm_cvtsi128_si32(T0);
-        uint32_t b = (t0 >> 26);
+        u32 t0 = _mm_cvtsi128_si32(T0);
+        u32 b = (t0 >> 26);
         t0 &= 0x3ffffff;
-        uint32_t t1 = _mm_cvtsi128_si32(T1) + b;
+        u32 t1 = _mm_cvtsi128_si32(T1) + b;
         b = (t1 >> 26);
         t1 &= 0x3ffffff;
-        uint32_t t2 = _mm_cvtsi128_si32(T2) + b;
+        u32 t2 = _mm_cvtsi128_si32(T2) + b;
         b = (t2 >> 26);
         t2 &= 0x3ffffff;
-        uint32_t t3 = _mm_cvtsi128_si32(T3) + b;
+        u32 t3 = _mm_cvtsi128_si32(T3) + b;
         b = (t3 >> 26);
         t3 &= 0x3ffffff;
-        uint32_t t4 = _mm_cvtsi128_si32(T4) + b;
+        u32 t4 = _mm_cvtsi128_si32(T4) + b;
 
         /* everything except t4 is in range, so this is all safe */
-        uint64_t h0 = (((uint64_t)t0) | ((uint64_t)t1 << 26)) & 0xfffffffffffull;
-        uint64_t h1 = (((uint64_t)t1 >> 18) | ((uint64_t)t2 << 8) | ((uint64_t)t3 << 34)) & 0xfffffffffffull;
-        uint64_t h2 = (((uint64_t)t3 >> 10) | ((uint64_t)t4 << 16));
+        u64 h0 = (((u64)t0) | ((u64)t1 << 26)) & 0xfffffffffffull;
+        u64 h1 = (((u64)t1 >> 18) | ((u64)t2 << 8) | ((u64)t3 << 34)) & 0xfffffffffffull;
+        u64 h2 = (((u64)t3 >> 10) | ((u64)t4 << 16));
 
-        uint64_t c = (h2 >> 42);
+        u64 c = (h2 >> 42);
         h2 &= 0x3ffffffffff;
         h0 += c * 5;
         c = (h0 >> 44);
@@ -841,16 +846,16 @@ void poly1305::internal_sse2::poly1305_blocks(const uint8_t* m, size_t len)
         h0 &= 0xfffffffffff;
         h1 += c;
 
-        uint64_t g0 = h0 + 5;
+        u64 g0 = h0 + 5;
         c = (g0 >> 44);
         g0 &= 0xfffffffffff;
-        uint64_t g1 = h1 + c;
+        u64 g1 = h1 + c;
         c = (g1 >> 44);
         g1 &= 0xfffffffffff;
-        uint64_t g2 = h2 + c - ((uint64_t)1 << 42);
+        u64 g2 = h2 + c - ((u64)1 << 42);
 
         c = (g2 >> 63) - 1;
-        uint64_t nc = ~c;
+        u64 nc = ~c;
         h0 = (h0 & nc) | (g0 & c);
         h1 = (h1 & nc) | (g1 & c);
         h2 = (h2 & nc) | (g2 & c);
@@ -861,6 +866,7 @@ void poly1305::internal_sse2::poly1305_blocks(const uint8_t* m, size_t len)
     }
 
 }
+#endif
 
 #ifndef SSE2_SUPPORTED
 void poly1305::internal_donna::fin(uint8_t* tag)
@@ -874,7 +880,7 @@ void poly1305::internal_donna::fin(uint8_t* tag)
         poly1305_blocks(buffer, poly1305_block_size);
     }
 
-#ifdef MODE64
+#ifdef ARCH_64BIT
 
     /* fully carry h */
     u64 h0 = h[0];
@@ -1018,17 +1024,14 @@ void poly1305::internal_donna::fin(uint8_t* tag)
 #endif
 
     /* zero out the state */
-#ifdef _DEBUG
-    memset(this, 0xab, sizeof(internal_donna));
-#else
-    Botan::secure_scrub_memory(this, sizeof(internal_donna));
-#endif
+    secure::scrub_memory(this, sizeof(internal_donna));
 }
 #endif
 
 /* copy 0-31 bytes */
 static inline void poly1305_block_copy31(u8* dst, const u8* src, u64 bytes)
 {
+#ifdef ARCH_X86
     using xmmi = __m128i;
 
     if (bytes & 16) {
@@ -1036,6 +1039,14 @@ static inline void poly1305_block_copy31(u8* dst, const u8* src, u64 bytes)
         src += 16;
         dst += 16;
     }
+#else
+    if (bytes & 16) {
+        tools::memcopy<16>(dst, src);
+        src += 16;
+        dst += 16;
+    }
+#endif
+
     if (bytes & 8) {
         tools::memcopy<8>(dst, src);
         src += 8;
@@ -1056,6 +1067,7 @@ static inline void poly1305_block_copy31(u8* dst, const u8* src, u64 bytes)
     }
 }
 
+#ifdef ARCH_X86
 void poly1305::internal_sse2::fin(uint8_t* tag)
 {
     using xmmi = __m128i;
@@ -1114,13 +1126,9 @@ void poly1305::internal_sse2::fin(uint8_t* tag)
     tools::memcopy<16>(tag, &h01);
 
     /* zero out the state */
-#ifdef _DEBUG
-    memset(this, 0xab, sizeof(internal_sse2));
-#else
-    Botan::secure_scrub_memory(this, sizeof(internal_sse2));
-#endif
-
+    secure::scrub_memory(this, sizeof(internal_sse2));
 }
+#endif
 
 void poly1305::init(const uint8_t* k)
 {
@@ -1131,6 +1139,7 @@ void poly1305::init(const uint8_t* k)
         internal.data().init(k);
 #else
 
+#ifdef ARCH_X86
     if (Botan::CPUID::has(Botan::CPUID::Feature::SSE2))
     {
         if (k == nullptr)
@@ -1138,7 +1147,9 @@ void poly1305::init(const uint8_t* k)
         else
             internal.data().isse2.init(k);
     }
-    else {
+    else
+#endif
+    {
         if (k == nullptr)
             memset(&internal.data(), 0, sizeof(internal_donna));
         else
@@ -1152,9 +1163,11 @@ void poly1305::update(std::span<const uint8_t> m)
 #ifdef SSE2_SUPPORTED
     update_core(internal.data(), m.data(), m.size());
 #else
+#ifdef ARCH_X86
     if (Botan::CPUID::has(Botan::CPUID::Feature::SSE2))
         update_core(internal.data().isse2, m.data(), m.size());
     else
+#endif
         update_core(internal.data().idonna, m.data(), m.size());
 #endif
 }
@@ -1163,11 +1176,19 @@ void poly1305::fin(uint8_t* tag)
 #ifdef SSE2_SUPPORTED
     internal.data().fin(tag);
 #else
+#ifdef ARCH_X86
     if (Botan::CPUID::has(Botan::CPUID::Feature::SSE2))
         internal.data().isse2.fin(tag);
     else
+#endif
        internal.data().idonna.fin(tag);
 #endif
 
 }
+
+#ifdef ARCH_X86
+# ifdef __clang__
+#  pragma clang attribute pop
+# endif
+#endif
 

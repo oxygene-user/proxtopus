@@ -14,7 +14,6 @@
    #include <immintrin.h>
    #define BOTAN_SIMD_4X64_ISA "avx2"
    #define BOTAN_SIMD_4X64_FN BOTAN_FUNC_ISA(BOTAN_SIMD_4X64_ISA)
-#endif
 
 namespace Botan {
 
@@ -166,4 +165,5 @@ class SIMD_4x64 final {
 
 }  // namespace Botan
 
+#endif
 #endif

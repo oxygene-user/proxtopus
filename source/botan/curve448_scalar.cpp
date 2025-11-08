@@ -6,6 +6,7 @@
  * Botan is released under the Simplified BSD License (see license.txt)
  */
 #include <botan/internal/curve448_scalar.h>
+#if FEATURE_TLS
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/mp_core.h>
@@ -53,7 +54,7 @@ consteval std::array<word, Scalar448::WORDS> big_l_words() {
    return load_le<std::array<word, Scalar448::WORDS>>(big_l_bytes);
 }
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
@@ -69,7 +70,7 @@ std::array<word, S + WORDS_C> mul_c(std::span<const word, S> x) {
    return res;
 }
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
@@ -202,3 +203,4 @@ bool Scalar448::bytes_are_reduced(std::span<const uint8_t> x) {
 }
 
 }  // namespace Botan
+#endif

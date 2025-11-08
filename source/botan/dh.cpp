@@ -6,6 +6,7 @@
 */
 
 #include <botan/dh.h>
+#if FEATURE_TLS
 
 #include <botan/internal/blinding.h>
 #include <botan/internal/dl_scheme.h>
@@ -147,3 +148,4 @@ std::unique_ptr<PK_Ops::Key_Agreement> DH_PrivateKey::create_key_agreement_op(Ra
 }
 
 }  // namespace Botan
+#endif

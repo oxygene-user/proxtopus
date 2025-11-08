@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/primality.h>
+#if FEATURE_TLS
 
 #include <botan/numthry.h>
 #include <botan/reducer.h>
@@ -314,3 +315,4 @@ BigInt random_safe_prime(RandomNumberGenerator& rng, size_t bits) {
 }
 
 }  // namespace Botan
+#endif

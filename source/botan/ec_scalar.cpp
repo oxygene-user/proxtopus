@@ -5,6 +5,7 @@
 */
 
 #include <botan/ec_scalar.h>
+#if FEATURE_TLS
 
 #include <botan/ec_group.h>
 #include <botan/internal/ec_inner_data.h>
@@ -167,3 +168,4 @@ bool EC_Scalar::is_eq(const EC_Scalar& x) const {
 }
 
 }  // namespace Botan
+#endif

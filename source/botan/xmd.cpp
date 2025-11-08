@@ -5,6 +5,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/internal/xmd.h>
 
@@ -81,3 +82,4 @@ void expand_message_xmd(Hash_Algo hash_fn,
 }
 
 }  // namespace Botan
+#endif

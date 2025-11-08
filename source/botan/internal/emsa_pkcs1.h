@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_EMSA_PKCS1_H_
 #define BOTAN_EMSA_PKCS1_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/hash.h>
 #include <botan/internal/emsa.h>
@@ -82,4 +84,5 @@ class EMSA_PKCS1v15_Raw final : public EMSA {
 
 }  // namespace Botan
 
+#endif
 #endif

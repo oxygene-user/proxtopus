@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_RECORDS_H_
 #define BOTAN_TLS_RECORDS_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/aead.h>
 #include <botan/tls_algos.h>
@@ -156,4 +158,5 @@ Record_Header read_record(bool is_datagram,
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

@@ -48,16 +48,17 @@ namespace conn
 		return port > 0;
 	}
 
-	netkit::pipe* connect(netkit::endpoint& addr)
+	netkit::pipe* connect(netkit::endpoint& addr, netkit::socket_info_func sif)
 	{
 		if (addr.state() == netkit::EPS_DOMAIN)
 			addr.resolve_ip(glb.cfg.ipstack | conf::gip_any | conf::gip_log_it);
 
 		if (addr.state() == netkit::EPS_RESLOVED)
 		{
-			if (glb.e->is_banned(addr.get_ip()))
+			signed_t bs = glb.e->ban_staus(addr.get_ip());
+			if (bs > 0)
 			{
-				LOG_W("ip address ($) is temporary banned", addr.get_ip().to_string(true));
+				LOG_W("ip address ($) is temporary banned", addr.get_ip().to_string());
 				return nullptr;
 			}
 
@@ -67,8 +68,15 @@ namespace conn
 			//if (addr.domain() != "play.google.com")
 				//return nullptr;
 
-			if (con->connect())
+			if (con->connect(sif))
+			{
+				if (bs < 0)
+				{
+					glb.e->unban(addr.get_ip());
+				}
+
 				return con;
+			}
 			delete con;
 			return nullptr;
 		}

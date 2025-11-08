@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_OCSP_H_
 #define BOTAN_OCSP_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/bigint.h>
@@ -278,4 +280,5 @@ Response online_check(const X509_Certificate& issuer,
 
 }  // namespace Botan
 
+#endif
 #endif

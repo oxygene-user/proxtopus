@@ -116,7 +116,7 @@ void __remove_crap(FN& path)
 				// remove double slash
 				if (c != ENEMY_SLASH || path[prev_slash] == ENEMY_SLASH)
 				{
-					ASSERT(prev_slash < (signed_t)path.length());
+					ASSERT(prev_slash < SIGNED%path.length());
 					path.erase(prev_slash, 1);
 				}
 				else
@@ -129,7 +129,7 @@ void __remove_crap(FN& path)
 			{
 				// remove /./
 
-				if (prev_slash < (signed_t)path.length() && (c != ENEMY_SLASH || path[prev_slash] == ENEMY_SLASH))
+				if (prev_slash < SIGNED % path.length() && (c != ENEMY_SLASH || path[prev_slash] == ENEMY_SLASH))
 					path.erase(prev_slash - 1, 2);
 				else
 					path.erase(cch, 2);
@@ -150,7 +150,7 @@ void __remove_crap(FN& path)
 				}
 
 				signed_t n = prev_prev_slash - cch;
-				if (prev_prev_slash < (signed_t)path.length() && (c != ENEMY_SLASH || path[prev_prev_slash] == ENEMY_SLASH))
+				if (prev_prev_slash < SIGNED % path.length() && (c != ENEMY_SLASH || path[prev_prev_slash] == ENEMY_SLASH))
 					path.erase(cch + 1, n);
 				else
 					path.erase(cch, n);

@@ -106,11 +106,16 @@ template<typename T> u32 make_u32(const T& t)
         return static_cast<u32>(ref_cast<u8>(t));
 }
 
+#if !defined(__clang__)
+#define __builtin_ia32_subborrow_u32 __builtin_ia32_sbb_u32
+#define __builtin_ia32_subborrow_u64 __builtin_ia32_sbb_u64
+#endif
+
 struct carryop_add
 {
     inline static u8 op32(u8 c, u32 a, u32 b, u32* res)
     {
-        #ifdef GCC_OR_CLANG
+        #if defined (GCC_OR_CLANG) && defined (ARCH_X86)
         return __builtin_ia32_addcarryx_u32(c,a,b,res);
         #else
         return _addcarry_u32(c, a, b, res);
@@ -118,7 +123,7 @@ struct carryop_add
     }
     inline static u8 op64(u8 c, u64 a, u64 b, u64* res)
     {
-        #ifdef GCC_OR_CLANG
+        #if defined (GCC_OR_CLANG) && defined (ARCH_X86) && defined (ARCH_64BIT)
         return __builtin_ia32_addcarryx_u64(c,a,b,res);
         #else
         return _addcarry_u64(c, a, b, res);
@@ -129,16 +134,16 @@ struct carryop_sub
 {
     inline static u8 op32(u8 c, u32 a, u32 b, u32* res)
     {
-        #ifdef GCC_OR_CLANG
-        return __builtin_ia32_sbb_u32(c, a, b, res);
+        #if defined (GCC_OR_CLANG) && defined (ARCH_X86)
+        return __builtin_ia32_subborrow_u32(c, a, b, res);
         #else
         return _subborrow_u32(c, a, b, res);
         #endif
     }
     inline static u8 op64(u8 c, u64 a, u64 b, u64* res)
     {
-        #ifdef GCC_OR_CLANG
-        return __builtin_ia32_sbb_u64(c, a, b, res);
+        #if defined (GCC_OR_CLANG) && defined (ARCH_X86) && defined (ARCH_64BIT)
+        return __builtin_ia32_subborrow_u64(c, a, b, res);
         #else
         return _subborrow_u64(c, a, b, res);
         #endif
@@ -325,14 +330,14 @@ template<size_t bits> class uint
         }
         else if constexpr (half_type::bytes == 4)
         {
-#if defined(ARCH_X86) && defined(_MSC_VER) && !defined(MODE64)
+#if defined(ARCH_X86) && defined(_MSC_VER) && defined(ARCH_32BIT)
             return strong_ref_cast<u64>(__emulu(a.value, b.value));
 #else
             return (u64)a.value * b.value;
 #endif
         }
         else
-#ifdef MODE64
+#ifdef ARCH_64BIT
             if constexpr (half_type::bytes == 8)
             {
 #if defined(ARCH_X86) && defined(_MSC_VER)

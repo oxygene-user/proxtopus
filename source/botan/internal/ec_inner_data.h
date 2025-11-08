@@ -6,7 +6,8 @@
 
 #ifndef BOTAN_EC_INNER_DATA_H_
 #define BOTAN_EC_INNER_DATA_H_
-
+#include "../../conf.h"
+#if FEATURE_TLS
 #include <botan/ec_group.h>
 
 #include <botan/asn1_obj.h>
@@ -332,4 +333,5 @@ class EC_Group_Data final : public std::enable_shared_from_this<EC_Group_Data> {
 
 }  // namespace Botan
 
+#endif
 #endif

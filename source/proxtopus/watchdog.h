@@ -24,8 +24,6 @@ class watchdog
     FN request;
 #endif
 
-    signed_t prev_cpu_usage = -1;
-
 public:
     watchdog();
     ~watchdog();

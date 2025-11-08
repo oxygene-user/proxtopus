@@ -33,9 +33,6 @@
     <Filter Include="src\dns">
       <UniqueIdentifier>{0f2f76cf-6f8e-4b0a-91b0-2039702ae488}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\intercept">
-      <UniqueIdentifier>{b2952a83-d06d-4d64-aefd-650b591fd50a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\handlers\http">
       <UniqueIdentifier>{4bf8de27-c0d0-4f69-8801-866b469bbf9a}</UniqueIdentifier>
     </Filter>
@@ -74,6 +71,9 @@
     </Filter>
     <Filter Include="src\algs\kdf">
       <UniqueIdentifier>{3d8db033-07f4-40d4-8dbe-36ddbb3c449b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\adapter">
+      <UniqueIdentifier>{b2952a83-d06d-4d64-aefd-650b591fd50a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -235,9 +235,6 @@
     </ClCompile>
     <ClCompile Include="proxtopus\tests.cpp">
       <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="proxtopus\icpt.cpp">
-      <Filter>src\intercept</Filter>
     </ClCompile>
     <ClCompile Include="debug\memspy.cpp">
       <Filter>src\debug</Filter>
@@ -707,6 +704,21 @@
     <ClCompile Include="debug\stkwlk.cpp">
       <Filter>src\debug</Filter>
     </ClCompile>
+    <ClCompile Include="proxtopus\udp.cpp">
+      <Filter>src\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\adapter.cpp">
+      <Filter>src\adapter</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\upstream.cpp">
+      <Filter>src\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\ip_machine.cpp">
+      <Filter>src\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="proxtopus\expression.cpp">
+      <Filter>src\tools</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="proxtopus\pch.h">
@@ -898,9 +910,6 @@
     <ClInclude Include="botan\internal\simd_avx2.h">
       <Filter>_botan\h</Filter>
     </ClInclude>
-    <ClInclude Include="botan\internal\simd_avx512.h">
-      <Filter>_botan\h</Filter>
-    </ClInclude>
     <ClInclude Include="botan\internal\stl_util.h">
       <Filter>_botan\h</Filter>
     </ClInclude>
@@ -942,9 +951,6 @@
     </ClInclude>
     <ClInclude Include="proxtopus\dnsq.h">
       <Filter>src\dns</Filter>
-    </ClInclude>
-    <ClInclude Include="proxtopus\icpt.h">
-      <Filter>src\intercept</Filter>
     </ClInclude>
     <ClInclude Include="debug\memspy.h">
       <Filter>src\debug</Filter>
@@ -1278,6 +1284,24 @@
     </ClInclude>
     <ClInclude Include="proxtopus\hkdf.h">
       <Filter>src\algs\kdf</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\spooky_hash.h">
+      <Filter>src\algs\hash</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\udp.h">
+      <Filter>src\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\adapter.h">
+      <Filter>src\adapter</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\upstream.h">
+      <Filter>src\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\ip_machine.h">
+      <Filter>src\engine</Filter>
+    </ClInclude>
+    <ClInclude Include="proxtopus\expression.h">
+      <Filter>src\tools</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

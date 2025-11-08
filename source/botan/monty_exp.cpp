@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/monty_exp.h>
+#if FEATURE_TLS
 
 #include <botan/mem_ops.h>
 #include <botan/internal/ct_utils.h>
@@ -232,3 +233,4 @@ Montgomery_Int monty_multi_exp(const std::shared_ptr<const Montgomery_Params>& p
 }
 
 }  // namespace Botan
+#endif

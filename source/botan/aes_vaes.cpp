@@ -3,9 +3,9 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/aes.h>
 
+#ifdef ARCH_X86
 #include <botan/internal/loadstor.h>
 #include <botan/internal/simd_avx2.h>
 #include <wmmintrin.h>
@@ -70,7 +70,7 @@ void aesdeclast(SIMD_8x32 K, SIMD_8x32& B0, SIMD_8x32& B1, SIMD_8x32& B2, SIMD_8
 }
 
 }  // namespace
-
+#ifndef AES_VAES_SKIP
 /*
 * AES-128 Encryption
 */
@@ -625,5 +625,6 @@ BOTAN_FUNC_ISA("vaes,avx2") void AES_256::x86_vaes_decrypt_n(const uint8_t in[],
       B.store_le128(out);
    }
 }
-
+#endif
 }  // namespace Botan
+#endif

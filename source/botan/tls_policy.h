@@ -9,6 +9,8 @@
 
 #ifndef BOTAN_TLS_POLICY_H_
 #define BOTAN_TLS_POLICY_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/tls_ciphersuite.h>
 #include <botan/tls_extensions.h>
@@ -845,4 +847,5 @@ class BOTAN_PUBLIC_API(2, 0) Text_Policy : public Policy {
 
 }  // namespace Botan
 
+#endif
 #endif

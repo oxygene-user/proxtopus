@@ -1,8 +1,9 @@
 #pragma once
 
-
+#ifdef ARCH_X86
 #include <emmintrin.h>
 #include <immintrin.h>
+#endif
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
@@ -34,26 +35,55 @@ template<typename T> const T* makeptr(const T& t) { return &t; }
 
 #define ONEBIT(x) (static_cast<size_t>(1)<<(x))
 
-#define PTR_TO_UNSIGNED( p ) ((size_t)p)
-
-#ifdef _NIX
-inline int timeGetTime()
+template<typename T> constexpr inline size_t array_size(const T&)
 {
-	struct timespec monotime;
-#if defined(__linux__) && defined(CLOCK_MONOTONIC_RAW)
-	clock_gettime(CLOCK_MONOTONIC_RAW, &monotime);
-#else
-	clock_gettime(CLOCK_MONOTONIC, &monotime);
-#endif
-	uint64_t time = 1000ULL * monotime.tv_sec + (monotime.tv_nsec / 1000000ULL);
-	return time & 0xffffffff;
+    static_assert(std::is_array_v<T>, "array_size can only be used with arrays");
+    return std::extent_v<T>;
 }
-#define _time64 time
+
+namespace secure
+{
+    inline void scrub_memory(void* mem, size_t size)
+    {
+#ifdef _DEBUG
+        memset(mem, 0xab, size);
+#else
+        Botan::secure_scrub_memory(mem, size);
 #endif
+    }
+
+    template<size_t sz> inline bool equals(const void* m1, const void* m2)
+    {
+        static_assert((sz & (sizeof(size_t) - 1)) == 0);
+
+#ifdef SSE2_SUPPORTED
+        if constexpr (sz == 16)
+        {
+            return _mm_movemask_epi8(_mm_cmpeq_epi8(_mm_loadu_si128((const __m128i*)m1), _mm_loadu_si128((const __m128i*)m2))) == 0xffff;
+        }
+        else if constexpr (sz == 32)
+        {
+            return 0xffff == (_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_loadu_si128((const __m128i*)m1), _mm_loadu_si128((const __m128i*)m2))) &
+                _mm_movemask_epi8(_mm_cmpeq_epi8(_mm_loadu_si128((const __m128i*)m1 + 1), _mm_loadu_si128((const __m128i*)m2 + 1))));
+        }
+        else
+#endif
+        {
+            bool noteq = false;
+            const size_t* b1 = reinterpret_cast<const size_t*>(m1);
+            const size_t* b2 = reinterpret_cast<const size_t*>(m2);
+            for (size_t i = 0; i < sz / sizeof(size_t); ++i, ++b1, ++b2)
+                noteq |= ((*b1) ^ (*b2)) != 0;
+
+            return !noteq;
+        }
+    }
+}
 
 namespace tools
 {
     size_t unique_id();
+    double calculate_entropy(std::span<const u8> data);
 
 	template<size_t sz> struct flags
 	{
@@ -65,6 +95,12 @@ namespace tools
 		void clear()
 		{
 			f = 0;
+		}
+
+		type all() const { return f; }
+		void operator=(type v)
+		{
+			f = v;
 		}
 
 		template<type mask> consteval static size_t lowbit()
@@ -83,6 +119,13 @@ namespace tools
 		{
 			return 0 != (f & mask);
 		}
+        template<type mask> void set(bool do_set)
+        {
+            if (do_set)
+                f |= mask;
+            else
+                f &= ~mask;
+        }
         template<type mask> void set()
         {
             f |= mask;
@@ -115,29 +158,90 @@ namespace tools
 
 namespace chrono
 {
+	class mils
+	{
+		u32 value = 0x80000000; // uninitialized (with hi bit set)
+	public:
+		mils() {}
+		explicit mils(u32 raw) :value(raw) {}
+		bool is_empty() const { return (value & 0x80000000) != 0; }
+        void empty() { value = 0x80000000; }
+		u32 raw() const { return value; }
+	};
+    inline i32 operator-(mils m1, mils m2)
+    {
+		ASSERT(0 == ((m1.raw() | m2.raw()) & 0x80000000)); // both initialized
+		i32 delta = (static_cast<i32>(m1.raw() << 1) - static_cast<i32>(m2.raw() << 1));
+		return delta >> 1;
+    }
+    inline bool operator >= (mils m1, mils m2)
+    {
+        return (m1 - m2) >= 0;
+    }
+	inline bool operator > (mils m1, mils m2)
+    {
+        return (m1 - m2) > 0;
+    }
+
 	inline time_t now() // seconds
 	{
 		time_t t;
+#ifdef _WIN32
 		_time64(&t);
+#else
+        time(&t);
+#endif
 		return t;
 	}
 
-	inline signed_t ms() // milliseconds
+#ifdef _WIN32
+	inline mils ms() // milliseconds
 	{
-		return (signed_t)timeGetTime();
+		return mils( timeGetTime() & 0x7fffffff );
 	}
+#endif
+#ifdef _NIX
+    inline mils ms()
+    {
+        struct timespec monotime;
+#if defined(__linux__) && defined(CLOCK_MONOTONIC_RAW)
+        clock_gettime(CLOCK_MONOTONIC_RAW, &monotime);
+#else
+        clock_gettime(CLOCK_MONOTONIC, &monotime);
+#endif
+        u64 time = 1000ULL * monotime.tv_sec + (monotime.tv_nsec / 1000000ULL);
+        return mils(time & 0x7fffffff);
+    }
+#endif
+	inline mils ms(signed_t addms)
+	{
+		return mils((ms().raw() + addms) & 0x7fffffff);
+	}
+
 
 #if defined(_MSC_VER)
 #pragma intrinsic(__rdtsc)
 	inline uint64_t tsc() {
 		return __rdtsc();
 	}
-#elif defined(GCC_OR_CLANG)
+#elif defined(GCC_OR_CLANG) && defined(ARCH_X86)
 	inline uint64_t tsc() {
 		unsigned int lo, hi;
 		__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
 		return ((uint64_t)hi << 32) | lo;
 	}
+#elif defined(GCC_OR_CLANG) && defined(ARCH_ARM) && defined(ARCH_64BIT)
+    inline uint64_t tsc(void) {
+        uint64_t val;
+        asm volatile("mrs %0, cntvct_el0" : "=r"(val));
+        return val;
+    }
+#elif defined(GCC_OR_CLANG) && defined(ARCH_ARM) && defined(ARCH_32BIT)
+    inline uint64_t tsc(void) {
+        uint64_t val;
+        asm volatile("mrrc p15, 0, %Q0, %R0, c14" : "=r"(val));
+        return val;
+    }
 #else
 #error "Unsupported compiler"
 #endif
@@ -178,7 +282,7 @@ namespace math
 
 			v |= getw(shift1) << (bitwnd-frombit);
 		}
-		
+
 		return v & ((1 << numbits) - 1);
 	}
 
@@ -186,6 +290,7 @@ namespace math
     template<> struct is_signed<float> { static const bool value = true; };
     template<> struct is_signed < double > { static const bool value = true; };
 
+#ifdef ARCH_X86
 	inline long int fround(float x)
     {
         return _mm_cvtss_si32(_mm_load_ss(&x));
@@ -195,31 +300,32 @@ namespace math
     {
         return _mm_cvtsd_si32(_mm_load_sd(&x));
     }
+#endif
 
 	template<typename NUM, int shiftval> struct makemaxint
 	{
-		static const NUM value = (makemaxint<NUM, shiftval - 1>::value << 8) | 0xFF;
+		static const constexpr NUM value = (makemaxint<NUM, shiftval - 1>::value << 8) | 0xFF;
 	};
 	template<typename NUM> struct makemaxint < NUM, 0 >
 	{
-		static const NUM value = 0x7F;
+		static const constexpr NUM value = 0x7F;
 	};
     template<typename NUM, int shiftval> struct makemaxuint
     {
-        static const NUM value = (makemaxuint<NUM, shiftval - 1>::value << 8) | 0xFF;
+        static const constexpr NUM value = (makemaxuint<NUM, shiftval - 1>::value << 8) | 0xFF;
     };
     template<typename NUM> struct makemaxuint < NUM, 0 >
     {
-        static const NUM value = 0xFF;
+        static const constexpr NUM value = 0xFF;
     };
 
 	template<typename NUM> struct maximum
 	{
-		static const NUM value = is_signed<NUM>::value ? makemaxint<NUM, sizeof(NUM) - 1>::value : makemaxuint<NUM, sizeof(NUM) - 1>::value;
+		static const constexpr NUM value = is_signed<NUM>::value ? makemaxint<NUM, sizeof(NUM) - 1>::value : makemaxuint<NUM, sizeof(NUM) - 1>::value;
 	};
 	template<typename NUM> struct minimum
 	{
-		static const NUM value = is_signed<NUM>::value ? (-maximum<NUM>::value - 1) : 0;
+		static const constexpr NUM value = is_signed<NUM>::value ? (-maximum<NUM>::value - 1) : 0;
 	};
 
 }
@@ -236,6 +342,8 @@ namespace helpers
         return n > 255 ? 255 : (u8)n;
     }
 
+#ifdef ARCH_X86
+    // TODO: fround and dround not currently defined for non-x86 arch
     template<typename RT, typename IT, bool issigned> struct clamper;
 
     template<> struct clamper < u8, float, true >
@@ -284,6 +392,7 @@ namespace helpers
             return b < math::minimum<RT>::value ? math::minimum<RT>::value : (b > math::maximum<RT>::value ? math::maximum<RT>::value : (RT)b);
         }
     };
+#endif
 
     template<typename T1, typename T2> using bigger_type = typename std::conditional<(sizeof(T1) >= sizeof(T2)), T1, T2>::type;
 
@@ -291,11 +400,11 @@ namespace helpers
     {
         typedef bigger_type<T1, T2> type_min;
 		typedef bigger_type<T1, T2> type_max;
-        static T1 getmin(T1 t1, T2 t2)
+        static constexpr T1 getmin(T1 t1, T2 t2)
         {
             return t1 < t2 ? t1 : t2;
         }
-        static T1 getmax(T1 t1, T2 t2)
+        static constexpr T1 getmax(T1 t1, T2 t2)
         {
 			return t1 > t2 ? t1 : t2;
         }
@@ -304,11 +413,11 @@ namespace helpers
 
         typedef T1 type_min;
         typedef T2 type_max;
-        static T1 getmin(T1 t1, T2 t2)
+        static constexpr T1 getmin(T1 t1, T2 t2)
 		{
 			return t1 < 0 || (size_t)t1 < t2 ? t1 : (T1)t2;
 		}
-        static T2 getmax(T1 t1, T2 t2)
+        static constexpr T2 getmax(T1 t1, T2 t2)
         {
             return t1 < 0 || static_cast<size_t>(t1) < t2 ? t2 : static_cast<size_t>(t1);
         }
@@ -317,11 +426,11 @@ namespace helpers
 
         typedef T2 type_min;
         typedef T1 type_max;
-		static T2 getmin(T1 t1, T2 t2)
+		static constexpr T2 getmin(T1 t1, T2 t2)
 		{
 			return t2 < 0 || (size_t)t2 < t1 ? t2 : (T2)t1;
 		}
-        static T1 getmax(T1 t1, T2 t2)
+        static constexpr T1 getmax(T1 t1, T2 t2)
         {
             return t2 < 0 || (size_t)t2 < t1 ? (T1)t1 : t2;
         }
@@ -342,7 +451,8 @@ namespace math
 		return t;
 	}
 
-
+#ifdef ARCH_X86
+    // TODO: fround not currently defined for non-x86 arch
     template < typename T1, typename T2, typename T3 > inline T1 clamp(const T1 & a, const T2 & vmin, const T3 & vmax)
     {
         return (T1)(((a) > (vmax)) ? (vmax) : (((a) < (vmin)) ? (vmin) : (a)));
@@ -352,17 +462,21 @@ namespace math
     {
         return helpers::clamper<RT, IT, is_signed<IT>::value>::dojob(b);
     }
+#endif
 
     template < typename T1 > inline T1 abs(const T1 &x)
     {
         return x >= 0 ? x : (-x);
     }
 
+#ifdef ARCH_X86
+    // TODO: fround not currently defined for non-x86 arch
     int inline lerp_int(int a, int b, float t)
     {
         float v = static_cast<float>(a) * (1.0f - (t)) + (t) * static_cast<float>(b);
         return fround(v);
     }
+#endif
 
 	template < typename T1, typename T2 > inline constexpr typename helpers::getminmax<is_signed<T1>::value, is_signed<T2>::value, T1, T2>::type_min minv(T1 x1, T2 x2)
 	{
@@ -404,7 +518,7 @@ template<typename CH> inline bool is_letter(CH c)
 
 template<typename CH> inline bool is_digit(CH c)
 {
-	return c >= L'0' && c <= '9';
+	return c >= '0' && c <= '9';
 }
 
 
@@ -434,29 +548,6 @@ namespace str
 
 namespace tools
 {
-    static inline u32 load32_le(const u8* src)
-    {
-		if constexpr (Endian::little)
-        {
-            return *(u32*)src;
-		}
-        else
-		{
-			return (static_cast<u32>(src[0]) << 24) | (static_cast<u32>(src[1]) << 16) | (static_cast<u32>(src[2]) << 8) | static_cast<u32>(src[3]);
-        }
-    }
-    static inline u64 load64_le(const u8* src)
-    {
-        if constexpr (Endian::little)
-        {
-            return *(u64*)src;
-        }
-        else
-        {
-            return (static_cast<u64>(src[0]) << 56) | (static_cast<u64>(src[1]) << 48) | (static_cast<u64>(src[2]) << 40) | (static_cast<u64>(src[3]) << 32) |
-				(static_cast<u64>(src[4]) << 24) | (static_cast<u64>(src[5]) << 16) | (static_cast<u64>(src[6]) << 8) | static_cast<u64>(src[7]);
-        }
-    }
     static inline void store32_le(uint8_t* dst, u32 w)
     {
         if constexpr (Endian::little)
@@ -582,10 +673,29 @@ namespace tools
 		std::span<u8> p0, p1;
 		template<typename T> memory_pair(T& t)
 		{
-			p0 = std::span(reinterpret_cast<uint8_t *>(&t), sizeof(T));
+			p0 = std::span(reinterpret_cast<u8 *>(&t), sizeof(T));
 		}
-		memory_pair(uint8_t* p, size_t sz) :p0(p, sz) {}
-		memory_pair(uint8_t* p0, size_t sz0, uint8_t* p1, size_t sz1) :p0(p0, sz0), p1(p1, sz1) {}
+		memory_pair(u8* p, size_t sz) :p0(p, sz) {}
+		memory_pair(u8* p0, size_t sz0, u8* p1, size_t sz1) :p0(p0, sz0), p1(p1, sz1) {}
+
+        const u8* get_plain(u8 *buffer, size_t sz) const
+        {
+            if (sz <= p0.size())
+                return p0.data();
+
+            this->copy_out(buffer, sz);
+            return buffer;
+        }
+
+        u8 operator[](size_t i) const
+        {
+            if (i < p0.size())
+                return p0.data()[i];
+            i -= p0.size();
+            if (i < p1.size())
+                return p1.data()[i];
+            return 0;
+        }
 
 		str::astr_view view1st() const
 		{
@@ -619,7 +729,55 @@ namespace tools
 				memcpy(p1.data() + offset, data, sz);
 			}
 		}
-        void copy_out(u8* data, size_t sz)
+        void copy_out(u8* data, size_t sz) const
+        {
+            if (p0.size())
+            {
+                // some space in 1st buf
+                size_t ost = math::minv(p0.size(), sz);
+                memcpy(data, p0.data(), ost);
+                sz -= ost;
+                data += ost;
+            }
+            if (sz > 0 && p1.size() > 0)
+            {
+                size_t ost = math::minv(p1.size(), sz);
+                memcpy(data, p1.data(), ost);
+            }
+        }
+	};
+
+    struct const_memory_pair
+    {
+        std::span<const u8> p0, p1;
+        const_memory_pair(const u8* p, size_t sz) :p0(p, sz) {}
+        const_memory_pair(const u8* p0, size_t sz0, const u8* p1, size_t sz1) :p0(p0, sz0), p1(p1, sz1) {}
+
+        const u8* get_plain(u8* buffer, size_t sz) const
+        {
+            if (sz <= p0.size())
+                return p0.data();
+
+            this->copy_out(buffer, sz);
+            return buffer;
+        }
+
+        u8 operator[](size_t i) const
+        {
+            if (i < p0.size())
+                return p0.data()[i];
+            i -= p0.size();
+            if (i < p1.size())
+                return p1.data()[i];
+            return 0;
+        }
+
+        size_t size() const
+        {
+            return p0.size() + p1.size();
+        }
+
+        void copy_out(u8* data, size_t sz) const
         {
             if (p0.size())
             {
@@ -634,7 +792,7 @@ namespace tools
                 memcpy(data, p1.data(), sz);
             }
         }
-	};
+    };
 
 	template<signed_t size> class chunk_buffer
 	{
@@ -1001,7 +1159,7 @@ namespace tools
 
 		bool is_full( size_t size ) const
 		{
-			return (start == 0 && (size_t)end == size) || (end + 1 == start);
+			return (start == 0 && UNSIGNED % end == size) || (end + 1 == start);
 		}
 
 #if 0
@@ -1023,8 +1181,8 @@ namespace tools
 		}
 #endif
 
-		i32 datasize(size_t size) const { return (start <= end) ? (end - start) : ((static_cast<i32>(size) - start) + end); }
-		i32 get_free_size(size_t size) const
+		size_t datasize(size_t size) const { return (start <= end) ? (end - start) : ((size - start) + end); }
+        size_t get_free_size(size_t size) const
 		{
 			if (start <= end)
 			{
@@ -1032,17 +1190,16 @@ namespace tools
 				i32 sz2 = start - 1; if (sz2 < 0) sz2 = 0;
 				return sz1 + sz2;
 			}
-			i32 sz = start - end - 1; if (sz < 0) sz = 0;
+			signed_t sz = start - end - 1; if (sz < 0) sz = 0;
 			return sz;
 		}
 
-		const u8* data1st(size_t getsize, const_tank storage) const
-		{
-            auto available = (start <= end) ? (end - start) : (storage.size() - start);
-			ASSERT(getsize <= available);
-			//return getsize <= available ? storage.data() + start : nullptr;
-			return storage.data() + start;
-		}
+        const u8* plain_data(u8* temp, size_t getsize, const_tank storage) const
+        {
+            if (getsize > datasize(storage.size()))
+                return nullptr;
+            return data(getsize, storage).get_plain(temp, getsize);
+        }
 
 		memory_pair data(size_t getsize, tank storage)
 		{
@@ -1055,6 +1212,18 @@ namespace tools
 			getsize -= sz1;
 			return memory_pair(storage.data() + start, sz1, storage.data(), math::minv(getsize, end));
 		}
+
+        const_memory_pair data(size_t getsize, const_tank storage) const
+        {
+            if (start <= end)
+                return const_memory_pair(storage.data() + start, math::minv(getsize, end - start));
+
+            size_t sz1 = storage.size() - start;
+            if (getsize <= sz1)
+                return const_memory_pair(storage.data() + start, getsize);
+            getsize -= sz1;
+            return const_memory_pair(storage.data() + start, sz1, storage.data(), math::minv(getsize, end));
+        }
 
         tank get_1st_free(tank storage) // it simply returns the 1st free block following the data; after filling you should call confirm method to apply append
 		{
@@ -1155,7 +1324,7 @@ namespace tools
             if (skipbytes <= sz1)
             {
                 start += static_cast<i32>(skipbytes);
-                if ((size_t)start == size)
+                if (UNSIGNED % start == size)
                     start = 0;
 				return; // static_cast<i32>(skipbytes);
             }
@@ -1198,7 +1367,7 @@ namespace tools
 			{
 				memcpy(output, storage.data() + start, outsize);
 				start += static_cast<i32>(outsize);
-				if ((size_t)start == storage.size())
+				if (UNSIGNED % start == storage.size())
 					start = 0;
 				return static_cast<i32>(outsize);
 			}
@@ -1271,7 +1440,7 @@ namespace tools
             {
 				buf += std::span<const u8>(storage.data() + start, limit);
                 start += static_cast<i32>(limit);
-                if ((size_t)start == storage.size())
+                if (UNSIGNED % start == storage.size())
                     start = 0;
                 return static_cast<i32>(limit);
             }
@@ -1298,11 +1467,11 @@ namespace tools
 
 	public:
 		circular_buffer() {}
-		circular_buffer(circular_buffer&& x)
+		circular_buffer(circular_buffer&& x) noexcept
 		{
 			end = x.peek(bytes, size - 1);
 		}
-		void operator=(circular_buffer&& x)
+		void operator=(circular_buffer&& x) noexcept
 		{
 			start = 0;
 			end = x.peek(bytes, size - 1);
@@ -1311,7 +1480,7 @@ namespace tools
         bool is_full() const { return circular_buffer_engine::is_full(size); }
 		//bool insert(const u8* d, signed_t sz) { return circular_buffer_engine::insert(d, sz, std::span(bytes, size)); }
 		i32 datasize() const { return circular_buffer_engine::datasize(size); }
-		const u8* data1st(size_t getsize) const { return circular_buffer_engine::data(getsize, std::span(bytes, size)); }
+        const u8* plain_data(u8* buffer, size_t getsize) const { return circular_buffer_engine::plain_data(buffer, getsize, std::span(bytes, size)); }
         i32 peek(u8* output, signed_t outsize) { return circular_buffer_engine::peek(output, outsize, std::span(bytes, size)); }
 		template<typename BUF> i32 peek(BUF &buf, signed_t limit = 0) { return circular_buffer_engine::peek<BUF>(buf, limit, std::span(bytes, size)); }
 		void confirm(signed_t sz) { circular_buffer_engine::confirm(sz, size); }
@@ -1336,8 +1505,8 @@ namespace tools
 
 		bool is_full() const { return circular_buffer_engine::is_full(storage.size()); }
 		//bool insert(const u8* d, signed_t sz) { return circular_buffer_engine::insert(d, sz, storage); }
-		i32 datasize() const { return circular_buffer_engine::datasize(storage.size()); }
-		const u8* data1st(size_t getsize) const { return circular_buffer_engine::data1st(getsize, storage); }
+		size_t datasize() const { return circular_buffer_engine::datasize(storage.size()); }
+		const u8* plain_data(u8 * buffer, size_t getsize) const { return circular_buffer_engine::plain_data(buffer, getsize, storage); }
 		memory_pair data(size_t getsize) { return circular_buffer_engine::data(getsize, storage); }
 		i32 peek(u8* output, signed_t outsize) { return circular_buffer_engine::peek(output, outsize, storage); }
 		template<typename BUF> i32 peek(BUF& buf, signed_t limit = 0) { return circular_buffer_engine::peek<BUF>(buf, limit, storage); }
@@ -1345,8 +1514,8 @@ namespace tools
 		void confirm(signed_t sz) { circular_buffer_engine::confirm(sz, storage.size()); }
 		tank get_1st_free() { return circular_buffer_engine::get_1st_free(storage); }
 		memory_pair get_free() { return circular_buffer_engine::get_free(storage); }
-		i32 get_free_size() const { return circular_buffer_engine::get_free_size(storage.size()); }
-		
+		size_t get_free_size() const { return circular_buffer_engine::get_free_size(storage.size()); }
+
 		template<typename T> T getle()
 		{
 			if constexpr (sizeof(T) == 1)
@@ -1393,34 +1562,620 @@ namespace tools
     }
 #endif
 #ifdef _MSC_VER
-#ifdef MODE64
+#ifdef ARCH_64BIT
 #pragma intrinsic(_BitScanForward64)
 	template<typename T> signed_t lowest_bit_index(T x) {
 
         unsigned long index;
-        return _BitScanForward64(&index, x) ? (signed_t)index : -1;
+        return _BitScanForward64(&index, x) ? SIGNED % index : -1;
     }
 #else
 #pragma intrinsic(_BitScanForward)
 	template<typename T>  signed_t lowest_bit_index(T x) {
-        
+
         if constexpr (sizeof(T) == 4)
         {
             unsigned long index;
-            return _BitScanForward(&index, x) ? (signed_t)index : -1;
+            return _BitScanForward(&index, x) ? SIGNED % index : -1;
         }
 		else {
 
             unsigned long index;
 			if (_BitScanForward(&index, static_cast<u32>(x & 0xffffffff)))
-				return (signed_t)index;
+				return SIGNED % index;
 
-			return _BitScanForward(&index, static_cast<u32>(x >> 32)) ? (signed_t)(index + 32) : -1;
+			return _BitScanForward(&index, static_cast<u32>(x >> 32)) ? SIGNED % (index + 32) : -1;
 		}
     }
 #endif
 #endif
 
+    template<size_t initial_size> struct fifo_behaviour_base
+    {
+        using setype = u32;
+
+        size_t size = initial_size;
+        setype start = 0;
+        setype end = 0;
+
+        size_t get_count(setype s, setype e) const {
+            return (s <= e) ? (e - s) : ((static_cast<setype>(size) - s) + e);
+        }
+
+        bool allow_shrink()
+        {
+            return false;
+        }
+
+        bool need_shrink(setype, setype) const {
+            return false;
+        }
+
+        void shrinked() {}
+
+
+        setype load_start() const { return start; }
+        setype load_end() const { return end; }
+        void store_start(setype t) { start = t; }
+
+        template<bool locked> void store_end(setype t)
+        {
+            if constexpr (locked)
+            {
+            }
+            else
+            {
+                end = t;
+            }
+        }
+
+        void unlock_end(setype)
+        {
+        }
+
+        setype lock_end()
+        {
+            return end;
+        }
+
+        static setype lock_start(setype expected_start)
+        {
+            return expected_start;
+        }
+
+    };
+
+#if 0
+    template<size_t initial_size> struct fifo_behaviour_shrinkable : public fifo_behaviour_base<initial_size>
+    {
+        using super_type = fifo_behaviour_base<initial_size>;
+
+        enum consts
+        {
+            SHRINK_DISABLED = 100,
+        };
+
+        int shrink_disabled = SHRINK_DISABLED;
+
+        bool allow_shrink()
+        {
+            return (--shrink_disabled) <= 0;
+        }
+
+        bool need_shrink(super_type::setype s, super_type::setype e) const {
+            if (super_type::size == initial_size)
+                return false;
+
+            return super_type::get_count(s, e) < super_type::size / 4;
+        }
+
+        void shrinked() {}
+
+
+        template<bool locked> void store_end(super_type::setype t)
+        {
+            if constexpr (locked)
+            {
+            }
+            else
+            {
+                if (super_type::get_count(super_type::load_start(), t) >= super_type::size / 2)
+                    shrink_disabled = SHRINK_DISABLED;
+
+                super_type::end = t;
+            }
+        }
+    };
+#endif
+
+    // timebased shrinkable
+    template<size_t initial_size> struct fifo_behaviour_shrinkable : public fifo_behaviour_base<initial_size>
+    {
+        using super_type = fifo_behaviour_base<initial_size>;
+
+        enum consts
+        {
+            SHRINK_DISABLED_TIME = 10000,
+        };
+
+        chrono::mils next_shrink;
+
+        void shrinked()
+        {
+            next_shrink = chrono::ms(SHRINK_DISABLED_TIME);
+        }
+
+        bool allow_shrink()
+        {
+            return next_shrink.is_empty() || chrono::ms() > next_shrink;
+        }
+
+        bool need_shrink(super_type::setype s, super_type::setype e) const {
+            if (super_type::size == initial_size)
+                return false;
+
+            return super_type::get_count(s, e) < super_type::size / 4;
+        }
+    };
+
+
+
+    template<size_t initial_size> struct fifo_behaviour_sync
+    {
+        using setype = u32;
+
+        volatile size_t size = initial_size;
+        volatile setype start = 0;
+        volatile setype end = 0;
+
+        enum consts : setype
+        {
+            LOCKBIT = setype(1) << (31),
+        };
+
+        size_t get_count(setype s, setype e) const {
+            return (s <= e) ? (e - s) : ((static_cast<setype>(size) - s) + e);
+        }
+
+        bool allow_shrink()
+        {
+            return false;
+        }
+
+        bool need_shrink(setype, setype) const
+        {
+            return false;
+        }
+
+        void shrinked()
+        {
+
+        }
+
+        setype load_start() const
+        {
+            return spinlock::atomic_load(start) & (~LOCKBIT);
+        }
+        setype load_end() const
+        {
+            return spinlock::atomic_load(end) & (~LOCKBIT);
+        }
+
+        void store_start(setype t)
+        {
+            spinlock::atomic_set(start, t);
+        }
+        template<bool locked> void store_end(setype t)
+        {
+            if constexpr (locked)
+                spinlock::atomic_set(end, t | LOCKBIT);
+            else
+            {
+                spinlock::atomic_set(end, t);
+            }
+        }
+
+        void unlock_end(setype t)
+        {
+            spinlock::atomic_set(end, t);
+        }
+
+        setype lock_end()
+        {
+            setype expected_end = load_end();
+
+            // lock end index (for write)
+            for (size_t spincount = 0;; ++spincount)
+            {
+                expected_end &= ~LOCKBIT;
+                setype val = expected_end | LOCKBIT;
+
+                if (spinlock::atomic_cas_update_expected(end, expected_end, val))
+                    return val & (~LOCKBIT);
+
+                SPINCOUNT_SLEEP(spincount, expected_end = load_end());
+            }
+            UNREACHABLE();
+        }
+
+        setype lock_start(setype expected_start)
+        {
+            for (size_t spincount = 0;; ++spincount)
+            {
+                expected_start &= ~LOCKBIT; // expected unlocked [start]
+                setype val = expected_start | LOCKBIT;
+
+                if (spinlock::atomic_cas_update_expected(start, expected_start, val))
+                    return val & (~LOCKBIT);
+
+                SPINCOUNT_SLEEP(spincount, expected_start = load_start());
+            }
+            UNREACHABLE();
+        }
+
+    };
+
+    template<size_t initial_size> struct fifo_behaviour_sync_shrinkable : public fifo_behaviour_sync<initial_size>
+    {
+        using super_type = fifo_behaviour_sync<initial_size>;
+
+        enum consts
+        {
+            SHRINK_DISABLED_TIME = 10000,
+        };
+
+        chrono::mils next_shrink;
+
+        void shrinked()
+        {
+            next_shrink = chrono::ms(SHRINK_DISABLED_TIME);
+        }
+
+        bool allow_shrink()
+        {
+            return next_shrink.is_empty() || chrono::ms() > next_shrink;
+        }
+
+        bool need_shrink(super_type::setype s, super_type::setype e) const {
+            if (super_type::size == initial_size)
+                return false;
+
+            return super_type::get_count(s, e) < super_type::size / 4;
+        }
+
+    };
+
+    // Circular based fixed-size queue with separated (enqueue|dequeue) spinlock synchronization
+    template<typename T, size_t initial_size = 4, size_t max_size = 2147483648, typename beh = fifo_behaviour_sync_shrinkable<initial_size> >
+        requires(std::has_single_bit(initial_size) && std::has_single_bit(max_size)) class fifo : public beh
+    {
+        T* items;
+
+        bool is_full(beh::setype s, beh::setype e) const
+        {
+            return ((e + 1) & (beh::size - 1)) == s;
+        }
+
+        void init(size_t s, size_t e)
+        {
+            if constexpr (!std::is_trivially_default_constructible_v<T>)
+            {
+                for (size_t i = s; i < e; ++i)
+                    new (items + i) T();
+            }
+        }
+
+        void del(size_t s, size_t e)
+        {
+            if constexpr (!std::is_trivially_default_constructible_v<T>)
+            {
+                for (size_t i = s; i < e; ++i)
+                    items[i].~T();
+            }
+        }
+
+    public:
+
+        fifo()
+        {
+            items = (T*)MA(initial_size * sizeof(T));
+            init(0, beh::size);
+        }
+        ~fifo()
+        {
+            del(0, beh::size);
+            ma::mf(items);
+        }
+
+        size_t get_max_size() const { return beh::size; }
+        size_t get_count() const {
+            typename beh::setype s = beh::load_start();
+            typename beh::setype e = beh::load_end();
+            return beh::get_count(s, e);
+        }
+        bool is_full() const
+        {
+            return is_full(beh::load_start(), beh::load_end());
+        }
+
+        template<typename INITOR> bool enqueue(INITOR initor)
+        {
+            typename beh::setype locked_end = beh::lock_end();
+
+            typename beh::setype current_start = beh::load_start();
+
+            if (beh::need_shrink(current_start, locked_end))
+            {
+                typename beh::setype locked_start = beh::lock_start(current_start);
+                if (beh::need_shrink(locked_start, locked_end) && beh::allow_shrink())
+                {
+                    // still shrink
+                    typename beh::setype si = locked_start;
+                    typename beh::setype ei = locked_end;
+                    typename beh::setype sz = static_cast<beh::setype>(beh::size); // cache size in register due size is volatile
+
+                    if (si == ei)
+                    {
+                        // empty
+                        if constexpr (is_relocatable<T>::value)
+                        {
+                            del(initial_size, sz);
+                            items = (T*)MRS(items, initial_size * sizeof(T), initial_size * sizeof(T));
+                        }
+                        else
+                        {
+                            del(0, sz);
+                            ma::mf(items);
+                            items = (T*)MA(initial_size * sizeof(T));
+                            init(0, initial_size);
+                        }
+                        si = 0;
+                        ei = 0;
+                        beh::size = initial_size;
+                        beh::shrinked();
+                    }
+                    else
+                    {
+                        size_t newsize = sz / 2;
+
+                        if constexpr (is_relocatable<T>::value)
+                        {
+                            if (si < ei)
+                            {
+                                typename beh::setype cnt = ei - si;
+                                // one range
+                                if (ei < newsize)
+                                {
+                                    // simple case
+                                    del(newsize, sz);
+                                    items = (T*)MRS(items, newsize * sizeof(T), newsize * sizeof(T));
+                                }
+                                else {
+
+                                    // 0123456789ABCDEF0123456789ABCDEF : 32 items
+                                    //                 ^ - cut here
+                                    // eeeeeeeDDDDDDDDDDDDDeeeeeeeeeeee : si == 7, ei = 20
+
+                                    del(0, si);
+
+                                    // .......DDDDDDDDDDDDDeeeeeeeeeeee : (0..7) deleted
+
+                                    tools::memcopy(items, items + si, cnt * sizeof(T));
+
+                                    // DDDDDDDDDDDDD.......eeeeeeeeeeee : data copied; (13..20) garbage
+
+                                    init(cnt, newsize);
+
+                                    // DDDDDDDDDDDDDeee....eeeeeeeeeeee : (13..16) created; (16..20) garbage
+
+                                    del(ei, sz);
+
+                                    // DDDDDDDDDDDDDeee................ : (20..32) deleted
+
+                                    items = (T*)MRS(items, newsize * sizeof(T), newsize * sizeof(T));
+
+                                    si = 0;
+                                    ei = cnt;
+                                }
+                            }
+                            else
+                            {
+                                // DDDDeeeeeeeeeeeeeeeeeeeDDDDDDDDD : si == 23, ei = 4
+
+                                T* newitems = (T*)MA(newsize * sizeof(T));
+                                size_t tailsize = (sz - si);
+                                tools::memcopy(newitems, items + si, tailsize * sizeof(T));
+                                tools::memcopy(newitems + tailsize, items, ei * sizeof(T));
+
+                                del(ei, si);
+
+                                ma::mf(items);
+                                items = newitems;
+
+                                typename beh::setype cnt = static_cast<beh::setype>(tailsize + ei);
+
+                                init(cnt, newsize);
+
+                                si = 0;
+                                ei = cnt;
+                            }
+                        }
+                        else
+                        {
+                            T* newitems = (T*)MA(newsize * sizeof(T));
+                            typename beh::setype cnt = 0;
+
+                            if (si < ei)
+                            {
+                                del(0, si);
+                                del(ei, sz);
+                            }
+                            else
+                            {
+                                del(ei, si);
+                            }
+
+                            for (; si != ei; si = (si + 1) & (beh::size - 1), ++cnt)
+                                new (newitems + cnt) T(std::move(items[si]));
+
+                            ma::mf(items);
+                            items = newitems;
+
+                            init(cnt, newsize);
+
+                            si = 0;
+                            ei = cnt;
+                        }
+
+                        beh::size = newsize;
+
+                    }
+
+                    beh::template store_end<true>(ei); // update end and keep locked
+                    beh::store_start(si); // now unlock start; // readers can read
+                    locked_end = ei;
+                    current_start = beh::load_start();
+                    beh::shrinked();
+                }
+                else
+                {
+                    // do nothing for now
+                    beh::store_start(locked_start);
+                }
+            }
+
+            if (is_full(current_start, locked_end))
+            {
+                if (beh::size >= max_size)
+                {
+                    beh::unlock_end(locked_end); // unlock end
+                    return false;
+                }
+
+                // so, we can expand space
+                // have to lock [start] index ([end] already locked)
+                typename beh::setype locked_start = beh::lock_start(current_start);
+
+                if (is_full(locked_start, locked_end))
+                {
+                    size_t newsize = beh::size * 2;
+
+                    typename beh::setype si = locked_start;
+                    typename beh::setype ei = locked_end;
+                    typename beh::setype sz = static_cast<beh::setype>(beh::size);
+
+                    if constexpr (is_relocatable<T>::value)
+                    {
+                        if (si < ei)
+                        {
+                            items = (T*)MRS(items, newsize * sizeof(T), beh::size * sizeof(T));
+                            init(sz, newsize);
+                        }
+                        else
+                        {
+                            items = (T*)MRS(items, newsize * sizeof(T), beh::size * sizeof(T));
+
+                            // DDDDeeeeeeeeeeeeeeeeeeeDDDDDDDDD................................ : si == 23, ei = 4
+
+                            tools::memcopy(items + sz, items, ei * sizeof(T));
+
+                            // ....eeeeeeeeeeeeeeeeeeeDDDDDDDDDDDDD............................ : si == 23, ei = 4
+
+                            init(0, ei);
+                            init(beh::size + ei, newsize);
+
+                            // eeeeeeeeeeeeeeeeeeeeeeeDDDDDDDDDDDDDeeeeeeeeeeeeeeeeeeeeeeeeeeee : si == 23, ei = 4
+
+                            ei += sz;
+                        }
+                    }
+                    else
+                    {
+                        T* newitems = (T*)MA(newsize * sizeof(T));
+                        typename beh::setype cnt = 0;
+
+                        if (si < ei)
+                        {
+                            del(0, si);
+                            del(ei, sz);
+                        }
+                        else
+                        {
+                            del(ei, si);
+                        }
+
+                        for (; si != ei; si = (si + 1) & (sz - 1), ++cnt)
+                            new (newitems + cnt) T(std::move(items[si]));
+
+                        ma::mf(items);
+                        items = newitems;
+
+                        init(cnt, newsize);
+
+                        si = 0;
+                        ei = cnt;
+
+                    }
+
+                    beh::size = newsize;
+
+                    beh::template store_end<true>(ei); // update [end] and keep locked
+                    beh::store_start(si); // now unlock start; // readers can read
+                    locked_end = ei;
+                }
+                else
+                {
+                    // just unlock start, no change, keep [end] locked
+                    beh::store_start(locked_start);
+                }
+
+            }
+
+            initor(items[locked_end]); // init slot with value
+            typename beh::setype new_end = (locked_end + 1) & (beh::size - 1);
+
+            // update and unlock end index
+            beh::template store_end<false>(new_end);
+
+            return true;
+        }
+
+        template <typename READER> bool dequeue(READER r)
+        {
+            typename beh::setype current_start = beh::load_start();
+
+            if (current_start == beh::load_end())
+                return false;
+
+            typename beh::setype locked_start = beh::lock_start(current_start);
+
+            if (locked_start == beh::load_end())
+            {
+                // oops
+                // no items after lock (many concurrent readers)
+                // unlock and exit
+                beh::store_start(locked_start);
+                return false;
+            }
+
+            T rv = std::move(items[locked_start]);
+            typename beh::setype newstart = (locked_start + 1) & (beh::size - 1);
+
+            // update start index and unlock
+            beh::store_start(newstart);
+
+            r(rv); // return value
+
+            return true;
+        }
+    };
+
+    template<typename T> using fifo_shrinkable = fifo<T, 4, 65536, fifo_behaviour_shrinkable<4> >;
+    template<typename T> using sync_fifo_shrinkable = fifo<T, 4, 65536, fifo_behaviour_sync_shrinkable<4> >;
+
+	// bucket for maximum 32 slots with separated (lock free) spinlock synchronization
+	// THIS IS NOT FIFO or LIFO buffer:
+	// get() returns any exist item (not necessary newest or oldest)
 	template<typename T> requires(is_plain_old_struct_v<T>) class bucket
 	{
 		volatile u64 lockmask = 0xffffffffffffffffull; // each 0..31 bit: 0 - locked; 1 - unlocked / each 32..63 bit: 0 - not empty; 1 - empty (free)
@@ -1463,7 +2218,7 @@ namespace tools
 			size_t spincount = 0;
             for (u64 m = lockmask;; ++spincount)
             {
-				DASSERT( (m & bitmask_set) == 0 );
+				ASSERT( (m & bitmask_set) == 0 );
                 u64 newmask = (m | bitmask_set) & (~bitmask_clear);
                 if (spinlock::atomic_cas_update_expected(lockmask, m, newmask))
                     return;
@@ -1476,7 +2231,7 @@ namespace tools
 
 		bool empty() const
 		{
-			return (lockmask >> 32) == 0xffffffff;
+			return (lockmask >> 32) == 0xffffffff; // no need spinlock::atomic_load(lockmask) because we need only 32 bits of lockmask: 32 bit always read atomically
 		}
 
 		template<typename SETER> bool put(SETER s)
@@ -1508,6 +2263,66 @@ namespace tools
 
 	};
 
+    class keep_buffer
+    {
+        u8* buf = nullptr;
+    public:
+        keep_buffer() {}
+        keep_buffer(keep_buffer&& ob) noexcept :buf(ob.buf)  { ob.buf = nullptr; }
+        keep_buffer(size_t sz) :buf((u8*)MA(sz + sizeof(size_t))) { *reinterpret_cast<size_t*>(buf) = sz; }
+        ~keep_buffer() { ma::mf(buf); }
+
+        keep_buffer& operator=(keep_buffer&& ob) noexcept
+        {
+            ma::mf(buf);
+            buf = ob.buf;
+            ob.buf = nullptr;
+            return *this;
+        }
+
+        template<typename T> const T* tdata(size_t &count) const
+        {
+            count = size() / sizeof(T);
+            ASSERT(size() == count * sizeof(T));
+            return reinterpret_cast<const T *>(buf ? buf + sizeof(size_t) : nullptr);
+        }
+
+
+        u8* data()
+        {
+            return buf ? buf + sizeof(size_t) : nullptr;
+        }
+        const u8* data() const
+        {
+            return buf ? buf + sizeof(size_t) : nullptr;
+        }
+        size_t size() const
+        {
+            return buf ? *reinterpret_cast<size_t*>(buf) : 0;
+        }
+        u8 * resize(size_t sz, size_t keep_data)
+        {
+            buf = (u8 *)MRS( buf, sz + sizeof(size_t), keep_data );
+            *reinterpret_cast<size_t*>(buf) = sz;
+            return buf + sizeof(size_t);
+        }
+        std::span<const u8> span() const { return std::span(data(), size()); }
+        std::span<u8> span() { return std::span(data(), size()); }
+
+        bool is_empty() const
+        {
+            return buf == nullptr || *reinterpret_cast<size_t*>(buf) == 0;
+        }
+
+        void clear()
+        {
+            ma::mf(buf);
+            buf = nullptr;
+        }
+    };
+
+
+#if 0
 	template<typename T> class fifo
 	{
 		std::vector<T> buf;
@@ -1561,6 +2376,7 @@ namespace tools
 			return true;
 		}
 	};
+#endif
 
 	template<typename EL> void remove_fast(std::vector<EL>& arr, signed_t eli)
 	{
@@ -1843,7 +2659,7 @@ namespace str
 		}
 		void secure_erase()
         {
-            Botan::secure_scrub_memory(this, len + sizeof(shared_str)); // zeroise including length
+            secure::scrub_memory(this, len + sizeof(shared_str)); // zeroise including length
 		}
 
 		str::astr_view cstr() const

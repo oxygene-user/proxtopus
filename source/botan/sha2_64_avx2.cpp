@@ -5,13 +5,13 @@
 */
 
 #include <botan/internal/sha2_64.h>
-
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/rotate.h>
 #include <botan/internal/sha2_64_f.h>
 #include <botan/internal/simd_2x64.h>
 #include <botan/internal/simd_4x64.h>
 
+#ifdef ARCH_X86
 namespace Botan {
 
 #define BOTAN_AVX2_BMI2_FN BOTAN_FUNC_ISA("avx2,bmi2")
@@ -392,3 +392,4 @@ BOTAN_AVX2_BMI2_FN void SHA_512::compress_digest_x86_avx2(digest_type& digest,
 }
 
 }  // namespace Botan
+#endif

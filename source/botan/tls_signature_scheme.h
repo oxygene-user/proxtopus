@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_SIGNATURE_SCHEME_H_
 #define BOTAN_TLS_SIGNATURE_SCHEME_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/pk_keys.h>
@@ -101,3 +103,4 @@ std::vector<AlgorithmIdentifier> to_algorithm_identifiers(const std::vector<Sign
 }  // namespace Botan::TLS
 
 #endif  // BOTAN_TLS_SIGNATURE_SCHEME_H_
+#endif

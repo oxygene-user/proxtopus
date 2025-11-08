@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../conf.h"
-#include "../proxtopus/conf_def.h"
 
 #ifdef _WIN32
 #define BOTAN_TARGET_OS_HAS_WIN32
@@ -20,11 +19,40 @@
 #if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 25)
 #define BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO
 #endif
-
-#if defined(__i386__) || defined(__x86_64__)
-#define BOTAN_TARGET_CPU_IS_X86_FAMILY
 #endif
 
+#if defined(__i386__) || defined(__x86_64__) || defined(ARCH_X86)
+#ifndef ARCH_X86
+#dfine ARCH_X86
+#endif
+#define BOTAN_TARGET_CPU_IS_X86_FAMILY
+#define BOTAN_TARGET_CPU_SUPPORTS_SSSE3
+#define BOTAN_TARGET_CPU_SUPPORTS_AVX2
+#define BOTAN_SIMD_USE_SSSE3
+#ifndef AES_VAES_SKIP
+#define BOTAN_HAS_AES_VAES
+#endif
+#define BOTAN_HAS_AES_NI
+#define BOTAN_HAS_KECCAK_PERM_BMI2
+#define BOTAN_HAS_SHA2_32_X86_AVX2
+#define BOTAN_HAS_SHA2_32_X86
+#define BOTAN_HAS_SHA2_64_X86_AVX2
+#define BOTAN_HAS_SHA1_X86_SHA_NI
+#define BOTAN_HAS_GHASH_CLMUL_VPERM
+#define BOTAN_HAS_GHASH_CLMUL_CPU
+#elif defined(ARCH_ARM)
+#define BOTAN_TARGET_CPU_SUPPORTS_NEON
+#define BOTAN_SIMD_USE_NEON
+#ifdef ARCH_64BIT
+#define BOTAN_TARGET_ARCH_IS_ARM64
+#define BOTAN_HAS_SHA1_ARMV8
+#define BOTAN_HAS_SHA2_32_ARMV8
+#define BOTAN_HAS_SHA2_64_ARMV8
+#define BOTAN_HAS_AES_ARMV8
+#define BOTAN_HAS_GHASH_CLMUL_CPU
+#else
+#define BOTAN_TARGET_ARCH_IS_ARM32
+#endif
 #endif
 
 #define BOTAN_TARGET_OS_HAS_SYSTEM_CLOCK
@@ -40,33 +68,28 @@
 #endif
 
 
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
+#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__) || defined(ARCH_64BIT)
+#ifndef ARCH_64BIT
+#define ARCH_64BIT
+#endif
 #define BOTAN_MP_WORD_BITS 64
-#define MODE64
 #ifdef BOTAN_TARGET_CPU_IS_X86_FAMILY
 #define BOTAN_TARGET_ARCH_IS_X86_64
 #endif
 #else
+#ifndef ARCH_32BIT
+#define ARCH_32BIT
+#endif
 #define BOTAN_MP_WORD_BITS 32
 #endif
 
-#define BOTAN_SIMD_USE_SSSE3
-
 #define BOTAN_HAS_CPUID
 #define BOTAN_HAS_CPUID_DETECTION
-#define BOTAN_TARGET_CPU_SUPPORTS_SSSE3
-#define BOTAN_TARGET_CPU_SUPPORTS_AVX2
-#define BOTAN_HAS_GHASH_CLMUL_CPU
-#define BOTAN_HAS_GHASH_CLMUL_VPERM
 
 #define BOTAN_HAS_PSS
 
 #define BOTAN_HAS_AES
 #define BOTAN_HAS_AES_VPERM
-#define BOTAN_HAS_AES_NI
-#define BOTAN_HAS_AES_VAES
-
-#define BOTAN_HAS_KECCAK_PERM_BMI2
 
 #define BOTAN_HAS_AEAD_CHACHA20_POLY1305
 #define BOTAN_HAS_AEAD_GCM
@@ -104,13 +127,10 @@
 #define BOTAN_HAS_BLAKE2B
 #define BOTAN_HAS_SALSA20
 
-#define BOTAN_HAS_SHA1_X86_SHA_NI
 #define BOTAN_HAS_SHA1_SIMD_4X32
 #define BOTAN_HAS_SHA2_32_SIMD
-#define BOTAN_HAS_SHA2_32_X86_AVX2
-#define BOTAN_HAS_SHA2_32_X86
 #define BOTAN_HAS_SHA2_64
-#define BOTAN_HAS_SHA2_64_X86_AVX2
+#ifndef SHA512_SKIP
 #if defined(__GNUC__)
 #if __GNUC__ > 13 || (__GNUC__ == 13 && __GNUC_MINOR__ >= 1)
 #define BOTAN_HAS_SHA2_64_X86
@@ -119,7 +139,7 @@
 #if defined(_MSC_VER) && _MSC_VER >= 1938
 #define BOTAN_HAS_SHA2_64_X86
 #endif
-#define BOTAN_HAS_SHA2_64_X86_AVX2
+#endif
 #define BOTAN_HAS_SHA3
 #define BOTAN_HAS_SHA_256
 #define BOTAN_HAS_RIPEMD_160
@@ -178,11 +198,23 @@ namespace tools
         else if constexpr (sz == 32)
         {
             _mm_storeu_si128((__m128i*)tgt, _mm_loadu_si128((const __m128i*)src));
-            _mm_storeu_si128((__m128i*)tgt + 1, _mm_loadu_si128((const __m128i*)src + 1));
+            _mm_storeu_si128(((__m128i*)tgt) + 1, _mm_loadu_si128(((const __m128i*)src) + 1));
+        }
+        else if constexpr (sz == 64)
+        {
+            _mm_storeu_si128((__m128i*)tgt, _mm_loadu_si128((const __m128i*)src));
+            _mm_storeu_si128(((__m128i*)tgt) + 1, _mm_loadu_si128(((const __m128i*)src) + 1));
+            _mm_storeu_si128(((__m128i*)tgt) + 2, _mm_loadu_si128(((const __m128i*)src) + 2));
+            _mm_storeu_si128(((__m128i*)tgt) + 3, _mm_loadu_si128(((const __m128i*)src) + 3));
         }
         else
 #endif
             memcpy(tgt, src, sz);
+    }
+
+    inline void memcopy(void* tgt, const void* src, size_t sz)
+    {
+        memcpy(tgt, src, sz);
     }
 
 }
@@ -228,7 +260,8 @@ namespace Botan {
 
 			hash_end,
 
-			kex_start,
+#if FEATURE_TLS
+            kex_start,
 
             STATIC_RSA,
             DH,
@@ -312,6 +345,7 @@ namespace Botan {
             //Ed448, // do not support for now
 
 			sign_end,
+#endif
 
 			cipher_start,
 
@@ -343,7 +377,8 @@ namespace Botan {
 
 			cipher_end,
 
-			curv_start,
+#if FEATURE_TLS
+            curv_start,
 			secp256r1,
 			secp224r1,
 			secp384r1,
@@ -389,18 +424,20 @@ namespace Botan {
 			X520_OrganizationalUnit,
 			X520_Locality,
 			X520_State,
-
 			na_end,
-		};
+#endif
+        };
 
 		alg a = Undefined;
 
 		ALG() {}
 
+#if FEATURE_TLS
         bool is_dilithium() const
         {
             return a > dilithium_start && a < dilithium_end;
         }
+#endif
 
 		std::string to_string() const;
 
@@ -409,6 +446,7 @@ namespace Botan {
 	};
 
 	struct Any_Algo;
+#if FEATURE_TLS
     struct Auth_Method : public ALG {
 
         explicit Auth_Method(alg a = Undefined) :ALG(a) {
@@ -433,16 +471,18 @@ namespace Botan {
             return a == am;
         }
     };
-
+#endif
 	struct Any_Algo : public ALG
 	{
 		Any_Algo():ALG(Undefined) {}
 		explicit Any_Algo(alg aa) :ALG(aa) {}
 
+#if FEATURE_TLS
         bool operator == (Auth_Method am) const
         {
             return a == am.a;
         }
+#endif
         bool operator == (Any_Algo aa) const
         {
             return a == aa.a;
@@ -457,7 +497,8 @@ namespace Botan {
         }
 	};
 
-	struct Non_Algo : public ALG
+#if FEATURE_TLS
+    struct Non_Algo : public ALG
 	{
 		Non_Algo() :ALG(Undefined) {}
 		Non_Algo(alg a) :ALG(a)
@@ -471,6 +512,7 @@ namespace Botan {
         }
 		bool empty() const { return a == Undefined; }
 	};
+#endif
 
 
     struct Cipher_Algo : public ALG {
@@ -497,10 +539,12 @@ namespace Botan {
 
     };
 
-	inline Auth_Method::Auth_Method(Any_Algo aa) :ALG(aa.a) {
+#if FEATURE_TLS
+    inline Auth_Method::Auth_Method(Any_Algo aa) :ALG(aa.a) {
         if (a < auth_start || a > auth_end)
             a = Undefined;
     }
+#endif
 
     struct KDF_Algo : public ALG {
 
@@ -575,6 +619,7 @@ namespace Botan {
 
     };
 
+#if FEATURE_TLS
     struct Kex_Algo : public ALG {
 
         explicit Kex_Algo(alg a = Undefined) :ALG(a)
@@ -597,7 +642,7 @@ namespace Botan {
 
     };
 
-	class OID;
+    class OID;
 	struct PrimeOrderCurveId : public ALG
 	{
 		explicit PrimeOrderCurveId(alg a = Undefined) :ALG(a)
@@ -618,6 +663,7 @@ namespace Botan {
 		static std::optional<PrimeOrderCurveId> from_oid(const OID& oid);
 
 	};
+#endif
 
 	struct Algo_Group_Iterator
 	{
@@ -651,7 +697,8 @@ namespace Botan {
 	};
 
 
-	struct Algo_Group
+#if FEATURE_TLS
+    struct Algo_Group
 	{
 		Any_Algo a[7];
 		uint8_t saltl = 0xff; // salt length
@@ -847,7 +894,7 @@ namespace Botan {
     inline std::string operator+(const std::string& oss, Algo_Group format) {
         return oss + format.to_string();
     }
-
+#endif
 
 	class RandomNumberGenerator;
 	class OctetString : private secure_vector<uint8_t>
@@ -1092,6 +1139,7 @@ namespace Botan {
 
 	secure_vector<uint8_t> base64_decode(const char* s, size_t sl);
 
+#if FEATURE_TLS
 	void DER_encode(secure_vector<uint8_t>& outb, const uint32_t* data, size_t size);
 
 	enum class oid_index
@@ -1226,7 +1274,7 @@ namespace Botan {
 		return cmp;
 	}
 
-	inline std::strong_ordering compare_spans(std::span<const uint8_t> lhs, std::span<const uint8_t> rhs) noexcept {
+    inline std::strong_ordering compare_spans(std::span<const uint8_t> lhs, std::span<const uint8_t> rhs) noexcept {
 
         if (lhs.size() > rhs.size())
 			return gr(int2so(memcmp(lhs.data(), rhs.data(), rhs.size())));
@@ -1254,8 +1302,11 @@ namespace Botan {
 	extern uint8_t g_oids_by_algs[];
 	inline const OID_core& oid_core(oid_index i) { return g_oids[static_cast<int>(i)]; }
 	oid_index oid_find_index(std::span<const uint8_t> id);
+#endif
+
 } // namespace Botan
 
+#if FEATURE_TLS
 namespace str
 {
     void __append(std::string & sout, Botan::ALG alg);
@@ -1264,8 +1315,8 @@ namespace str
     void __append(std::string& sout, Botan::Auth_Method alg);
     void __append(std::string& sout, Botan::ALG::alg alg);
     void __append(std::string& sout, const Botan::OID &oid);
-
 }
+#endif
 
 
 template<typename T> constexpr bool is_plain_old_struct_v =
@@ -1280,7 +1331,7 @@ template<typename T, size_t align> requires(is_plain_old_struct_v<T>&& std::has_
 public:
     aligned_data()
     {
-        size_t addr_ok = (reinterpret_cast<size_t>(data_space + 1) + align - 1) & ~(size_t)(align - 1);
+        size_t addr_ok = (reinterpret_cast<size_t>(data_space + 1) + align - 1) & ~(align - 1U);
         size_t addr_cur = reinterpret_cast<size_t>(data_space + 0);
         data_space[0] = static_cast<uint8_t>(addr_ok - addr_cur); // offset to aligned
     }

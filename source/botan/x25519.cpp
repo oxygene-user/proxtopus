@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/x25519.h>
 
@@ -153,3 +154,4 @@ std::unique_ptr<PK_Ops::Key_Agreement> X25519_PrivateKey::create_key_agreement_o
 }
 
 }  // namespace Botan
+#endif

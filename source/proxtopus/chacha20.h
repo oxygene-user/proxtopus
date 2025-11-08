@@ -8,9 +8,10 @@ public:
 
     constexpr const static size_t key_size = 32;
 
+#pragma pack(push,1)
     struct impl
     {
-#ifndef MODE64
+#ifdef ARCH_32BIT
         uint32_t ic_high;
 #endif
         union
@@ -19,7 +20,7 @@ public:
             i64 input1415;
         };
         uint32_t input4, input5, input6, input7, input8, input9, input10, input11;
-#ifdef MODE64
+#ifdef ARCH_64BIT
         uint32_t ic_high;
 #endif
 
@@ -39,21 +40,17 @@ public:
         void cipher_ref(const uint8_t in[], uint8_t out[], size_t size, u64 ic);
 #endif
 
-#ifndef AVX2_SUPPORTED
+#if !defined(AVX2_SUPPORTED) && defined(ARCH_X86)
         void cipher_ssse3(const uint8_t in[], uint8_t out[], size_t size, u64 ic);
 #endif
-#ifdef MODE64
+#ifdef ARCH_64BIT
         void cipher_avx2(const uint8_t in[], uint8_t out[], size_t size, u64 ic);
 #endif
 
         virtual ~impl()
         {
             void* clrptr = reinterpret_cast<u8*>(this) + sizeof(void*);
-#ifdef _DEBUG
-            memset(clrptr, 0xab, sizeof(impl)-sizeof(void*));
-#else
-            Botan::secure_scrub_memory(clrptr, sizeof(impl) - sizeof(void*));
-#endif
+            secure::scrub_memory(clrptr, sizeof(impl) - sizeof(void*));
         };
         virtual void cipher(const uint8_t in[], uint8_t out[], size_t size, size_t ic) = 0; // cipher 64 bytes
         virtual void prepare(const uint8_t* k, const uint8_t* nonce, uint8_t nonce_size);
@@ -65,6 +62,7 @@ public:
         void iv_setup(const uint8_t* iv);
         void iv_setup_ietf(const uint8_t* iv);
     };
+#pragma pack(pop)
 
 private:
 
@@ -79,7 +77,7 @@ private:
     constexpr const static size_t f_prepared = 1<<6;
 
     tools::flags<1> flags;
-    u8 dummy[7];
+    [[maybe_unused]] u8 dummy[7];
 
     static uint8_t ivsize2(size_t x)
     {
@@ -172,13 +170,22 @@ public:
 
 public:
     chacha20() {}
+    chacha20(chacha20 && o)
+    {
+        if (o.flags.is<f_buf_valid>())
+        {
+            tools::memcopy<sizeof(m_buf)>(m_buf, o.m_buf);
+            secure::scrub_memory(o.m_buf, sizeof(m_buf));
+        }
+        m_impl = std::move(o.m_impl);
+        m_position = o.m_position;
+        flags = o.flags.all();
+        o.m_position = 0;
+        o.flags.clear();
+    }
     ~chacha20()
     {
-#ifdef _DEBUG
-        memset(m_buf, 0xab, sizeof(m_buf));
-#else
-        Botan::secure_scrub_memory(m_buf, sizeof(m_buf));
-#endif
+        secure::scrub_memory(m_buf, sizeof(m_buf));
     }
 
     void clear() {
@@ -189,6 +196,9 @@ public:
     bool ready() const {
         return flags.is<f_prepared|f_key_set>();
     }
+
+    str::astr encode_host(const str::astr_view s); // only 'a-z', 'A-Z', '0-9', '-' and '.' chars allowed
+    str::astr decode_host(const str::astr_view s); // only 'a-z', 'A-Z', '0-9', '-' and '.' chars allowed
 
 };
 

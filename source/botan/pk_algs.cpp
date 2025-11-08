@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/pk_algs.h>
 
@@ -734,3 +735,4 @@ std::vector<std::string> probe_provider_private_key(std::string_view alg_name,
 }
 #endif
 }  // namespace Botan
+#endif

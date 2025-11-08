@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/eme_pkcs.h>
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
@@ -104,3 +105,4 @@ size_t EME_PKCS1v15::maximum_input_size(size_t keybits) const {
 }
 
 }  // namespace Botan
+#endif

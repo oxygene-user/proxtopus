@@ -14,18 +14,48 @@
 #pragma warning(disable:4189) // 'val': local variable is initialized but not referenced
 #endif
 #ifdef __GNUC__
+#ifdef ARCH_X86
 #include <x86intrin.h>
+#else
+#include <arm_acle.h>
+#endif
 #endif
 #ifdef __linux__
 #include <pthread.h>
 #include <unistd.h>
 #endif
 
+#if defined(__clang__)
+#define MAYBEUNALIGNED(...) _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Watomic-alignment\"") __VA_ARGS__ _Pragma("clang diagnostic pop")
+#else
+#define MAYBEUNALIGNED(...) __VA_ARGS__
+#endif
+
 namespace spinlock
 {
+    void simple_lock(volatile size_t &lock);
+    void simple_unlock(volatile size_t &lock);
+
+    template<size_t alignment, typename PTR> requires (std::has_single_bit(alignment)) bool is_aligned(PTR ptr) {
+        return (reinterpret_cast<uintptr_t>(ptr) & (alignment-1)) == 0;
+    }
+
+    template<typename T, typename OP> requires(is_plain_old_struct_v<T>) std::remove_volatile_t<T> sync_op(T* t, OP op)
+    {
+        static size_t lock = 0;
+        simple_lock(lock);
+        std::remove_volatile_t<T> rv = op(t);
+        simple_unlock(lock);
+        return rv;
+    }
+
     inline void sleep()
     {
+#ifdef ARCH_X86
         _mm_pause();
+#else
+        __yield();
+#endif
     }
 
 #if defined _WIN32
@@ -79,7 +109,7 @@ inline void sleep(int ms)
 }
 #endif
 
-template<typename T> SLINLINE void atomic_set(volatile T &t, const T&v)
+template<typename T> requires(is_plain_old_struct_v<T>) SLINLINE void atomic_set(volatile T &t, const T&v)
 {
     if constexpr (sizeof(size_t) >= sizeof(T))
     {
@@ -88,16 +118,29 @@ template<typename T> SLINLINE void atomic_set(volatile T &t, const T&v)
     else
     {
         static_assert(sizeof(T) == 8);
-
+        if constexpr (alignof(T) < sizeof(T)) {
+            if (is_aligned<sizeof(T)>(&t))
+            {
 #ifdef _WIN32
-        _InterlockedExchange64((LONG64*)&t, v);
+                _InterlockedExchange64(reinterpret_cast<LONG64*>(&t), v);
 #else
-        atomic_exchange_64(&t, v, __ATOMIC_SEQ_CST);
+                MAYBEUNALIGNED(__atomic_store_n(&t, v, __ATOMIC_SEQ_CST));
 #endif
+            } else
+                sync_op(&t, [&](volatile T* t) { *t = v; return 0; });
+        }
+        else
+        {
+#ifdef _WIN32
+            _InterlockedExchange64((LONG64*)&t, v);
+#else
+            __atomic_store_n(&t, v, __ATOMIC_SEQ_CST);
+#endif
+        }
     }
 }
 
-template<typename T> SLINLINE T atomic_load(volatile T& t)
+template<typename T> requires(is_plain_old_struct_v<T>) SLINLINE std::remove_volatile_t<T> atomic_load(T& t)
 {
     if constexpr (sizeof(size_t) >= sizeof(T))
     {
@@ -105,34 +148,90 @@ template<typename T> SLINLINE T atomic_load(volatile T& t)
     }
     else
     {
-        static_assert(sizeof(T) == 8);
+        static_assert(sizeof(T) == 8 || sizeof(T) == 16);
 
+        if constexpr (alignof(T) < sizeof(T)) {
+            if (is_aligned<sizeof(T)>(&t))
+            {
 #ifdef _WIN32
-        return InterlockedCompareExchange64((LONG64*)&t, 0, 0);
+                if constexpr (sizeof(T) == 8)
+                {
+                    return _InterlockedCompareExchange64((LONG64*)&t, 0, 0);
+                }
+                else
+                {
+                    T x = { 0 };
+                    _InterlockedCompareExchange128((LONG64*)(&t), ((i64*)&x)[1], ((i64*)&x)[0], (LONG64*)&x);
+                    return x;
+                }
 #else
-        return __atomic_load(&t, __ATOMIC_SEQ_CST);
+                return MAYBEUNALIGNED(__atomic_load_n(&t, __ATOMIC_SEQ_CST));
 #endif
+            }
+
+            return sync_op(&t, [](T* t) { return *t; });
+        } else
+        {
+#ifdef _WIN32
+            if constexpr (sizeof(T) == 8)
+            {
+                return _InterlockedCompareExchange64((LONG64*)&t, 0, 0);
+            }
+            else
+            {
+                T x = { 0 };
+                _InterlockedCompareExchange128((LONG64*)(&t), ((i64*)&x)[1], ((i64*)&x)[0], (LONG64*)&x);
+                return x;
+            }
+#else
+            return __atomic_load_n(&t, __ATOMIC_SEQ_CST);
+#endif
+
+        }
     }
 }
 
-template<typename T> SLINLINE void atomic_add(volatile T& t, T v)
+template<std::integral T> SLINLINE void atomic_add(volatile T& t, T v)
 {
+    if constexpr (alignof(T) < sizeof(T)) {
+        if (is_aligned<sizeof(T)>(&t))
+        {
+
 #ifdef _WIN32
-    if constexpr (sizeof(T) == 8)
-    {
-        _InterlockedAdd64((LONG64 *) & t, v);
-    }
-    else
-    {
-        static_assert(sizeof(T) == 4);
-        _InterlockedAdd((LONG *) & t, v);
-    }
+            if constexpr (sizeof(T) == 8)
+            {
+                _InterlockedAdd64((LONG64*)&t, v);
+            }
+            else
+            {
+                static_assert(sizeof(T) == 4);
+                _InterlockedAdd((LONG*)&t, v);
+            }
 #else
-    __atomic_add_fetch(&t, v, __ATOMIC_SEQ_CST);
+            MAYBEUNALIGNED(__atomic_add_fetch(&t, v, __ATOMIC_SEQ_CST));
 #endif
+        } else
+
+            sync_op(&t, [&](volatile T* t) { *t += v; return 0; });
+    }
+    else {
+#ifdef _WIN32
+        if constexpr (sizeof(T) == 8)
+        {
+            _InterlockedAdd64((LONG64*)&t, v);
+        }
+        else
+        {
+            static_assert(sizeof(T) == 4);
+            _InterlockedAdd((LONG*)&t, v);
+        }
+#else
+        __atomic_add_fetch(&t, v, __ATOMIC_SEQ_CST);
+#endif
+    }
 }
 
-template<typename T> SLINLINE T atomic_increment(volatile T& t)
+template<std::integral T> SLINLINE std::remove_volatile_t<T> atomic_increment(T& t)
 {
 #ifdef _WIN32
     if constexpr (sizeof(T) == 8)
@@ -150,7 +249,7 @@ template<typename T> SLINLINE T atomic_increment(volatile T& t)
 
 }
 
-template<typename T> SLINLINE T atomic_decrement(volatile T& t)
+template<std::integral T> SLINLINE std::remove_volatile_t<T> atomic_decrement(T& t)
 {
 #ifdef _WIN32
     if constexpr (sizeof(T) == 8)
@@ -168,7 +267,7 @@ template<typename T> SLINLINE T atomic_decrement(volatile T& t)
 
 }
 
-template<typename T> bool atomic_cas(volatile T& t, T expected, T desired)
+template<typename T> requires(is_plain_old_struct_v<T>) bool atomic_cas(volatile T& t, T expected, T desired)
 {
 #ifdef _WIN32
     if constexpr (sizeof(T) == 16)
@@ -185,59 +284,92 @@ template<typename T> bool atomic_cas(volatile T& t, T expected, T desired)
         return _InterlockedCompareExchange((LONG*)&t, desired, expected) == (LONG)expected;
     }
 #else
+#if defined(__SIZEOF_INT128__)
     if constexpr (sizeof(T) == 16)
     {
         //return __atomic_compare_exchange((__int128 *)&t, (__int128*)&expected, (const __int128*)&desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
         return __sync_bool_compare_and_swap((__int128*)&t, (__int128&)expected, (__int128&)desired);
     }
-    else {
+    else
+#endif
+    {
         return __atomic_compare_exchange(&t, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
     }
 #endif
 }
 
-template<typename T> bool atomic_cas_update_expected(volatile T& t, T &expected, const T &desired)
+template<typename T> requires(is_plain_old_struct_v<T>) bool atomic_cas_update_expected(volatile T& t, T &expected, const T &desired)
 {
+    auto do_job = [&]() ->bool
+    {
 #ifdef _WIN32
-    if constexpr (sizeof(T) == 16)
-    {
-        return 0 != _InterlockedCompareExchange128((LONG64*)(&t), ((i64*)&desired)[1], ((i64*)&desired)[0], (LONG64*)&expected);
+        if constexpr (sizeof(T) == 16)
+        {
+            return 0 != _InterlockedCompareExchange128((LONG64*)(&t), ((i64*)&desired)[1], ((i64*)&desired)[0], (LONG64*)&expected);
 
-    } else if constexpr (sizeof(T) == 8)
-    {
-        auto prevv = _InterlockedCompareExchange64((LONG64*)&t, desired, expected);
-        if ((LONG64)expected != prevv)
-        {
-            expected = prevv;
-            return false;
         }
-        return true;
-    }
-    else
-    {
-        static_assert(sizeof(T) == 4);
-        auto prevv = _InterlockedCompareExchange((LONG*)&t, desired, expected);
-        if ((LONG)expected != prevv)
+        else if constexpr (sizeof(T) == 8)
         {
-            expected = prevv;
-            return false;
-        }
-        return true;
-    }
-#else
-    if constexpr (sizeof(T) == 16)
-    {
-        //return __atomic_compare_exchange((__int128 *)&t, (__int128*)&expected, (const __int128*)&desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-        if (__sync_bool_compare_and_swap((__int128*)&t, (__int128&)expected, (__int128&)desired))
+            auto prevv = _InterlockedCompareExchange64((LONG64*)&t, desired, expected);
+            if ((LONG64)expected != prevv)
+            {
+                expected = prevv;
+                return false;
+            }
             return true;
-        tools::memcopy<16>(&expected, (const void*)&t);
-        return false;
+        }
+        else
+        {
+            static_assert(sizeof(T) == 4);
+            auto prevv = _InterlockedCompareExchange((LONG*)&t, desired, expected);
+            if ((LONG)expected != prevv)
+            {
+                expected = prevv;
+                return false;
+            }
+            return true;
+        }
+#else
+#if defined(__SIZEOF_INT128__)
+        if constexpr (sizeof(T) == 16)
+        {
+            //return __atomic_compare_exchange((__int128 *)&t, (__int128*)&expected, (const __int128*)&desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+            if (__sync_bool_compare_and_swap((__int128*)&t, (__int128&)expected, (__int128&)desired))
+                return true;
+            tools::memcopy<16>(&expected, (const void*)&t);
+            return false;
+        }
+        else
+#endif
+        {
+            return MAYBEUNALIGNED(__atomic_compare_exchange_n(&t, &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+        }
+#endif
+
+    };
+
+    if constexpr (alignof(T) < sizeof(T)) {
+        if (is_aligned<sizeof(T)>(&t))
+        {
+            return do_job();
+        }
+        else
+        {
+            return 0 != sync_op(&t, [&](volatile T* t) { 
+                if (*t == expected)
+                {
+                    *t = desired;
+                    return 1;
+                }
+                expected = *t;
+                return 0;
+            });
+        }
     }
     else
     {
-        return __atomic_compare_exchange(&t, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+        return do_job();
     }
-#endif
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -478,7 +610,7 @@ template <typename VARTYPE> class syncvar
         read_accessor & operator = (const read_accessor &) = delete;
         read_accessor(const read_accessor &) = delete;
     public:
-        read_accessor( read_accessor &&r ): var(r.var), host(r.host)
+        read_accessor( read_accessor &&r ) noexcept : var(r.var), host(r.host)
         {
             r.var = nullptr;
             r.host = nullptr;
@@ -488,7 +620,7 @@ template <typename VARTYPE> class syncvar
             if (host)
                 host->unlock_read();
         }
-        read_accessor & operator = (read_accessor &&r)
+        read_accessor & operator = (read_accessor &&r) noexcept
         {
             if (host)
                 host->unlock_read();
@@ -531,12 +663,12 @@ template <typename VARTYPE> class syncvar
         write_accessor(const write_accessor &r) = delete;
     public:
         write_accessor(): var(nullptr), host(nullptr) {}
-        write_accessor( write_accessor &&r ): var(r.var), host(r.host)
+        write_accessor( write_accessor &&r ) noexcept : var(r.var), host(r.host)
         {
             r.var = nullptr;
             r.host = nullptr;
         }
-        write_accessor & operator = ( write_accessor &&r )
+        write_accessor & operator = ( write_accessor &&r ) noexcept
         {
             if (host != nullptr)
                 host->unlock_write();

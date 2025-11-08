@@ -5,7 +5,7 @@
 */
 
 #include <botan/internal/ec_key_data.h>
-
+#if FEATURE_TLS
 #include <botan/mem_ops.h>
 #include <botan/rng.h>
 
@@ -84,3 +84,4 @@ void EC_PrivateKey_Data::serialize_to(std::span<uint8_t> output) const {
 }
 
 }  // namespace Botan
+#endif

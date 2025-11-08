@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_TLS_V12_PRF_H_
 #define BOTAN_TLS_V12_PRF_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/kdf.h>
 #include <botan/mac.h>
@@ -39,4 +41,5 @@ class TLS_12_PRF final : public KDF {
 
 }  // namespace Botan
 
+#endif
 #endif

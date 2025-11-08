@@ -10,6 +10,8 @@
 
 #ifndef BOTAN_TLS_CHANNEL_IMPL_H_
 #define BOTAN_TLS_CHANNEL_IMPL_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/assert.h>
 #include <botan/tls_channel.h>
@@ -283,4 +285,5 @@ class Channel_Impl {
 
 }  // namespace Botan
 
+#endif
 #endif

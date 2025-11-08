@@ -12,6 +12,8 @@
 
 #ifndef BOTAN_TLS_EXTENSIONS_H_
 #define BOTAN_TLS_EXTENSIONS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/credentials_manager.h>
 #include <botan/pkix_types.h>
@@ -1003,4 +1005,5 @@ class BOTAN_UNSTABLE_API Extensions final {
 
 }  // namespace Botan
 
+#endif
 #endif

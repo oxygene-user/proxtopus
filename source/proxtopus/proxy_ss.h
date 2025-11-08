@@ -1,7 +1,7 @@
 #pragma once
 
 
-class proxy_shadowsocks : public proxy
+class proxy_shadowsocks final : public proxy
 {
 	ss::core core;
 
@@ -15,9 +15,10 @@ public:
 	/*virtual*/ bool support(netkit::socket_type_e) const override { return true; }
 };
 
-class proxy_ssp : public proxy
+class proxy_ssp final : public proxy
 {
     ss::core core;
+    str::astr sni; // fake sni
 
 public:
     proxy_ssp(loader& ldr, const str::astr& name, const asts& bb);

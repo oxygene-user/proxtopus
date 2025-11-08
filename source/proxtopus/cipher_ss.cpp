@@ -134,25 +134,25 @@ std::unique_ptr<ss::core::cryptor> ss::core::crypto_par::build_crypto(crypto_typ
         [[unlikely]] if (NonceSize == 24)
         {
             if (ct == CRYPTO_UDP)
-                return std::move(std::make_unique<aead_chacha20poly1305_cryptor<24, CRYPTO_UDP>>());
+                return std::make_unique<aead_chacha20poly1305_cryptor<24, CRYPTO_UDP>>();
             if (ct == CRYPTO_TCP)
-                return std::move(std::make_unique<aead_chacha20poly1305_cryptor<24, CRYPTO_TCP>>());
-            return std::move(std::make_unique<aead_chacha20poly1305_cryptor<24, CRYPTO_TCP_SSP>>());
+                return std::make_unique<aead_chacha20poly1305_cryptor<24, CRYPTO_TCP>>();
+            return std::make_unique<aead_chacha20poly1305_cryptor<24, CRYPTO_TCP_SSP>>();
         }
         if (ct == CRYPTO_UDP)
-            return std::move(std::make_unique<aead_chacha20poly1305_cryptor<12, CRYPTO_UDP>>());
+            return std::make_unique<aead_chacha20poly1305_cryptor<12, CRYPTO_UDP>>();
         if (ct == CRYPTO_TCP)
-            return std::move(std::make_unique<aead_chacha20poly1305_cryptor<12, CRYPTO_TCP>>());
-        return std::move(std::make_unique<aead_chacha20poly1305_cryptor<12, CRYPTO_TCP_SSP>>());
+            return std::make_unique<aead_chacha20poly1305_cryptor<12, CRYPTO_TCP>>();
+        return std::make_unique<aead_chacha20poly1305_cryptor<12, CRYPTO_TCP_SSP>>();
 
     case crypto_aesgcm_256:
-        return std::move(std::make_unique<botan_aead_cryptor>(*this, ss::botan_aead::make_aesgcm_256));
+        return std::make_unique<botan_aead_cryptor>(*this, ss::botan_aead::make_aesgcm_256);
     case crypto_aesgcm_192:
-        return std::move(std::make_unique<botan_aead_cryptor>(*this, ss::botan_aead::make_aesgcm_192));
+        return std::make_unique<botan_aead_cryptor>(*this, ss::botan_aead::make_aesgcm_192);
     case crypto_aesgcm_128:
-        return std::move(std::make_unique<botan_aead_cryptor>(*this, ss::botan_aead::make_aesgcm_128));
+        return std::make_unique<botan_aead_cryptor>(*this, ss::botan_aead::make_aesgcm_128);
     }
-    return std::move(std::make_unique<none_cryptor>());
+    return std::make_unique<none_cryptor>();
 
 }
 
@@ -303,11 +303,8 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
 
     if (const asts* pwds = bb.get(ASTR("passwords")))
     {
-        for (auto it = pwds->begin(); it; ++it)
+        for (auto it = pwds->begin_skip_comments(); it; ++it)
         {
-            if (it.is_comment())
-                continue;
-
             const str::astr_view& p = str::trim(str::view(it->as_string(password)));
             if (p.empty())
                 continue;
@@ -350,20 +347,15 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
     }
 }
 
-/*virtual*/ netkit::WAITABLE ss::core::crypto_pipe_base::get_waitable()
+/*virtual*/ netkit::system_socket * ss::core::crypto_pipe_base::get_socket()
 {
     if (!pipe)
-        return NULL_WAITABLE;
+        return nullptr;
 
     incdec ddd(busy, this);
-    if (ddd) return NULL_WAITABLE;
+    if (ddd) return nullptr;
 
-    auto r = pipe->get_waitable();
-    if (!decrypted_data.is_empty())
-        netkit::make_ready(r, READY_PIPE);
-    else
-        netkit::clear_ready(r, READY_PIPE);
-    return r;
+    return pipe->get_socket();
 }
 
 
@@ -399,16 +391,21 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
     signed_t recvsize = required > 0 ? 1 : 0; // we need at least 1 required byte to recv (it will wait for data)
     bool do_recv = decrypted_data.is_empty();
     if (do_recv)
-        netkit::clear_ready(get_waitable(), READY_PIPE);
-    else if (required > 0)
+    {
+        set_readypipe(false);
+
+    } else if (required > 0)
     {
         if (decrypted_data.enough(required - outdata.datasize()))
         {
             decrypted_data.peek(outdata);
-            ASSERT(outdata.datasize() >= required);
+            ASSERT(outdata.datasize() >= UNSIGNED % required);
+            set_readypipe(!decrypted_data.is_empty());
             return required;
         }
         else {
+            
+            set_readypipe(false);
             do_recv = true;
         }
     }
@@ -430,20 +427,25 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
         if (required > 0)
         {
             if (!decrypted_data.enough(required - outdata.datasize()))
+            {
+                set_readypipe(false);
                 continue; // not enough data
+            }
 
             decrypted_data.peek(outdata);
+            set_readypipe(!decrypted_data.is_empty());
             return required;
         }
         break;
     }
-    signed_t maxcopysize = outdata.get_free_size();
-    return decrypted_data.peek(outdata, maxcopysize);
+    signed_t rv = decrypted_data.peek(outdata);
+    set_readypipe(!decrypted_data.is_empty());
+    return rv;
 }
 
 /*virtual*/ signed_t ss::core::crypto_pipe_base::recv(tools::circular_buffer_extdata& outdata, signed_t required, signed_t timeout DST(, deep_tracer* tracer))
 {
-    if (required > 0 && outdata.datasize() >= required)
+    if (required > 0 && outdata.datasize() >= UNSIGNED % required)
     {
         DST(if (tracer) tracer->log("ssrecv alrd"));
         return required;
@@ -473,30 +475,77 @@ str::astr ss::core::load(loader& ldr, const str::astr& name, const asts& bb)
         decrypted_data.insert(mp.p0);
         data.clear();
         
-        netkit::make_ready(pipe->get_waitable(), READY_PIPE);
+        set_readypipe(true);
     }
 }
 
-ss::core::crypto_pipe* ss::core::crypto_pipe::build(ss::core::masterkey_array& masterkeys, ss::core::crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata& cipherdata, signed_t sspk)
+// ssp
+ss::core::crypto_pipe* ss::core::crypto_pipe::build(const ss::core::keyspace& master_key, ss::core::crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata& cipherdata, size_t packetsize)
+{
+    std::unique_ptr<ss::core::cryptor> crypto = cp.build_crypto(CRYPTO_TCP_SSP);
+
+    cipherdata.skip(11);
+
+    u8 temp[core::maximum_key_size];
+    ss::core::keyspace key;
+    buffer outpacket;
+    const u8* plain = cipherdata.plain_data(temp, cp.KeySize);
+
+    // get 8 bytes of random from client
+    // generate 32 bytes random nonce
+    // calculate addition size of garbage, based on 8 random bytes from client and 32 random bytes
+    // generate addition garbage random array (32 + addition size)
+    // send nonce+garbage to client, so client can calculate size of garbage itself and skip it
+
+    u64 h1 = load_le<8>(plain);
+    u64 h2 = 890345890; // just random value
+    outpacket.resize(cp.KeySize, true);
+    randomgen::get().randombytes_buf(outpacket.data(), 32);
+    spooky::hash_short(outpacket.data(), 32, &h1, &h2); // no any reason to use cryptographic hash here
+    signed_t garbage_size = (h1 & 63) + 3;
+    randomgen::get().randombytes_buf(outpacket.expand(garbage_size), garbage_size);
+
+    // send to client some garbage
+    if (netkit::pipe::SEND_OK != p->send(outpacket.data(), outpacket.size()))
+        return nullptr;
+
+    ss::derive_ssp_subkey(key.space, master_key.space, plain);
+
+    cipherdata.skip(cp.KeySize);
+
+    crypto->init_decryptor(std::span<u8>(key.space, cp.KeySize));
+
+    ss::derive_ssp_subkey(key.space, master_key.space, outpacket.data());
+    crypto->init_encryptor(std::span<u8>(key.space, cp.KeySize));
+
+    outpacket.clear();
+    cipherdata.skip(packetsize - 11);
+    p->unrecv(cipherdata);
+
+    outbuffer plaindec;
+    return NEW ss::core::crypto_pipe(p, std::move(crypto), std::move(plaindec), std::move(outpacket));
+}
+
+// shadowsocks
+ss::core::crypto_pipe* ss::core::crypto_pipe::build(ss::core::masterkey_array& masterkeys, ss::core::crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata& cipherdata)
 {
     auto mkr = masterkeys.lock_read();
     if (mkr().size() == 0)
         return nullptr; // inactive
 
-    if (mkr().size() == 1 || sspk >= 0)
-    {
+    u8 temp[core::maximum_key_size + 2 + SS_AEAD_TAG_SIZE];
 
-        ss::core::keyspace master_key = mkr()[sspk < 0 ? 0 : sspk].key;
+    if (mkr().size() == 1)
+    {
+        ss::core::keyspace master_key = mkr()[0].key;
         mkr.unlock();
 
-        std::unique_ptr<ss::core::cryptor> crypto = cp.build_crypto(sspk >= 0 ? CRYPTO_TCP_SSP : CRYPTO_TCP);
+        std::unique_ptr<ss::core::cryptor> crypto = cp.build_crypto(CRYPTO_TCP);
 
-        const u8* iv = cipherdata.data1st(cp.KeySize); // iv (salt)
         ss::core::keyspace key;
-        if (sspk >= 0)
-            ss::derive_ssp_subkey(key.space, master_key.space, iv);
-        else
-            ss::derive_aead_subkey(key.space, master_key.space, iv, cp.KeySize);
+
+        const u8* iv = cipherdata.plain_data(temp, cp.KeySize);
+        ss::derive_aead_subkey(key.space, master_key.space, iv, cp.KeySize);
         cipherdata.skip(cp.KeySize);
 
         crypto->init_decryptor(std::span<u8>(key.space, cp.KeySize));
@@ -505,16 +554,12 @@ ss::core::crypto_pipe* ss::core::crypto_pipe::build(ss::core::masterkey_array& m
         outsalt.resize(cp.KeySize, true);
         randomgen::get().random_vec(outsalt);
 
-        if (sspk >= 0)
-            ss::derive_ssp_subkey(key.space, master_key.space, outsalt.data());
-        else
-            ss::derive_aead_subkey(key.space, master_key.space, outsalt.data(), cp.KeySize);
+        ss::derive_aead_subkey(key.space, master_key.space, outsalt.data(), cp.KeySize);
         crypto->init_encryptor(std::span<u8>(key.space, cp.KeySize));
 
-        tools::circular_buffer_extdata ciphertestdata(std::span<u8>(const_cast<u8*>(cipherdata.data1st(2 + SS_AEAD_TAG_SIZE)), 2 + SS_AEAD_TAG_SIZE), true);
-        if (!crypto->prebuf(ciphertestdata, 2 + SS_AEAD_TAG_SIZE))
+        if (!crypto->prebuf(cipherdata, 2 + SS_AEAD_TAG_SIZE))
             return nullptr; // no need to support non-aead cryptor
-        cipherdata.skip(2 + SS_AEAD_TAG_SIZE);
+
         p->unrecv(cipherdata);
 
         outbuffer plaindec;
@@ -523,7 +568,7 @@ ss::core::crypto_pipe* ss::core::crypto_pipe::build(ss::core::masterkey_array& m
 
     i64 cur_sec = chrono::now();
 
-    const u8* iv = cipherdata.data1st(cp.KeySize + 2 + SS_AEAD_TAG_SIZE);
+    const u8* iv = cipherdata.plain_data(temp, cp.KeySize + 2 + SS_AEAD_TAG_SIZE);
     const u8* testdata = iv + cp.KeySize; // 18 bytes
 
     std::unique_ptr<ss::core::cryptor> crypto = cp.build_crypto(CRYPTO_TCP);
@@ -546,10 +591,10 @@ ss::core::crypto_pipe* ss::core::crypto_pipe::build(ss::core::masterkey_array& m
             continue;
         }
 
-        ss::core::keyspace temp;
-        ss::derive_aead_subkey(temp.space, k.key.space, iv, cp.KeySize);
+        ss::core::keyspace tempkey;
+        ss::derive_aead_subkey(tempkey.space, k.key.space, iv, cp.KeySize);
 
-        crypto->init_decryptor(std::span<u8>(temp.space, cp.KeySize));
+        crypto->init_decryptor(std::span<u8>(tempkey.space, cp.KeySize));
         plaindec.clear();
         auto r = crypto->decipher_prebuffered(plaindec);
         if (r == ss::core::cryptor::dr_not_enough_data /* not ok because we try to decode only size of chunk (2 bytes), not whole chunk */)
@@ -565,8 +610,8 @@ ss::core::crypto_pipe* ss::core::crypto_pipe::build(ss::core::masterkey_array& m
             // now init encipher with found key
             randomgen::get().random_vec(outsalt);
 
-            ss::derive_aead_subkey(temp.space, master_key.space, outsalt.data(), cp.KeySize);
-            crypto->init_encryptor(std::span<const u8>(temp.space, cp.KeySize));
+            ss::derive_aead_subkey(tempkey.space, master_key.space, outsalt.data(), cp.KeySize);
+            crypto->init_encryptor(std::span<const u8>(tempkey.space, cp.KeySize));
 
             //LOG_N("ss client ($)", un);
 
@@ -585,32 +630,35 @@ ss::core::crypto_pipe::crypto_pipe(netkit::pipe_ptr pipe, std::unique_ptr<ss::co
     encrypted_data = std::move(ecd);
 }
 
-ss::core::crypto_pipe_client::crypto_pipe_client(netkit::pipe_ptr pipe, ss::core::masterkey* key, crypto_par cp) :crypto_pipe(pipe), master_key(key), cp(cp)
+ss::core::crypto_pipe_client::crypto_pipe_client(netkit::pipe_ptr pipe, ss::core::masterkey* key, crypto_par cp, const str::astr& sni) :crypto_pipe(pipe), master_key(key), cp(cp)
 {
-    encrypted_data.resize(cp.KeySize);
-    if (cp.is_ssp())
-    {
-        ssp_iv_gen(encrypted_data.data(), key->ssp_key.space, SSP_VERSION);
-        Botan::secure_scrub_memory(key->ssp_key.space, sizeof(keyspace)); // zeroise
-    }
-    else
-    {
-        randomgen::get().random_vec(encrypted_data);
-    }
-
     ss::core::keyspace skey;
-    if (cp.is_ssp())
-        ss::derive_ssp_subkey(skey.space, key->key.space, encrypted_data.data());
-    else 
-        ss::derive_aead_subkey(skey.space, key->key.space, encrypted_data.data(), cp.KeySize);
 
-    crypto = cp.build_crypto(cp.is_ssp() ? CRYPTO_TCP_SSP : CRYPTO_TCP);
+    if (cp.is_ssp())
+    {
+        auto x = generate_random_client_hello(encrypted_data, sni, false);
+        ssp_iv_gen(encrypted_data.data() + x, key->ssp_key.space, SSP_VERSION);
+        ss::derive_ssp_subkey(skey.space, key->key.space, encrypted_data.data()+x);
+        crypto = cp.build_crypto(CRYPTO_TCP_SSP);
+
+        LOG_D("1st ssp packet entropy: $", tools::calculate_entropy(std::span(encrypted_data.data(),32)));
+
+    } else
+    {
+        encrypted_data.resize(cp.KeySize);
+        randomgen::get().random_vec(encrypted_data);
+        ss::derive_aead_subkey(skey.space, key->key.space, encrypted_data.data(), cp.KeySize);
+        crypto = cp.build_crypto(CRYPTO_TCP);
+
+        LOG_D("1st shadowsocks packet entropy: $", tools::calculate_entropy(std::span(encrypted_data.data(), 32)));
+    }
+
     crypto->init_encryptor(std::span<u8>(skey.space, cp.KeySize));
 }
 
 /*virtual*/ signed_t ss::core::crypto_pipe_client::recv(tools::circular_buffer_extdata& outdata, signed_t required, signed_t timeout DST(, deep_tracer* tracer))
 {
-    if (required > 0 && outdata.datasize() >= required)
+    if (required > 0 && outdata.datasize() >= UNSIGNED % required)
     {
         DST(if (tracer) tracer->log("ssprecv alrd"));
         return required;
@@ -631,7 +679,7 @@ ss::core::crypto_pipe_client::crypto_pipe_client(netkit::pipe_ptr pipe, ss::core
         if (rb != cp.KeySize)
             return -1;
 
-        const u8* temp = tempbuf.data1st(cp.KeySize);
+        const u8* temp = tempbuf.plain_data(nullptr /* guaranteed plain buffer, so no need to provide temp buf */, cp.KeySize);
         ASSERT(temp != nullptr);
         ss::core::keyspace key;
         if (cp.is_ssp())
@@ -641,13 +689,78 @@ ss::core::crypto_pipe_client::crypto_pipe_client(netkit::pipe_ptr pipe, ss::core
         tempbuf.skip(cp.KeySize);
 
         // clear masterkey (not required anymore)
-        Botan::secure_scrub_memory(master_key->key.space, sizeof(keyspace)); // zeroise
+        secure::scrub_memory(master_key->key.space, sizeof(keyspace)); // zeroise
         master_key.reset();
 
         crypto->init_decryptor(std::span<u8>(key.space, cp.KeySize));
     }
 
     return crypto_pipe::recv(outdata, tempbuf, required, timeout DST(, tracer));
+
+}
+
+/*virtual*/ netkit::pipe::sendrslt ss::core::crypto_pipe_client::send(const u8* data, signed_t datasize)
+{
+    if (!cp.is_ssp())
+        return crypto_pipe::send(data, datasize);
+
+    if (!pipe)
+        return SEND_FAIL;
+
+    incdec ddd(busy, this);
+    if (ddd) return SEND_FAIL;
+
+    if (data == nullptr)
+        return pipe->send(nullptr, 0); // check allow send
+
+    if (master_key)
+    {
+        // first packet
+        u64 h1 = load_le<8>(encrypted_data.data() + 11 /*offset of random data*/);
+        sendrslt rslt = pipe->send(encrypted_data.data(), encrypted_data.size());
+        encrypted_data.clear();
+        crypto->encipher(std::span<const u8>(data, datasize), encrypted_data, nullptr);
+        if (SEND_OK != rslt)
+            return rslt;
+
+        tools::circular_buffer_preallocated<BRIDGE_BUFFER_SIZE> tempbuf;
+        if (signed_t rb = pipe->recv(tempbuf, static_cast<signed_t>(cp.KeySize), RECV_PREPARE_MODE_TIMEOUT * 5 DST(, tracer)); rb != cp.KeySize)
+            return SEND_FAIL;
+
+        u64 h2 = 890345890; // just random value
+        const u8* iv = tempbuf.plain_data(nullptr /* guaranteed plain */, cp.KeySize);
+        spooky::hash_short(iv, cp.KeySize, &h1, &h2); // no any reason to use cryptographic hash here
+        signed_t garbage_size = (h1 & 63) + 3;
+        ss::core::keyspace key;
+        ss::derive_ssp_subkey(key.space, master_key->key.space, iv);
+        // clear masterkey (not required anymore)
+        secure::scrub_memory(master_key->key.space, sizeof(keyspace)); // zeroise
+        master_key.reset();
+
+        tempbuf.skip(cp.KeySize);
+        if (signed_t rb = pipe->recv(tempbuf, garbage_size, RECV_PREPARE_MODE_TIMEOUT * 5 DST(, tracer)); rb != garbage_size)
+            return SEND_FAIL;
+        tempbuf.skip(garbage_size); // just skip
+
+        crypto->init_decryptor(std::span<u8>(key.space, cp.KeySize));
+        return SEND_OK;
+    }
+
+
+    if (datasize != 0)
+    {
+        if (datasize < 0)
+        {
+            // don't send data now, collect more bytes for 1st packet
+            crypto->encipher(std::span<const u8>(data, -datasize), encrypted_data, nullptr);
+            return SEND_OK;
+        }
+        crypto->encipher(std::span<const u8>(data, datasize), encrypted_data, nullptr);
+    }
+    sendrslt rslt = pipe->send(encrypted_data.data(), encrypted_data.size());
+    encrypted_data.clear(); // IMPORTANT: clear after send, not before (due encrypted_data contains salt before 1st send)
+
+    return rslt;
 
 }
 
@@ -708,7 +821,7 @@ ss::core::udp_crypto_pipe::udp_crypto_pipe(const netkit::endpoint& ssproxyep, ne
     if (!proxy_socks5::read_atyp(repg, aaa))
         return netkit::ior_proxy_fail;
     from = aaa.resolve_ip(glb.cfg.ipstack | conf::gip_log_it);
-    if ((signed_t)(decp.size() - repg.ptr) > max_bufer_size)
+    if (SIGNED % (decp.size() - repg.ptr) > max_bufer_size)
         return netkit::ior_proxy_fail;
     memcpy(pg.get_data(), decp.data() + repg.ptr, decp.size() - repg.ptr);
     pg.sz = tools::as_word(decp.size() - repg.ptr);
@@ -913,7 +1026,8 @@ void ss::core::ssp_cryptor::ssp_encipher(std::span<const u8> plain, buffer& ciph
         decryptor.set_key(*key);
         size_t ciphsz = cipher.datasize();
         auto mp = plain.alloc(ciphsz - SS_AEAD_TAG_SIZE);
-        const u8* ciphpacket = cipher.data1st(ciphsz);
+        u8* temp = ALLOCA(ciphsz);
+        const u8* ciphpacket = cipher.plain_data(temp, ciphsz);
         return decryptor.process(std::span(ciphpacket, ciphsz), mp);
     }
 

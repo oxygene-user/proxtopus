@@ -9,11 +9,14 @@
 //#define LOG_TRAFFIC
 #endif
 
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
-#define MODE64
-#define ARCHBITS 64
+#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__) || defined(ARCH_64BIT)
+#ifndef ARCH_64BIT
+#define ARCH_64BIT
+#endif
 #else
-#define ARCHBITS 32
+#ifndef ARCH_32BIT
+#define ARCH_32BIT
+#endif
 #endif
 
 #ifndef ALIGN
@@ -63,6 +66,13 @@ __extension__ typedef unsigned __int128 u128;
 
 static_assert(sizeof(u64) == 8);
 
+constexpr size_t next_power_of_two(size_t n) {
+    size_t power = 1;
+    while (power < n) {
+        power *= 2;
+    }
+    return power;
+}
 
 template <size_t sz> struct sztype { using type = std::array<u8, sz>; static constexpr bool native = false; };
 template <> struct sztype<1> { using type = u8; static constexpr bool native = true; };
@@ -72,6 +82,8 @@ template <> struct sztype<8> { using type = u64; static constexpr bool native = 
 #if defined(NATIVE_U128)
 template <> struct sztype<16> { using type = u128; static constexpr bool native = true; };
 #endif
+
+template <size_t sz> struct xtype { using type = typename sztype< next_power_of_two(sz) >::type; };
 
 static_assert(sizeof(sztype<4>::type) == 4);
 static_assert(sizeof(sztype<8>::type) == 8);
@@ -92,9 +104,19 @@ template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
     return reinterpret_cast<const Tout&>(t);
 }
 
+#if defined(ANDROID) || defined(LIB)
+#define APPONLY(...)
+#define LIBONLY(...) __VA_ARGS__
+#define APP 0
+#else
+#define APPONLY(...) __VA_ARGS__
+#define LIBONLY(...)
+#define APP 1
+#endif
+
 #ifdef _MSC_VER
 #define DEBUGBREAK() __debugbreak()
-#define NOWARNING(n,...) __pragma(warning(push)) __pragma(warning(disable:n)) __VA_ARGS__ __pragma(warning(pop))
+#define MAYBEUNUSED(...) __pragma(warning(push)) __pragma(warning(disable:4800)) __VA_ARGS__ __pragma(warning(pop))
 #define NIXONLY(...)
 #define WINONLY(...) __VA_ARGS__
 #define UNREACHABLE() __assume(0)
@@ -103,9 +125,30 @@ template<typename Tout, typename Tin> const Tout& ref_cast(const Tin& t) //-V659
 #ifdef GCC_OR_CLANG
 #define UNREACHABLE() __builtin_unreachable()
 #define DEBUGBREAK() __builtin_trap()
-#define NOWARNING(n,...) __VA_ARGS__
+#ifdef __clang__
+#define MAYBEUNUSED(...) _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wunused-value\"") __VA_ARGS__ _Pragma("clang diagnostic pop")
+#else
+#define MAYBEUNUSED(...) __VA_ARGS__
 #endif
-#if !defined(ARCH_X86) || !defined MODE64
+#endif
+
+
+#if !defined(ARCH_X86)
+inline u8 _addcarry_u32(u8 carry_in, u32 a, u32 b, u32* sum) {
+    u64 result = static_cast<u64>(a) + static_cast<u64>(b) +static_cast<u64>(carry_in);
+    *sum = static_cast<u32>(result & 0xffffffff);
+    return static_cast<u8>((result >> 32) & 0xff);
+}
+inline u8 _subborrow_u32(u8 borrow_in, u32 a, u32 b, u32* diff) {
+    u64 result = static_cast<u64>(a) - static_cast<u64>(b) - static_cast<u64>(borrow_in);
+    *diff = static_cast<u32>(result & 0xffffffff);
+    return static_cast<u8>(result >> 32) & 1;
+}
+#endif
+#if !defined(ARCH_X86) || defined(ARCH_32BIT)
+#ifdef ARCH_X86
+#include <immintrin.h>
+#endif
 inline u8 _addcarry_u64( u8 carry_in, u64 a, u64 b, u64* out)
 {
     u32 a0 = static_cast<u32>(a & 0xffffffff);
@@ -132,7 +175,7 @@ inline u8 _subborrow_u64(u8 borrow_in, u64 a, u64 b, u64* out)
     return borrow_hi;
 }
 #endif
-#if !defined(_MSC_VER) || !defined(MODE64)
+#if !defined(_MSC_VER) || defined(ARCH_32BIT)
 inline u64 _umul128(u64 a, u64 b, u64* high)
 {
     u32 a0 = static_cast<u32>(a & 0xffffffff);
@@ -156,19 +199,76 @@ inline u64 _umul128(u64 a, u64 b, u64* high)
 #endif
 
 #include "uints.h"
+#include "spooky_hash.h"
+
+#define UNSIGNED tools::make_unsigned::get()
+#define SIGNED tools::make_signed::get()
+
+namespace tools
+{
+#ifdef ARCH_64BIT
+    size_t inline as_sizet(u64 x) { return x; }
+#else
+    size_t inline as_sizet(u64 x) { return static_cast<size_t>(x & 0xffffffff); }
+#endif
+
+    struct make_unsigned
+    {
+        static make_unsigned get() { return make_unsigned(); }
+        size_t operator %(signed_t v) const { return static_cast<size_t>(v); }
+    };
+    struct make_signed
+    {
+        static make_signed get() { return make_signed(); }
+        signed_t operator %(size_t v) const { return static_cast<signed_t>(v); }
+    };
+
+    template<size_t typesize> requires (typesize >= 2) struct low_part_mask
+    {
+        consteval static sztype<typesize>::type build_mask()
+        {
+            typename sztype<typesize>::type rv = 0xff;
+
+            for (size_t b = typesize - 1; b > (typesize / 2); --b)
+                rv |= (rv << 8);
+
+            return rv;
+        }
+
+        constexpr static const sztype<typesize>::type mask = build_mask();
+    };
+
+
+    template<size_t typesize> requires (typesize >= 2) struct hi_part_mask
+    {
+        consteval static sztype<typesize>::type build_mask()
+        {
+            typename sztype<typesize>::type rv = 0xff;
+
+            for (size_t b = typesize - 1; b > 0; --b)
+                rv |= (rv << 8);
+
+            return rv ^ low_part_mask<typesize>::mask;
+        }
+
+        constexpr static const sztype<typesize>::type mask = build_mask();
+    };
+
+}
 
 #if !defined(NATIVE_U128)
 using u128 = uints::uint<128>;
-#endif
-
 template <> struct std::hash<u128>
 {
     std::size_t operator()(const u128& k) const
     {
-        return std::hash<u64>()((const u64&)uints::low(k)) ^ std::hash<u64>()((const u64&)uints::high(k));
+        u64 h1 = (const u64&)uints::low(k);
+        u64 h2 = (const u64&)uints::high(k);
+        spooky::hash_short(nullptr, 0, &h1, &h2);
+        return tools::as_sizet(h1);
     }
 };
-
+#endif
 
 namespace tools
 {
@@ -193,7 +293,7 @@ namespace tools
 #if 0
     u8 inline as_byte(signed_t b) { return static_cast<u8>(b & 0xFF); }
     u8 inline as_byte(u64 b) { return static_cast<u8>(b & 0xFF); }
-#ifdef MODE64
+#ifdef ARCH_64BIT
     u8 inline as_byte(const u128 &b) { return uints::aslow<1>(b); }
 #else
     u8 inline as_byte(size_t b) { return static_cast<u8>(b & 0xFF); }
@@ -217,11 +317,12 @@ namespace tools
 }
 
 #define ERRORM(fn, ln, ...) (([&]()->bool { debug_print("$($): $\n", filename(fn, strsize(fn)), ln, str::build_string(__VA_ARGS__).c_str()); return true; })())
-#define ASSERT(expr,...) NOWARNING(4800, ((expr) || (ERRORM(__FILE__, __LINE__, __VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
 #ifdef _DEBUG
-#define DASSERT ASSERT
+#define CHECK(expr,...) MAYBEUNUSED( ((expr) || (ERRORM(__FILE__, __LINE__, __VA_ARGS__) ? (SMART_DEBUG_BREAK, false) : false))) // (...) need to make possible syntax: ASSERT(expr, "Message")
+#define ASSERT CHECK
 #else
-#define DASSERT(...) 
+#define ASSERT(...) do {} while (false)
+#define CHECK(expr,...) (expr)
 #endif
 
 #ifdef _NIX

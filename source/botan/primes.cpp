@@ -6,6 +6,7 @@
 */
 
 #include <botan/numthry.h>
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -421,3 +422,4 @@ const uint16_t PRIMES[PRIME_TABLE_SIZE + 1] = {
    65381, 65393, 65407, 65413, 65419, 65423, 65437, 65447, 65449, 65479, 65497, 65519, 65521, 0};
 
 }
+#endif

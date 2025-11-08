@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/tls_handshake_state.h>
+#if FEATURE_TLS
 
 #include <botan/kdf.h>
 #include <botan/tls_messages.h>
@@ -346,3 +347,4 @@ std::pair<Algo_Group, Signature_Format> Handshake_State::parse_sig_format(
 }
 
 }  // namespace Botan::TLS
+#endif

@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_TLS_ALGO_IDS_H_
 #define BOTAN_TLS_ALGO_IDS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/pk_keys.h>
@@ -287,4 +289,5 @@ inline bool key_exchange_is_psk(Kex_Algo m) {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

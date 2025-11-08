@@ -8,6 +8,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/ecc_key.h>
 
@@ -236,3 +237,4 @@ const BigInt& EC_PrivateKey::get_int_field(std::string_view field) const {
 }
 
 }  // namespace Botan
+#endif

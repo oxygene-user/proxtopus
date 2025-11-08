@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/divide.h>
+#if FEATURE_TLS
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/ct_utils.h>
@@ -313,3 +314,4 @@ void vartime_divide(const BigInt& x, const BigInt& y_arg, BigInt& q_out, BigInt&
 }
 
 }  // namespace Botan
+#endif

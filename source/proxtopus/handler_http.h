@@ -49,7 +49,7 @@ struct host_mode_simple : public host_mode
 
     void compile(buffer &b);
 
-    mode_result do_GET(http_server& s);
+    /*virtual*/ mode_result do_GET(http_server& s) override;
 };
 
 struct host_mode_proxy : public host_mode
@@ -65,7 +65,7 @@ struct host_mode_proxy : public host_mode
     virtual ~host_mode_proxy() {}
     virtual bool load(const asts& b) override;
 
-    mode_result do_CONNECT(http_server& s);
+    /*virtual*/ mode_result do_CONNECT(http_server& s) override;
 };
 
 struct http_server_host
@@ -85,7 +85,7 @@ struct http_server_params
     std::vector<http_server_host> hosts;
 };
 
-class http_server : public netkit::pipe_tools
+class http_server final : public netkit::pipe_tools
 {
     friend struct host_mode_simple;
     friend struct host_mode_api;
@@ -124,7 +124,7 @@ public:
     void process();
 };
 
-class handler_http : public handler // http server
+class handler_http final : public handler // http server
 {
     http_server_params params;
 protected:
@@ -132,8 +132,8 @@ public:
     handler_http(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st);
     virtual ~handler_http() { stop(); }
 
-    /*virtual*/ str::astr_view desc() const { return ASTR("http"); }
-    /*virtual*/ bool compatible(netkit::socket_type_e st) const
+    /*virtual*/ str::astr_view desc() const override { return ASTR("http"); }
+    /*virtual*/ bool compatible(netkit::socket_type_e st) const override
     {
         return st == netkit::ST_TCP;
     }

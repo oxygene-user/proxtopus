@@ -7,7 +7,7 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 #include "../proxtopus/pch.h"
-
+#if FEATURE_TLS
 #include <botan/x509_ext.h>
 
 #include <botan/assert.h>
@@ -900,3 +900,4 @@ void Unknown_Extension::decode_inner(const std::vector<uint8_t>& bytes) {
 }  // namespace Cert_Extension
 
 }  // namespace Botan
+#endif

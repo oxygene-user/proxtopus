@@ -1,7 +1,12 @@
 #pragma once
 
 //#define MEMSPY
+#ifdef _MSC_VER
+// use dlmalloc only for msvc builds
 #define USE_DLMALLOC 1
+#else
+#define USE_DLMALLOC 0
+#endif
 #define USE_ARENAS 0
 
 #if USE_DLMALLOC

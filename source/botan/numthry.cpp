@@ -7,6 +7,7 @@
 */
 
 #include <botan/numthry.h>
+#if FEATURE_TLS
 
 #include <botan/reducer.h>
 #include <botan/rng.h>
@@ -389,3 +390,4 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng, size_t prob, bool is_
 }
 
 }  // namespace Botan
+#endif

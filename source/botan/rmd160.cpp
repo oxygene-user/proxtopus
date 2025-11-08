@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/rmd160.h>
+#if FEATURE_TLS
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/loadstor.h>
@@ -285,3 +286,4 @@ void RIPEMD_160::final_result(std::span<uint8_t> output) {
 }
 
 }  // namespace Botan
+#endif

@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/pcurves_instance.h>
+#if FEATURE_TLS
 
 #include <botan/internal/pcurves_solinas.h>
 #include <botan/internal/pcurves_wrap.h>
@@ -244,3 +245,4 @@ std::shared_ptr<const PrimeOrderCurve> PCurveInstance::secp256r1() {
 }
 
 }  // namespace Botan::PCurve
+#endif

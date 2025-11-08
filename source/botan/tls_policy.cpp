@@ -9,6 +9,7 @@
 */
 
 #include <botan/tls_policy.h>
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 #include <botan/tls_algos.h>
@@ -733,3 +734,4 @@ Algo_Group Strict_Policy::allowed_key_exchange_methods() const {
 }
 
 }  // namespace Botan::TLS
+#endif

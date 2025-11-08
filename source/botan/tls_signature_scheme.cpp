@@ -6,6 +6,7 @@
 */
 
 #include <botan/tls_signature_scheme.h>
+#if FEATURE_TLS
 
 #include <botan/der_enc.h>
 #include <botan/ec_group.h>
@@ -340,3 +341,4 @@ std::vector<AlgorithmIdentifier> to_algorithm_identifiers(const std::vector<Sign
 }
 
 }  // namespace Botan::TLS
+#endif

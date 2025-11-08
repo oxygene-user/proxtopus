@@ -953,16 +953,8 @@ BOOL __stdcall StackWalker::myReadProcMem(
     return bRet;
 }
 
-void StackWalker::OnLoadModule(LPCSTR img, LPCSTR mod, DWORD64 baseAddr, DWORD size, DWORD result, LPCSTR symType, LPCSTR pdbName, ULONGLONG fileVersion)
+void StackWalker::OnLoadModule([[maybe_unused]] LPCSTR img, [[maybe_unused]] LPCSTR mod, [[maybe_unused]] DWORD64 baseAddr, [[maybe_unused]] DWORD size, [[maybe_unused]] DWORD result, [[maybe_unused]] LPCSTR symType, [[maybe_unused]] LPCSTR pdbName, [[maybe_unused]] ULONGLONG fileVersion)
 {
-	UNREFERENCED_PARAMETER(img);
-	UNREFERENCED_PARAMETER(mod);
-	UNREFERENCED_PARAMETER(baseAddr);
-	UNREFERENCED_PARAMETER(size);
-	UNREFERENCED_PARAMETER(result);
-	UNREFERENCED_PARAMETER(symType);
-	UNREFERENCED_PARAMETER(pdbName);
-	UNREFERENCED_PARAMETER(fileVersion);
 }
 
 void StackWalker::OnCallstackEntry(CallstackEntryType eType, CallstackEntry &entry, STACKFRAME64 &stackInfo)const

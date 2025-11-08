@@ -6,6 +6,7 @@
 */
 
 #include <botan/x509_key.h>
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/ber_dec.h>
@@ -51,3 +52,4 @@ std::unique_ptr<Public_Key> load_key(DataSource& source) {
 }
 
 }  // namespace Botan::X509
+#endif

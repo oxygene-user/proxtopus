@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_KEYPAIR_CHECKS_H_
 #define BOTAN_KEYPAIR_CHECKS_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 
@@ -68,4 +70,5 @@ inline bool signature_consistency_check(RandomNumberGenerator& rng, const Privat
 
 }  // namespace Botan::KeyPair
 
+#endif
 #endif

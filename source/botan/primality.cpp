@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/primality.h>
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <botan/numthry.h>
@@ -207,3 +208,4 @@ size_t miller_rabin_test_iterations(size_t n_bits, size_t prob, bool random) {
 }
 
 }  // namespace Botan
+#endif

@@ -1,4 +1,5 @@
 #include "pch.h"
+#if FEATURE_TLS
 #include <botan/data_src.h>
 #include <botan/pkcs8.h>
 
@@ -91,3 +92,4 @@ bool transport_tls::acceptable_ciphersuite(const Botan::TLS::Ciphersuite& suite)
     tls_pipe *tlspipe = NEW tls_pipe(p, this, &*sesionmgr, this, alpn_http11); // tlspipe will decrypt from-client data and encrypt to-client data
     hand->handle_pipe(tlspipe);
 }
+#endif

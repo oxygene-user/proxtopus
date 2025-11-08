@@ -7,6 +7,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_messages.h>
 
@@ -248,3 +249,4 @@ const PK_Key_Agreement_Key& Server_Key_Exchange::server_kex_key() const {
 }
 
 }  // namespace Botan::TLS
+#endif

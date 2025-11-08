@@ -7,6 +7,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_messages.h>
 
@@ -289,3 +290,4 @@ Client_Key_Exchange::Client_Key_Exchange(const std::vector<uint8_t>& contents,
 }
 
 }  // namespace Botan::TLS
+#endif

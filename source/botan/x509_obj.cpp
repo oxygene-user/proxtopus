@@ -6,6 +6,8 @@
 */
 
 #include "../proxtopus/pch.h"
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/x509_obj.h>
 
@@ -240,3 +242,4 @@ std::unique_ptr<PK_Signer> X509_Object::choose_sig_format(const Private_Key& key
 }
 
 }  // namespace Botan
+#endif

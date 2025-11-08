@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_SESSION_STATE_H_
 #define BOTAN_TLS_SESSION_STATE_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/strong_type.h>
 #include <botan/tls_ciphersuite.h>
@@ -493,4 +495,5 @@ struct BOTAN_PUBLIC_API(3, 0) Session_with_Handle {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

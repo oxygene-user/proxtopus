@@ -6,6 +6,7 @@
 */
 
 #include <botan/bigint.h>
+#if FEATURE_TLS
 
 #include <botan/hex.h>
 #include <botan/mem_ops.h>
@@ -188,3 +189,4 @@ BigInt BigInt::decode(const uint8_t buf[], size_t length, Base base) {
 }
 
 }  // namespace Botan
+#endif

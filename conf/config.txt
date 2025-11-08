@@ -11,6 +11,8 @@ settings {
 	// sys - system
 	dns=int|hosts
 
+	connect_timeout=10 // connect timeout in seconds
+
 	log_file=$(tmp)\proxtopus.log
 
 	// addition command line options
@@ -46,7 +48,7 @@ nameservers {
 	one.one.one.one=1.1.1.1
 }
 
-icpt {
+adapter {
 
 }
 
@@ -101,8 +103,12 @@ listeners {
 		handler {
 			type=socks
 			proxychain=shadowss
-			allow-private=1
+			//auth=admin:bigsecret
+			//obfs-auth=user:pass	// proxtopus only auth (with encoding of target address and password)
+			//anon=0		// 0 is default; allow anonymous connections if auth defined
+			//udp-assoc=1	// 1 is default; allow udp-assoc
 			//udp-bind=127.0.0.1
+			//allow=true()  // allow rule for anonymous connections; if not defined, will be "!prvt()" by default
 		}
 
 	}
@@ -147,7 +153,8 @@ proxy {
 	localsocks5 {
 		type=socks5
 		addr=localhost:5000
-		auth=admin:bigsecret
+		auth=admin:bigsecret	// "auth" and "obfs-auth" are mutually exclusive
+		obfs-auth=user:pass		// use only with socks5 proxtopus server; will encrypt target address; sends only salted hash of password
 	}
 	shadowss {
 		type=shadowsocks
@@ -164,8 +171,18 @@ proxy {
 		// 				less traffic overhead (removed size chunk)
 
 		type=ssp
+		sni=ya.ru // fake sni value; "ya.ru" is default value; set as something from your provider's whitelist to trick DPI filter
 		addr=127.0.0.1:8989
 		method=chacha20-ietf-poly1305
 		password=sspass
 	}
 }
+
+
+// expressions functions
+// srca(192.168.1.0/24) - checks source address match to argument
+// tgta(192.168.1.0/24) - checks target address match to argument
+// prvt() - checks target address private (192.168.0.0/16 or 10.0.0.0/8 or 127.0.0.0/8 etc...)
+// true() - always true
+
+

@@ -7,8 +7,6 @@
 #define SSP_VERSION 0
 
 
-
-
 // ssp packet spec
 //
 // client: [special-iv, 32 bytes][chunk type 0, variable size][chunk2 type 1, variable size][chunk2 type 1, variable size]...
@@ -253,7 +251,7 @@ namespace ss
                 return true;
             }
             /*virtual*/ dec_rslt decipher_prebuffered(outbuffer& plain) override;
-            /*virtual*/ signed_t get_unprocessed_size() const { return unprocessed.size(); }
+            /*virtual*/ signed_t get_unprocessed_size() const override { return unprocessed.size(); }
         };
 
         class ssp_cryptor : public cryptor
@@ -275,7 +273,7 @@ namespace ss
                 return true;
             }
             /*virtual*/ dec_rslt decipher_prebuffered(outbuffer& plain) override;
-            /*virtual*/ signed_t get_unprocessed_size() const { return unprocessed.size(); }
+            /*virtual*/ signed_t get_unprocessed_size() const override { return unprocessed.size(); }
 
             void ssp_encipher(std::span<const u8> plain, buffer& cipher);
         };
@@ -319,7 +317,8 @@ namespace ss
                 size_t ciphsz = cipher.datasize();
                 if (ciphsz < poly1305::tag_size)
                     return false;
-                const u8* ciphpacket = cipher.data1st(ciphsz); // in udp mode cipher contain one block
+                u8* temp = ALLOCA(ciphsz);
+                const u8* ciphpacket = cipher.plain_data(temp, ciphsz);
                 decryptor.set_key(std::span<const u8, chacha20::key_size>(key->data(), chacha20::key_size));
                 auto mp = plain.alloc(ciphsz - poly1305::tag_size);
                 bool ok = decryptor.decipher_packet(std::span(zero_nonce, nonce_size), std::span(ciphpacket, ciphsz), mp);
@@ -458,7 +457,7 @@ namespace ss
         struct keyspace
         {
             u8 space[maximum_key_size];
-            keyspace() {};
+            explicit keyspace(bool zeroise = false) { if (zeroise) memset(space, 0, maximum_key_size); };
             keyspace(const keyspace& s)
             {
                 tools::memcopy<sizeof(space)>(space, s.space);
@@ -467,6 +466,10 @@ namespace ss
             {
                 tools::memcopy<sizeof(space)>(space, s.space);
                 return *this;
+            }
+            std::span<const u8> span() const
+            {
+                return std::span(space, sizeof(space));
             }
         };
 
@@ -512,11 +515,28 @@ namespace ss
         protected:
             signed_t recv(tools::circular_buffer_extdata& outdata, tools::circular_buffer_extdata& temp, signed_t required, signed_t timeout DST(, deep_tracer*));
 
+            void set_readypipe(bool v)
+            {
+                if (pipe)
+                {
+                    if (auto* s = pipe->get_socket())
+                        s->readypipe(v);
+                }
+            }
+
         public:
             crypto_pipe_base(netkit::pipe_ptr pipe) :pipe(pipe) {}
             /*virtual*/ ~crypto_pipe_base()
             {
                 close(true);
+            }
+
+            /*virtual*/ void replace(netkit::replace_socket* rsock) override
+            {
+                if (pipe)
+                    pipe->replace(rsock);
+                else
+                    delete rsock;
             }
 
 
@@ -528,7 +548,7 @@ namespace ss
             /*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
             /*virtual*/ signed_t recv(tools::circular_buffer_extdata& outdata, signed_t required, signed_t timeout DST(, deep_tracer*)) override;
             /*virtual*/ void unrecv(tools::circular_buffer_extdata& data) override;
-            /*virtual*/ netkit::WAITABLE get_waitable() override;
+            /*virtual*/ netkit::system_socket *get_socket() override;
             /*virtual*/ void close(bool flush_before_close) override;
             /*virtual*/ str::astr get_info(info i) const override
             {
@@ -550,7 +570,8 @@ namespace ss
             /*
             * build server ss pipe (based on 1st 32 + 18 bytes received in cipherdata)
             */
-            static crypto_pipe *build(masterkey_array &masterkeys, crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata & cipherdata, signed_t sspk);
+            static crypto_pipe *build(masterkey_array &masterkeys, crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata & cipherdata);
+            static crypto_pipe* build(const ss::core::keyspace& mastkey, crypto_par cp, netkit::pipe_ptr p, tools::circular_buffer_extdata& cipherdata, size_t packetsize);
         };
 
         class crypto_pipe_server : public crypto_pipe
@@ -580,8 +601,9 @@ namespace ss
             std::unique_ptr<ss::core::masterkey> master_key;
             crypto_par cp;
         public:
-            crypto_pipe_client(netkit::pipe_ptr pipe, ss::core::masterkey* key, crypto_par cp);
+            crypto_pipe_client(netkit::pipe_ptr pipe, ss::core::masterkey* key, crypto_par cp, const str::astr &sni);
             /*virtual*/ signed_t recv(tools::circular_buffer_extdata& outdata, signed_t required, signed_t timeout DST(, deep_tracer*)) override;
+            /*virtual*/ sendrslt send(const u8* data, signed_t datasize) override;
 
         };
 

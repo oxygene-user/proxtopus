@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_X509_CERT_PATH_VALIDATION_H_
 #define BOTAN_X509_CERT_PATH_VALIDATION_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/certstor.h>
 #include <botan/ocsp.h>
@@ -479,4 +481,5 @@ void BOTAN_PUBLIC_API(3, 0) merge_revocation_status(CertificatePathStatusCodes& 
 
 }  // namespace Botan
 
+#endif
 #endif

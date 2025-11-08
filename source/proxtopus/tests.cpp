@@ -16,8 +16,8 @@ void query_one_th(const char* s)
 {
 	++cntt;
 	WaitForSingleObject(sig, INFINITE);
-	auto rslt = glb.dns->resolve(s, true);
-	LOG_D("dns test result: $ -> $", s, rslt.to_string(true));
+	auto rslt = glb.e->dns()->resolve(s, true);
+	LOG_D("dns test result: $ -> $", s, rslt.to_string());
 	--cntt;
 
 	Print();
@@ -73,14 +73,24 @@ void dns_test()
 
 	Print();
 
-	__debugbreak();
-
+	glb.stop();
 }
 #endif
 
+struct complex_struct
+{
+    int v;
+    std::unique_ptr<int> x;
+    void operator=(int i)
+    {
+        v = i;
+        x.reset(new int(i));
+    }
+};
+
 void fifo_test()
 {
-	tools::fifo<int> f;
+	tools::fifo_shrinkable<complex_struct> f;
 	srand(2);
 	int expected = 0;
 	for (int i = 0;i<1000;)
@@ -88,14 +98,14 @@ void fifo_test()
 		int cnt = (rand() % 10) + 1;
 		for (int k = 0; k < cnt; ++k)
 		{
-			f.emplace(i);
+            f.enqueue([&](complex_struct& z) {z = i; });
 			++i;
 		}
 		cnt = (rand() % 10) + 3;
         for (int k = 0; k < cnt; ++k)
         {
 			int v = 0;
-			if (!f.get(v))
+            if (!f.dequeue([&](const complex_struct &vv) {v = vv.v;}))
 				break;
 			if (expected != v)
 				DEBUGBREAK();
@@ -107,7 +117,7 @@ void fifo_test()
     for (;;)
     {
         int v = 0;
-        if (!f.get(v))
+        if (!f.dequeue([&](const complex_struct &vv) {v = vv.v; }))
             break;
         if (expected != v)
             DEBUGBREAK();
@@ -190,6 +200,8 @@ void arena_test()
 
 void do_pretests()
 {
+#if FEATURE_TLS
+
 	for (int i = 2; i < static_cast<int>(Botan::oid_index::_count); ++i)
 	{
 		auto cmp = Botan::compare_spans(Botan::g_oids[i - 1].id, Botan::g_oids[i].id);
@@ -214,12 +226,12 @@ void do_pretests()
             DEBUGBREAK();
     }
 	//__debugbreak();
-
+#endif
 }
 
 void crash_test()
 {
-    #ifdef _WIN32
+    #if defined _WIN32 && FEATURE_FILELOG
     glb.cfg.crash_log_file = MAKEFN("t:\\testlog.log");
     __try {
         *static_cast<int*>(0) = 1;
@@ -369,47 +381,134 @@ void mul_test()
     DEBUGBREAK();
 }
 
-std::atomic<int> shared_value{ 0 };
-tools::bucket<size_t> buck;
-spinlock::syncvar<std::vector<size_t>> allvals;
+enum chdesc
+{
+	EnterRead,
+    LockReadFail,
+	EnterWrite,
+    IsFull,
+    IsEmpty,
+	LockEnd,
+    BeforeLockEnd,
+	BeforeUnlockEnd,
+	UnlockEnd,
+    LockEndIsFull,
+	WriteDone,
+    LockStart,
+    BeforeLockStart,
+    LockStartEmpty,
+    BeforeUnlockStart,
+	UnlockStart,
+	ReadDone,
+};
+
+struct calllog
+{
+    chdesc desc;
+    size_t threadid;
+    u16 s, e;
+    bool ls, le;
+
+    void setse(size_t s_, size_t e_)
+    {
+        s = s_ & 0x7fff;
+        e = e_ & 0x7fff;
+        ls = (s_ & (1u << 31)) != 0;
+        le = (e_ & (1u << 31)) != 0;
+    }
+};
+
+
+calllog calls[1024];
+volatile size_t calls_n = 0;
+std::atomic<size_t> numreads{ 0 };
+std::atomic<size_t> numwrites{ 0 };
+
+#define CHECKX(d, s, e) { size_t a = spinlock::atomic_increment(calls_n) & 1023; calls[a].threadid = spinlock::current_thread_uid(); calls[a].desc = d; calls[a].setse(s,e); }
+
+
+//#undef SPINCOUNT_SLEEP
+//#define SPINCOUNT_SLEEP(...)
+
+
+std::atomic<size_t> shared_value{ 1 };
+//tools::bucket<size_t> buck;
+tools::sync_fifo_shrinkable<size_t> buck;
+//spinlock::syncvar<std::vector<size_t>> allvals;
 bool fsio = false;
+
 
 void reader_task() {
 
-	std::vector<size_t> xx;
+	ostools::set_current_thread_name("r: " + std::to_string(spinlock::current_thread_uid()));
+	LOG_I("reader: $", spinlock::current_thread_uid());
+
+	//std::vector<size_t> xx;
+
+	size_t prev = 0;
 
 	for (;!fsio;) {
 
-		buck.get([&](size_t& x) {
-			xx.push_back(x);
+        buck.dequeue([&]([[maybe_unused]] size_t x) {
+			if (x != prev + 1) DEBUGBREAK();
+			++prev;
 		});
     }
-	auto wr = allvals.lock_write();
-	wr().insert(wr().end(), xx.begin(), xx.end());
+	//auto wr = allvals.lock_write();
+	//wr().insert(wr().end(), xx.begin(), xx.end());
 }
 
 void writer_task() {
-    for (int i = 0; i < 1000;) {
 
-		if (buck.put([](size_t& x) { x = shared_value; }))
-			shared_value++, ++i;
+    static volatile size_t sync = 0;
+    bool showlog = spinlock::atomic_increment(sync) == 1;
+
+	ostools::set_current_thread_name("w:" + std::to_string(spinlock::current_thread_uid()));
+	LOG_I("writter: $", spinlock::current_thread_uid());
+
+    size_t psize = 256;
+    for (; !fsio; ) {
+
+        if (buck.enqueue([&](size_t& x) {
+			x = shared_value++;
+		}))
+		{
+		}
+        if (showlog && buck.get_max_size() != psize)
+        {
+            psize = buck.get_max_size();
+            LOG_N("max size $/$, reads $, writes $", buck.get_count(), psize, numreads.load(), numwrites.load());
+        }
     }
 }
-
 
 
 void sync_test()
 {
+	//size_t xx = 0;
+	//buck.enqueue([&](size_t& x) {
+	//	x = 123;
+	//});
+
+ //   buck.dequeue([&](size_t x) {
+ //       xx = x;
+ //   });
+
 	std::vector<std::thread> threadsr;
 	std::vector<std::thread> threadsw;
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 1; ++i)
+	{
 		threadsr.emplace_back(reader_task);
     }
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 2; ++i)
+	{
         threadsw.emplace_back(writer_task);
     }
+
+    std::thread th1([] { for (;;) { spinlock::sleep(1000);  Print(); } });
+    th1.detach();
 
     for (auto& t : threadsw) {
         t.join();
@@ -421,8 +520,9 @@ void sync_test()
         t.join();
     }
 
-	auto wr = allvals.lock_write();
-	std::sort(wr().begin(), wr().end());
+
+	//auto wr = allvals.lock_write();
+	//std::sort(wr().begin(), wr().end());
 
 	DEBUGBREAK();
 }
@@ -490,17 +590,120 @@ void ssp_test()
 
 }
 
+void send_packet()
+{
+    netkit::ipap tgt = netkit::ipap::parse("192.168.77.11:7777");
+    netkit::endpoint ep(tgt);
+    if (netkit::pipe* pipe = conn::connect(ep, nullptr))
+    {
+        str::astr s(ASTR("1234xyz"));
+        pipe->send((const u8*)s.c_str(), s.length());
+        LOG_I("send $", s);
+
+        tools::circular_buffer_preallocated<512> d;
+        if (s.length() == (size_t)pipe->recv(d, s.length(), 10000))
+        {
+            LOG_I("recv $", str::astr_view((const char*)d.plain_data(nullptr, s.length()), s.length()));
+        }
+        else
+        {
+            LOG_I("recv :(");
+        }
+
+        pipe->close(true);
+    }
+
+}
+
+struct sss : public ip_machine
+{
+	// Inherited via ip_machine
+	void on_new_stream([[maybe_unused]] tcp_stream& s) override
+	{
+	}
+	bool inject([[maybe_unused]] const u8* p, [[maybe_unused]] size_t sz) override
+	{
+		return false;
+	}
+
+	// Inherited via ip_machine
+	const proxy* udp_proxy() const override
+	{
+		return nullptr;
+	}
+
+	// Inherited via ip_machine
+	bool allow_tcp(const netkit::ipap& /*tgt*/) override
+	{
+		return false;
+	}
+	bool allow_udp(const netkit::ipap& /*tgt*/) override
+	{
+		return false;
+	}
+};
+
+void calculate_packet_checksums(u8* packet, size_t len);
+
+void ipmachine()
+{
+    //tcp_header p = {0};
+	//u8* x = (u8 *) & p;
+	//u16* y = (u16*)(x+12);
+	//p.doff.setn<tcp_doff>( 5 );
+	////p.hlen = 5;
+	//p.flags.set<tcp_syn>();
+	//p.flags.set<tcp_fin>();
+	////p.syn = 1;
+	////p.fin = 1;
+	//__debugbreak();
+
+	sss ipm;
+
+	//ipm.ipm_handle_packet(bytes, sizeof(bytes));
+	//calculate_packet_checksums(bytes, sizeof(bytes));
+}
+
+
+
+void test_string_enc()
+{
+    chacha20 chachae, chachad1, chachad2;
+    u8 nonce[12];
+    u8 key[32];
+    randomgen::get().randombytes_buf(nonce, 12);
+    randomgen::get().randombytes_buf(key, 32);
+    chachae.set_key(key);
+    chachae.set_iv(nonce);
+    chachad1.set_key(key);
+    chachad1.set_iv(nonce);
+    chachad2.set_key(key);
+    chachad2.set_iv(nonce);
+
+    str::astr ehn = chachae.encode_host(ASTR("global.prd.cdn.globalsign.com"));
+	str::astr ehnd = chachad1.decode_host(ehn);
+	ehnd = chachad2.decode_host(ehn);
+	DEBUGBREAK();
+
+}
+
 void do_tests()
 {
-	//ssp_test();
-	//bloom_test();
-	//sync_test();
-	//mul_test();
-	//chacha_test();
-	//crash_test();
-    //arena_test();
-    //dns_test();
-    //fifo_test();
+	if (glb.actual)
+	{
+		//test_string_enc();
+        //ipmachine();
+        //send_packet();
+        //ssp_test();
+        //bloom_test();
+        //sync_test();
+        //mul_test();
+        //chacha_test();
+        //crash_test();
+        //arena_test();
+        //dns_test();
+        //fifo_test();
+	}
 }
 
 #endif
@@ -536,6 +739,7 @@ void mulspeed()
 
 void speed_test()
 {
+
 	glb.log_muted = false;
 	u8 random[1024], outbuf1[1024] = {}, outbuf2[1024], outbuf3[1024] = {};
 	u8 key[32], iv[24];

@@ -8,6 +8,7 @@
 */
 
 #include <botan/internal/tls_record.h>
+#if FEATURE_TLS
 
 #include <botan/rng.h>
 #include <botan/tls_callbacks.h>
@@ -510,3 +511,4 @@ Record_Header read_record(bool is_datagram,
 }
 
 }  // namespace Botan::TLS
+#endif

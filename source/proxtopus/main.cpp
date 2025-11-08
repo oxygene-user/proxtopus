@@ -3,10 +3,9 @@
 
 global_data glb;
 
-
-global_data::global_data() WINONLY( :advapi(ASTR("advapi32.dll")) )
+global_data::global_data() WINONLY( :advapi(FN(MAKEFN("advapi32.dll"))) )
 {
-#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32 && FEATURE_FILELOG
     cfg.crash_log_file = FN(MAKEFN("proxtopus.crash.log"));
     cfg.dump_file = FN(MAKEFN("proxtopus.dmp"));
 #endif
@@ -20,11 +19,13 @@ void global_data::stop()
     if (!exit)
     {
         exit = true;
-        if (e) e->wake_up_acceptors();
+        if (e) e->on_exit();
         logger::unmute();
         Print();
+#if FEATURE_WATCHDOG
         if (!actual)
             actual_proc.terminate();
+#endif
     }
 }
 
@@ -40,7 +41,7 @@ void global_data::stop()
 
 #define SERVICENAME WSTR("proxtopus")
 
-#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32 && FEATURE_FILELOG
 void set_unhandled_exception_filter();
 #endif
 
@@ -59,6 +60,7 @@ static BOOL WINAPI consoleHandler(DWORD signal)
     return TRUE;
 }
 
+#if FEATURE_WATCHDOG
 void actual_process::terminate()
 {
     SetEvent(evt);
@@ -96,6 +98,7 @@ void actual_process::actualize()
         th.detach();
     }
 }
+#endif
 
 #endif
 #ifdef _NIX
@@ -113,6 +116,7 @@ static void handle_signal(int sig) {
         if (glb.is_stop())
             return;
 
+#if FEATURE_FILELOG && FEATURE_WATCHDOG
         if (glb.actual)
         {
             DL(DLCH_REBOOT, "actual signal exit: $", sig);
@@ -120,6 +124,7 @@ static void handle_signal(int sig) {
         else {
             DL(DLCH_REBOOT, "watchdog signal exit: $", sig);
         }
+#endif
 
         glb.e->exit_code = EXIT_OK_EXIT_SIGNAL;
 
@@ -137,6 +142,7 @@ static void handle_signal(int sig) {
     }
 }
 
+#if FEATURE_WATCHDOG
 void actual_process::terminate()
 {
     if (pid != 0)
@@ -150,6 +156,7 @@ void actual_process::actualize()
 {
     // nothing to do in Linux
 }
+#endif
 
 #endif // _NIX
 
@@ -168,6 +175,7 @@ global_data::print_line::~print_line()
     ma::mf(data);
 }
 
+#if APP
 #ifdef DO_SPEED_TESTS
 void do_perf_tests();
 #endif
@@ -200,26 +208,43 @@ void shapka()
     auto numcores = ostools::get_cores();
 
     LOG_N("proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ "); pid: $", ostools::process_id());
+#if MULTI_CORE == 2
     LOG_N("cpu cores count: $", numcores);
+#elif MULTI_CORE == 1
+    if (numcores == 1)
+    {
+        LOG_W("cpu cores count: $ (recompile with MULTI_CORE == 0 or 2 for better performance)", numcores);
+    }
+    else
+    {
+        LOG_N("cpu cores count: $", numcores);
+    }
+#else
+    if (numcores > 1)
+    {
+        LOG_W("cpu cores count: $ (recompile with MULTI_CORE == 1 or 2 for better performance)", numcores);
+    }
+#endif
     LOG_N("cpu features: $", cpu_features());
     LOG_D("debug mode");
     Print();
-
-#ifdef DO_SPEED_TESTS
-    do_perf_tests();
-#endif
-#if defined _DEBUG && !defined _NIX
-    do_pretests();
-#endif
-
 }
 
-int run_engine(WINONLY(bool as_service = false))
-{
-    engine e;
+int run_engine()
+#endif // APP
 
+#if !APP
+int run_engine(str::astr *cfg)
+#endif
+{
+    engine e LIBONLY( (*cfg) ) ;
+#if !APP
+    delete cfg; // no need anymore; free memory
+#endif
+
+#if APP
 #ifdef _WIN32
-    if (as_service)
+    if (glb.service)
     {
         logger::mute();
     } else
@@ -232,7 +257,8 @@ int run_engine(WINONLY(bool as_service = false))
 #endif
 #ifdef _NIX
 
-    struct sigaction sa = { 0 };
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
 
     sa.sa_handler = handle_signal;
     sa.sa_flags = 0;
@@ -244,16 +270,20 @@ int run_engine(WINONLY(bool as_service = false))
     }
 
 #endif // _NIX
-
 #if defined _DEBUG && !defined _NIX
     do_tests();
 #endif
+#endif
 
-    if (glb.actual)
+    if (IS_ACTUAL)
     {
         // role: work process
 
+#if FEATURE_WATCHDOG
         glb.actual_proc.actualize();
+#endif
+
+        ostools::set_current_thread_name(ASTR("heartbeat"));
 
         watchdog wd;
         for (signed_t msacc = 0; wd(); ++msacc, spinlock::sleep(1000))
@@ -270,6 +300,7 @@ int run_engine(WINONLY(bool as_service = false))
             }
         }
     }
+#if FEATURE_WATCHDOG
     else if (e.exit_code == EXIT_OK)
     {
         ostools::set_current_thread_name(ASTR("watchdog"));
@@ -282,7 +313,7 @@ int run_engine(WINONLY(bool as_service = false))
         fa.push_back(get_exec_full_name());
         fa.push_back(FN(MAKEFN("--actual")));
         #ifdef _WIN32
-        if (as_service)
+        if (glb.service)
             fa.push_back(FN(MAKEFN("--mute")));
         #endif
         fa.push_back(FN(MAKEFN("--ppid")));
@@ -307,7 +338,7 @@ int run_engine(WINONLY(bool as_service = false))
 
         for (;!glb.is_stop();)
         {
-            signed_t ec = ostools::execute(fa WINONLY(, as_service));
+            signed_t ec = ostools::execute(fa WINONLY(, glb.service));
             if (need_exit(ec))
             {
                 e.exit_code = static_cast<int>(ec);
@@ -319,6 +350,7 @@ int run_engine(WINONLY(bool as_service = false))
         }
         DL(DLCH_REBOOT, "watchdog exit: $", e.exit_code);
     }
+#endif
     LOG_D("exit with code $", e.exit_code);
     Print();
 
@@ -326,7 +358,7 @@ int run_engine(WINONLY(bool as_service = false))
 
 }
 
-#ifdef _WIN32
+#if defined _WIN32 && APP
 
 #include <shellapi.h>
 
@@ -417,7 +449,8 @@ static void __stdcall CommandHandler(DWORD dwCommand)
 
 void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVectors*/)
 {
-#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+    glb.service = true;
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32 && FEATURE_FILELOG
     set_unhandled_exception_filter();
 #endif
 
@@ -429,8 +462,9 @@ void __stdcall ServiceMain(DWORD /*dwNumServicesArgs*/, LPWSTR* /*lpServiceArgVe
     SetStatus(SERVICE_START_PENDING, 0, 1);
     LOG_N("start");
     SetStatus(SERVICE_RUNNING, 0, 0);
-    int ecode = run_engine(true);
+    int ecode = run_engine();
     SetStatus(SERVICE_STOPPED, ecode, 0);
+    glb.service = false;
 }
 
 static int error_openservice()
@@ -455,13 +489,23 @@ static int error_startservice()
 void compile_oids(const FN& cppfile);
 #endif
 
+#if APP
 static int handle_command_line()
 {
     commandline cmdl;
 
     cmdl.handle_options();
 
+#ifdef DO_SPEED_TESTS
+    do_perf_tests();
+#endif
+#if defined _DEBUG && !defined _NIX
+    do_pretests();
+#endif
+
+#if FEATURE_WATCHDOG
     if (!glb.actual)
+#endif
         shapka();
 
     if (cmdl.help())
@@ -471,7 +515,7 @@ static int handle_command_line()
 
 #ifdef _WIN32
 
-#ifdef _DEBUG
+#if defined _DEBUG && FEATURE_TLS
     FN cppfile;
     if (cmdl.compile_oids(cppfile))
     {
@@ -480,6 +524,7 @@ static int handle_command_line()
     }
 #endif
 
+#if FEATURE_WATCHDOG
     if (auto pid = cmdl.wait())
     {
         LOG_N("waiting for process end (pid:$)", pid);
@@ -488,6 +533,7 @@ static int handle_command_line()
         LOG_N("process ended (pid:$); continue", pid);
         Print();
     }
+#endif
 
     str::wstr sn(SERVICENAME);
 
@@ -636,12 +682,10 @@ int main(NIXONLY(int /*argc*/, char* argv[]))
     g_single_core = ostools::get_cores() == 1;
 #endif
 
-#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
+#if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32 && FEATURE_FILELOG
     set_unhandled_exception_filter();
 #endif
 #ifdef _NIX
-#ifdef _DEBUG
-#endif
 
     struct on_shutdown
     {
@@ -680,4 +724,4 @@ int main(NIXONLY(int /*argc*/, char* argv[]))
 
     return run_engine();
 }
-
+#endif // APP

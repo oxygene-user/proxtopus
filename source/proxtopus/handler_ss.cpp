@@ -2,154 +2,180 @@
 
 handler_ss::handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st) :handler(ldr, owner, bb)
 {
-	core.load(ldr, owner->get_name(), bb);
+    core.load(ldr, owner->get_name(), bb);
 
     if (netkit::ST_UDP == st)
     {
         udp_timeout_ms = bb.get_int(ASTR("udp-timeout"), udp_timeout_ms);
     }
 
-	allow_private = bb.get_bool(ASTR("allow-private"), true);
+    allow_private = bb.get_bool(ASTR("allow-private"), true);
 }
 
 void handler_ss::handle_pipe(netkit::pipe* raw_pipe)
 {
-	netkit::pipe_ptr p(raw_pipe);
-	netkit::pipe_ptr p_enc;
+    netkit::pipe_ptr p_enc;
 
     std::array<u8, 4096> packet;
     tools::circular_buffer_extdata rcvdata(packet);
 
-	// 1st of all recv iv and 1st chunk (1st chunk is 18 bytes length)
+    // 1st of all recv iv and 1st chunk (1st chunk is 18 bytes length)
 
-	const signed_t need = core.cp.KeySize + 2 + SS_AEAD_TAG_SIZE;
+    const signed_t need = core.cp.KeySize + 2 + SS_AEAD_TAG_SIZE;
 
-    if (signed_t rb = p->recv(rcvdata, need, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != need)
+    if (signed_t rb = raw_pipe->recv(rcvdata, need, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != need)
         return;
 
-	const u8* iv = rcvdata.data1st(core.cp.KeySize);
-	if (!flt.test_and_add(std::span<const u8>(iv, core.cp.KeySize)))
-	{
-		// not pass! Replay Attack detected! (or false positive)
-		// 
-		LOG_W("reply-attack-filter rejects packet from $ ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
-		return;
-	}
+    size_t packetsz = rcvdata.datasize();
+    const u8* pdata = rcvdata.plain_data(nullptr, packetsz);
+    const u8* iv = extract_tls_clienthello_random(pdata, packetsz);
+    if (iv == nullptr)
+    {
+        packetsz = 0;
+        iv = pdata;
+    }
 
-	signed_t sspk = -1;
-	if (signed_t shift = ss::ssp_iv_pretest(iv); shift >= 0)
-	{
-		i64 cur_sec = chrono::now();
-        signed_t mk = -1;
-		auto mkr = core.masterkeys.lock_read();
-		for (const ss::core::masterkey& k : mkr())
+    if (!flt.test_and_add(std::span<const u8>(iv, core.cp.KeySize)))
+    {
+        // not pass! Replay Attack detected! (or false positive)
+        // 
+        LOG_W("reply-attack-filter rejects packet from $ ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
+        return;
+    }
+
+    if (packetsz > 0)
+    {
+        signed_t sspk = -1;
+        ss::core::keyspace ssp_master_key;
+        if (signed_t shift = ss::ssp_iv_pretest(iv); shift >= 0)
         {
-			++mk;
-			if (signed_t par = ss::ssp_iv_test(iv, k.ssp_key.space, shift); par >= 0)
-			{
-				if (k.expired < 0)
-				{
-				dsc:
-					mkr.unlock();
-                    LOG_W("unable to establish crypto-connection (key expired) for [$] connection ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
-					return;
-				}
-                if (k.expired > 0 && k.expired < cur_sec)
+            i64 cur_sec = chrono::now();
+            signed_t mk = -1;
+            auto mkr = core.masterkeys.lock_read();
+            for (const ss::core::masterkey& k : mkr())
+            {
+                ++mk;
+                if (signed_t par = ss::ssp_iv_test(iv, k.ssp_key.space, shift); par >= 0)
                 {
-                    const_cast<ss::core::masterkey&>(k).expired = -1; // acceptable hack because it final state of masterkey
-					goto dsc;
+                    if (k.expired < 0)
+                    {
+                    dsc:
+                        mkr.unlock();
+                        LOG_W("unable to establish crypto-connection (key expired) for [$] connection ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
+                        return;
+                    }
+                    if (k.expired > 0 && k.expired < cur_sec)
+                    {
+                        const_cast<ss::core::masterkey&>(k).expired = -1; // acceptable hack because it final state of masterkey
+                        goto dsc;
+                    }
+
+                    ssp_master_key = k.key;
+                    sspk = mk;
+                    break;
                 }
+            }
+            mkr.unlock();
+        }
 
-				sspk = mk;
-				break;
-			}
-		}
-		mkr.unlock();
-	}
-
-
-    p_enc = ss::core::crypto_pipe::build(core.masterkeys, core.cp, p, rcvdata, sspk);
-	if (!p_enc)
-	{
+        if (sspk >= 0)
+        {
+            p_enc = ss::core::crypto_pipe::build(ssp_master_key, core.cp, raw_pipe, rcvdata, packetsz);
+        }
+        else
+        {
+            LOG_W("unable to establish crypto-connection for [$] connection ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
+            return;
+        }
+        
+    } else {
+        // shadowsocks
+        p_enc = ss::core::crypto_pipe::build(core.masterkeys, core.cp, raw_pipe, rcvdata);
+    }
+    if (!p_enc)
+    {
         LOG_W("unable to establish crypto-connection for [$] connection ($)", raw_pipe->get_info(netkit::pipe::I_REMOTE), this->desc());
-		return;
-	}
+        return;
+    }
 
     if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
         return;
 
-	netkit::endpoint ep;
-	signed_t len;
+    netkit::endpoint ep;
+    signed_t len;
 
-	switch (packet[0])
-	{
-	case 1: // ip4
+    switch (packet[0])
+    {
+    case 1: // ip4
 
-		if (signed_t rb = p_enc->recv(rcvdata, 2+3, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 5)
-			return;
+        if (signed_t rb = p_enc->recv(rcvdata, 2+3, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 5)
+            return;
 
-		ep.set_ipap(netkit::ipap::build(packet.data() + 1, 4));
-		rcvdata.skip(2 + 3);
-		break;
-	case 3: // domain name
+        ep.set_ipap(netkit::ipap::build(packet.data() + 1, 4));
+        rcvdata.skip(2 + 3);
+        break;
+    case 3: // domain name
 
-		len = packet[1]; // len of domain
-		rcvdata.skip(2);
+        len = packet[1]; // len of domain
+        rcvdata.skip(2);
 
-		if (signed_t rb = p_enc->recv(rcvdata, len, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb == len)
-		{
-            const char* dm = (const char*)rcvdata.data1st(len);
+        if (signed_t rb = p_enc->recv(rcvdata, len, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb == len)
+        {
+            u8 temp[256];
+            const char* dm = (const char*)rcvdata.plain_data(temp, len);
             ep.set_domain(str::astr_view(dm, len));
             rcvdata.skip(len);
-			break;
-		}
-		return;
-
-	case 4: // ipv6
-		if (signed_t rb = p_enc->recv(rcvdata, 2+15, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 17) // read 15 of 16 bytes of ipv6 address (1st byte already read)
-			return;
-
-		ep.set_ipap(netkit::ipap::build(packet.data() + 1, 16));
-		rcvdata.skip(2 + 15);
-        break;
-	}
-
-	if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
+            break;
+        }
         return;
 
-	if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
-		return;
+    case 4: // ipv6
+        if (signed_t rb = p_enc->recv(rcvdata, 2+15, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 17) // read 15 of 16 bytes of ipv6 address (1st byte already read)
+            return;
 
-	const u8* port_ptr = rcvdata.data1st(2);
-	signed_t port = ((signed_t)port_ptr[0]) << 8 | port_ptr[1];
-	ep.set_port(port);
-	rcvdata.skip(2);
+        ep.set_ipap(netkit::ipap::build(packet.data() + 1, 16));
+        rcvdata.skip(2 + 15);
+        break;
+    }
 
-	if (netkit::pipe_ptr outcon = connect(p_enc->get_info(netkit::pipe::I_SUMMARY), ep, false))
-	{
-		p_enc->unrecv(rcvdata);
-		glb.e->bridge(std::move(p_enc), std::move(outcon));
-	}
+    if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
+        return;
+
+    if (signed_t rb = p_enc->recv(rcvdata, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
+        return;
+
+    u8 temp[8];
+    const u8* port_ptr = rcvdata.plain_data(temp, 2);
+    ep.set_port(load_be<2>(port_ptr));
+    rcvdata.skip(2);
+
+    ups_conn_log clogger(owner->get_name(), p_enc, &ep);
+
+    if (netkit::pipe_ptr outcon = ups.connect(clogger, ep, false))
+    {
+        p_enc->unrecv(rcvdata);
+        glb.e->bridge(p_enc.get(), outcon.get());
+    }
 }
 
 namespace
 {
-	struct udp_cipher : netkit::thread_storage_data
-	{
-		std::unique_ptr<ss::core::cryptor> crypto;
-		buffer buf2s;
-		signed_t password_index = -1;
+    struct udp_cipher : netkit::thread_storage_data
+    {
+        std::unique_ptr<ss::core::cryptor> crypto;
+        buffer buf2s;
+        signed_t password_index = -1;
 
-		udp_cipher(ss::core::crypto_par cp)
-		{
-			crypto = cp.build_crypto(ss::core::CRYPTO_UDP);
-		}
-	};
+        udp_cipher(ss::core::crypto_par cp)
+        {
+            crypto = cp.build_crypto(ss::core::CRYPTO_UDP);
+        }
+    };
 }
 
 /*virtual*/ bool handler_ss::handle_packet(netkit::thread_storage& ctx, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg)
 {
-	// decipher and extract endpoint
+    // decipher and extract endpoint
 
     if (ctx.data == nullptr)
         ctx.data.reset(NEW udp_cipher(core.cp));
@@ -159,15 +185,15 @@ namespace
     std::span<u8> subkey(skey.space, core.cp.KeySize);
 
     ss::outbuffer buf2r;
-	auto mkr = core.masterkeys.lock_read();
-	signed_t pwdi = context->password_index;
-	if (pwdi < 0)
-	{
-		pwdi = 0;
+    auto mkr = core.masterkeys.lock_read();
+    signed_t pwdi = context->password_index;
+    if (pwdi < 0)
+    {
+        pwdi = 0;
         i64 cur_sec = chrono::now();
-		for (signed_t pwdi_end = mkr().size(); pwdi < pwdi_end; ++pwdi)
+        for (signed_t pwdi_end = mkr().size(); pwdi < pwdi_end; ++pwdi)
         {
-			const ss::core::masterkey& k = mkr()[pwdi];
+            const ss::core::masterkey& k = mkr()[pwdi];
             if (k.expired < 0)
                 continue;
             if (k.expired > 0 && k.expired < cur_sec)
@@ -177,31 +203,31 @@ namespace
             }
 
             ss::derive_aead_subkey(skey.space, k.key.space, p.packet, core.cp.KeySize);
-			tools::circular_buffer_extdata cd(std::span<u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), true);
+            tools::circular_buffer_extdata cd(std::span<u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), true);
             bool ok = context->crypto->decipher(buf2r, cd, &subkey);
-			if (ok)
-			{
-				mkr.unlock();
-				context->password_index = pwdi;
-				break;
-			}
+            if (ok)
+            {
+                mkr.unlock();
+                context->password_index = pwdi;
+                break;
+            }
         }
-		if (context->password_index < 0)
-			return false;
-	}
-	else
-	{
-		const ss::core::masterkey& k = mkr()[pwdi];
-		if (k.expired < 0)
-			return false;
+        if (context->password_index < 0)
+            return false;
+    }
+    else
+    {
+        const ss::core::masterkey& k = mkr()[pwdi];
+        if (k.expired < 0)
+            return false;
 
         ss::derive_aead_subkey(skey.space, k.key.space, p.packet, core.cp.KeySize);
-		mkr.unlock();
-		tools::circular_buffer_extdata cd(std::span<u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), true);
+        mkr.unlock();
+        tools::circular_buffer_extdata cd(std::span<u8>(p.packet + core.cp.KeySize, p.sz - core.cp.KeySize), true);
         bool ok = context->crypto->decipher(buf2r, cd, &subkey);
-		if (!ok)
-			return false;
-	}
+        if (!ok)
+            return false;
+    }
 
     auto decp = buf2r.get_1st_chunk();
     if (decp.size() == 0)
@@ -220,19 +246,19 @@ namespace
 
 /*virtual*/ bool handler_ss::encode_packet(netkit::thread_storage& ctx, const netkit::ipap& from, netkit::pgen& pg)
 {
-	// encipher to send to client
-	udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
-	context->buf2s.resize(core.cp.KeySize);
-	randomgen::get().random_vec(context->buf2s);
+    // encipher to send to client
+    udp_cipher* context = static_cast<udp_cipher*>(ctx.data.get());
+    context->buf2s.resize(core.cp.KeySize);
+    randomgen::get().random_vec(context->buf2s);
     ss::core::keyspace skey;
     std::span<u8> subkey(skey.space, core.cp.KeySize);
 
-	auto mkr = core.masterkeys.lock_read();
-	ss::core::keyspace key(mkr()[context->password_index].key);
+    auto mkr = core.masterkeys.lock_read();
+    ss::core::keyspace key(mkr()[context->password_index].key);
     mkr.unlock();
     ss::derive_aead_subkey(skey.space, key.space, context->buf2s.data(), core.cp.KeySize);
 
-	netkit::endpoint ep(from);
+    netkit::endpoint ep(from);
     signed_t presize = proxy_socks5::atyp_size(ep);
     if (presize <= pg.extra)
     {
@@ -246,17 +272,17 @@ namespace
         netkit::pgen pgx(b2e, presize + pg.sz);
         proxy_socks5::push_atyp(pgx, ep);
         memcpy(b2e + presize, pg.get_data(), pg.sz);
-		context->crypto->encipher(pgx.to_span(), context->buf2s, &subkey);
+        context->crypto->encipher(pgx.to_span(), context->buf2s, &subkey);
     }
 
-	pg.set_extra(0);
-	memcpy(pg.get_data(), context->buf2s.data(), context->buf2s.size());
-	pg.sz = tools::as_word(context->buf2s.size());
+    pg.set_extra(0);
+    memcpy(pg.get_data(), context->buf2s.data(), context->buf2s.size());
+    pg.sz = tools::as_word(context->buf2s.size());
 
-	return true;
+    return true;
 }
 
 /*virtual*/ void handler_ss::log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to)
 {
-	LOG_N("new UDP ss-stream ($ <-> $) via listener [$]", from.to_string(true), to.desc(), str::clean(owner->get_name()));
+    LOG_N("new UDP ss-stream ($ <-> $) via listener [$]", from.to_string(), to.desc(), str::clean(owner->get_name()));
 }

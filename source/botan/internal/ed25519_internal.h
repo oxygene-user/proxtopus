@@ -10,6 +10,8 @@
 
 #ifndef BOTAN_ED25519_INT_H_
 #define BOTAN_ED25519_INT_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/ed25519_fe.h>
 #include <botan/internal/loadstor.h>
@@ -98,4 +100,5 @@ void sc_muladd(uint8_t*, const uint8_t*, const uint8_t*, const uint8_t*);
 
 }  // namespace Botan
 
+#endif
 #endif

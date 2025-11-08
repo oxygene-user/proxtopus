@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_MESSAGES_H_
 #define BOTAN_TLS_MESSAGES_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <chrono>
 #include <memory>
@@ -1096,4 +1098,5 @@ using Client_Handshake_13_Message_Ref = as_wrapped_references_t<Client_Handshake
 
 }  // namespace Botan
 
+#endif
 #endif

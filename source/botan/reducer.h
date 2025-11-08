@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_MODULAR_REDUCER_H_
 #define BOTAN_MODULAR_REDUCER_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 
@@ -90,4 +92,5 @@ class BOTAN_PUBLIC_API(2, 0) Modular_Reducer final {
 
 }  // namespace Botan
 
+#endif
 #endif

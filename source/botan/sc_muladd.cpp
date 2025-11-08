@@ -9,6 +9,7 @@
 */
 
 #include <botan/internal/ed25519_internal.h>
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -221,3 +222,4 @@ void sc_muladd(uint8_t* s, const uint8_t* a, const uint8_t* b, const uint8_t* c)
 }
 
 }  // namespace Botan
+#endif

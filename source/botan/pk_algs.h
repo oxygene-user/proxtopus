@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PK_KEY_FACTORY_H_
 #define BOTAN_PK_KEY_FACTORY_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/pk_keys.h>
@@ -46,4 +48,5 @@ std::unique_ptr<Private_Key> create_ec_private_key(Any_Algo algo_name,
 
 }  // namespace Botan
 
+#endif
 #endif

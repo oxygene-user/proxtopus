@@ -6,6 +6,7 @@
 */
 
 #include <botan/tls_alert.h>
+#if FEATURE_TLS
 
 #include <botan/tls_exceptn.h>
 
@@ -124,3 +125,4 @@ std::string Alert::type_string() const {
 }
 
 }  // namespace Botan::TLS
+#endif

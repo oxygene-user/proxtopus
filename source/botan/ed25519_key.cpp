@@ -7,6 +7,7 @@
 */
 
 #include <botan/ed25519.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
@@ -314,3 +315,4 @@ std::unique_ptr<PK_Ops::Signature> Ed25519_PrivateKey::create_signature_op(Rando
 }
 
 }  // namespace Botan
+#endif

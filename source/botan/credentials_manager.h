@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_CREDENTIALS_MANAGER_H_
 #define BOTAN_CREDENTIALS_MANAGER_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/certstor.h>
@@ -305,4 +307,5 @@ class BOTAN_PUBLIC_API(2, 0) Credentials_Manager {
 
 }  // namespace Botan
 
+#endif
 #endif

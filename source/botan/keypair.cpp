@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/keypair.h>
+#if FEATURE_TLS
 
 #include <botan/pubkey.h>
 #include <botan/rng.h>
@@ -79,3 +80,4 @@ bool signature_consistency_check(RandomNumberGenerator& rng,
 }
 
 }  // namespace Botan::KeyPair
+#endif

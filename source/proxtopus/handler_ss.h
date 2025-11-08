@@ -2,7 +2,7 @@
 
 #include "cipher_ss.h"
 
-class handler_ss : public handler // socks4 and socks5
+class handler_ss final : public handler // socks4 and socks5
 {
 	ss::core core;
     tools::bloom_filter_set<8192,5> flt;
@@ -21,8 +21,8 @@ public:
 	handler_ss(loader& ldr, listener* owner, const asts& bb, netkit::socket_type_e st);
 	virtual ~handler_ss() { stop(); }
 
-	/*virtual*/ str::astr_view desc() const { return ASTR("shadowsocks"); }
-    /*virtual*/ bool compatible(netkit::socket_type_e /*st*/) const
+	/*virtual*/ str::astr_view desc() const override { return ASTR("shadowsocks"); }
+    /*virtual*/ bool compatible(netkit::socket_type_e /*st*/) const override
     {
         return true; // compatible with both tcp and udp
     }

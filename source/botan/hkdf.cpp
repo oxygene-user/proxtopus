@@ -8,6 +8,7 @@
 */
 
 #include <botan/internal/hkdf.h>
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/internal/loadstor.h>
@@ -135,3 +136,4 @@ secure_vector<uint8_t> hkdf_expand_label(std::string_view hash_fn,
 #endif
 
 }  // namespace Botan
+#endif

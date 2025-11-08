@@ -394,7 +394,7 @@ namespace str
 		signed_t i = s.length() - 1;
 		for (; i >= 0 && is_hollow(s[i]); --i);
 		++i;
-		if ((size_t)i < s.length())
+		if (UNSIGNED % i < s.length())
 			s.resize(i);
 	}
 
@@ -403,7 +403,7 @@ namespace str
 		signed_t i = s.length() - 1;
 		for (; i >= 0 && is_hollow(s[i]); --i);
 		++i;
-		if ((size_t)i < s.length())
+		if (UNSIGNED % i < s.length())
 			return xstr_view<CC>(s.data(), i);
 		return s;
 	}
@@ -418,6 +418,19 @@ namespace str
 	template<typename CC> inline xstr_view<CC> trim(xstr_view<CC> s) {
 		return ltrim(rtrim(s));
 	}
+
+	template<typename CC> inline xstr_view<CC> substr(const xstr_view<CC> &s, signed_t from, signed_t to) {
+        return s.substr(from, to-from);
+    }
+    template<typename CC> inline xstr_view<CC> substr(const xstr_view<CC> &s, signed_t from) {
+        return s.substr(from);
+    }
+    template<typename CC> inline xstr_view<CC> substr(const xstr<CC> &s, signed_t from, signed_t to) {
+        return view(s).substr(from, to - from);
+    }
+    template<typename CC> inline xstr_view<CC> substr(const xstr<CC>& s, signed_t from) {
+        return view(s).substr(from);
+    }
 
 
 	template <class CH> xstr_view<CH> trime(const xstr_view<CH>& s, const CH* addition_hollow_chars = nullptr)
@@ -488,6 +501,7 @@ namespace str
     }
 
 	inline void __append(astr& sout, const wstr& s);
+	inline void __append(astr& sout, const wstr_view& s);
 
 	inline void __append(astr& sout, const astr& s) {
 		sout.append(s);
@@ -572,7 +586,9 @@ namespace str
 	enum class codepage_e
 	{
 		ANSI,
-		OEM,
+#ifndef ANDROID
+        OEM,
+#endif
 		UTF8,
 	};
 
@@ -650,6 +666,9 @@ namespace str
     }
 
     inline void __append(astr& sout, const wstr& s) {
+        sout.append(to_utf8(s));
+    }
+    inline void __append(astr& sout, const wstr_view& s) {
         sout.append(to_utf8(s));
     }
 
@@ -889,7 +908,7 @@ namespace str
                 }
                 xstr_view<CH> r = this->s.substr(0, x);
                 this->pos = x;
-				for (; this->pos + 1 < this->slen() && is_hollow(this->s[this->pos + 1]); ++this->pos);
+				for (; this->pos + 1 < this->slen() && is_hollow(this->s[this->pos + 1]); ++this->pos) {}
                 return r;
             }
 
@@ -908,7 +927,7 @@ namespace str
             }
             xstr_view<CH> r = this->s.substr(this->pos + 1, x - this->pos - 1);
             this->pos = x;
-			for (; this->pos + 1 < this->slen() && is_hollow(this->s[this->pos + 1]); ++this->pos);
+			for (; this->pos + 1 < this->slen() && is_hollow(this->s[this->pos + 1]); ++this->pos) {}
             return r;
 
 		}
@@ -1063,37 +1082,6 @@ namespace str
         return __append(s, xstr_view<CH>(tcalced, digits));
 	}
 
-	template<size_t typesize> requires (typesize >= 2) struct low_part_mask
-	{
-		consteval static sztype<typesize>::type build_mask()
-		{
-			typename sztype<typesize>::type rv = 0xff;
-
-			for (size_t b = typesize - 1; b > (typesize/2); --b)
-				rv |= (rv << 8);
-
-			return rv;
-		}
-
-		constexpr static const sztype<typesize>::type mask = build_mask();
-	};
-
-
-	template<size_t typesize> requires (typesize >= 2) struct hi_part_mask
-    {
-        consteval static sztype<typesize>::type build_mask()
-        {
-            typename sztype<typesize>::type rv = 0xff;
-
-            for (size_t b = typesize - 1; b > 0; --b)
-                rv |= (rv << 8);
-
-            return rv ^ low_part_mask<typesize>::mask;
-        }
-
-        constexpr static const sztype<typesize>::type mask = build_mask();
-	};
-
 	template<size_t skip, uints::flat T> size_t calc_high_zeros_impl(const T& t)
 	{
         if constexpr (sizeof(T) == 1)
@@ -1104,7 +1092,7 @@ namespace str
         }
         else if constexpr (sztype<sizeof(T)>::native)
         {
-            if ((t & hi_part_mask<sizeof(T)>::mask) == 0)
+            if ((t & tools::hi_part_mask<sizeof(T)>::mask) == 0)
                 return sizeof(T) + calc_high_zeros_impl<0>(uints::aslow<sizeof(T) / 2>(t));
             return calc_high_zeros_impl<0>(uints::ashigh<sizeof(T) / 2>(t));
         }
@@ -1363,32 +1351,32 @@ namespace str
 				if (datasize) { *d = (uint8_t)((((inb[2] << 6) & 0xc0) | inb[3]) & 0xFF); ++d; --datasize; }
 			}
 		}
-		return (signed_t)(d - (uint8_t*)data);
+		return SIGNED % (d - (uint8_t*)data);
 	}
 
-	template<typename CH> signed_t parse_int(const xstr_view<CH>& x, signed_t max_valid, signed_t if_failed)
+	template<std::integral INT, typename CH> INT parse_int(const xstr_view<CH>& x, INT max_valid, INT if_failed)
 	{
-		signed_t v = 0;
+		INT v = 0;
 		for (CH c : x)
 		{
 			size_t y = c - 48;
 			if (y >= 10)
 				return if_failed;
-			v = v * 10 + y;
+			v = static_cast<INT>(v * 10 + y);
 			if (v > max_valid)
 				return if_failed;
 		}
 		return v;
 	}
-	template<typename CH> signed_t parse_int(const xstr_view<CH>& x, signed_t if_failed)
+	template<std::integral INT, typename CH> INT parse_int(const xstr_view<CH>& x, INT if_failed)
     {
-        signed_t v = 0;
+		INT v = 0;
         for (CH c : x)
         {
             size_t y = c - 48;
             if (y >= 10)
                 return if_failed;
-            v = v * 10 + y;
+            v = static_cast<INT>(v * 10 + y);
         }
         return v;
     }
@@ -1405,14 +1393,14 @@ namespace str
 		for (;;)
 		{
 			signed_t left = in.length() - idx;
-			if (left < (signed_t)s.length()) return -1;
+			if (left < SIGNED % s.length()) return -1;
 			signed_t temp = strz_findn(in.data() + idx, *s.data(), left);
 			if (temp < 0) return -1;
 			idx += temp;
 			if ((idx + s.length()) > in.length()) return -1;
 
 			bool gotcha = true;
-			for (signed_t i = 0; i < (signed_t)s.length(); ++i)
+			for (signed_t i = 0; i < SIGNED % s.length(); ++i)
 			{
 				if (s.data()[i] == c) continue;
 				if (*(in.data() + idx + i) != s.data()[i]) { gotcha = false; break; }
@@ -1445,8 +1433,21 @@ namespace str
 		if (last_e)
 			return true;
 
-		return index == (signed_t)s.length();
+		return index == SIGNED % s.length();
 	}
+
+    template<typename CH> size_t hash(str::xstr_view<CH> s)
+    {
+		u64 h1 = 17 * sizeof(CH);
+		u64 h2 = s.length();
+		spooky::hash_128(s.data(), s.length() * sizeof(CH), &h1, &h2);
+		if constexpr (sizeof(size_t) == 8)
+			return h1;
+		else {
+			return (h1 >> 32) ^ (h1 & 0xffffffff);
+		}
+    }
+
 }
 
 inline str::astr& operator+=(str::astr& s, std::span<const u8> d)
@@ -1455,19 +1456,40 @@ inline str::astr& operator+=(str::astr& s, std::span<const u8> d)
     return s;
 }
 
+template<typename CH> str::xstr<CH> operator+(const str::xstr_view<CH>&s1, const str::xstr<CH>& s2)
+{
+	str::xstr<CH> s(s1);
+	s.append(s2);
+    return s;
+}
+
+template<typename CH> str::xstr<CH> operator+(const str::xstr<CH>& s1, const str::xstr_view<CH>& s2)
+{
+    str::xstr<CH> s(s1);
+    s.append(s2);
+    return s;
+}
+
 namespace tools
 {
 	template <typename CH> struct string_hash
 	{
-		using hash_type = std::hash<str::xstr_view<CH>>;
 		using is_transparent = void;
 
-		std::size_t operator()(const CH* s) const { return hash_type{}(s); }
-		std::size_t operator()(str::xstr_view<CH> s) const { return hash_type{}(s); }
-		std::size_t operator()(str::xstr<CH> const& s) const { return hash_type{}(s); }
+		size_t operator()(const CH* s) const { return str::hash(str::xstr_view<CH>(s)); }
+		size_t operator()(str::xstr_view<CH> s) const { return str::hash(s); }
+		size_t operator()(const str::xstr<CH>& s) const { return str::hash(str::view(s)); }
 	};
 
-	template <typename TCH, typename VALT> using shashmap = std::unordered_map<str::xstr<TCH>, VALT, string_hash<TCH>, std::equal_to<>>;
+	template <typename CH> struct string_equal {
+        using is_transparent = void;
+
+        bool operator()(const str::xstr<CH>& a, const str::xstr<CH>& b) const { return a == b; }
+        bool operator()(const str::xstr<CH>& a, const str::xstr_view<CH> b) const { return a == b; }
+        bool operator()(const str::xstr_view<CH> a, const str::xstr<CH>& b) const { return a == b; }
+        bool operator()(const str::xstr_view<CH> a, const str::xstr_view<CH> b) const { return a == b; }
+    };
+	template <typename TCH, typename VALT> using shashmap = std::unordered_map<str::xstr<TCH>, VALT, string_hash<TCH>, string_equal<TCH>>;
 
 } // namespace tools
 

@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/ec_inner_pc.h>
+#if FEATURE_TLS
 
 #include <botan/mem_ops.h>
 
@@ -218,3 +219,4 @@ bool EC_Mul2Table_Data_PC::mul2_vartime_x_mod_order_eq(const EC_Scalar_Data& vd,
 }
 
 }  // namespace Botan
+#endif

@@ -4,9 +4,10 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #ifndef BOTAN_CERT_STORE_H_
 #define BOTAN_CERT_STORE_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/x509_crl.h>
 #include <botan/x509cert.h>
@@ -147,4 +148,5 @@ class BOTAN_PUBLIC_API(2, 0) Certificate_Store_In_Memory final : public Certific
 
 }  // namespace Botan
 
+#endif
 #endif

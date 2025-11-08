@@ -318,6 +318,17 @@ namespace Botan
 			sz = nsz;
 		}
 
+		uint8_t* expand(size_t esz)
+		{
+            sz += esz;
+            if (sz > cap)
+            {
+                cap = capsize(sz == 0, sz);
+                buf = (uint8_t*)MRS(buf, cap, sz - esz);
+            }
+			return buf + sz - esz;
+		}
+
 		void reserve(size_t new_cap_size)
 		{
 			if (new_cap_size > cap)

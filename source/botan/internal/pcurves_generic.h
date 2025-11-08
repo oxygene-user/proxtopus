@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_PCURVES_GENERIC_H_
 #define BOTAN_PCURVES_GENERIC_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/pcurves.h>
 
@@ -133,4 +135,5 @@ class GenericPrimeOrderCurve final : public PrimeOrderCurve,
 
 }  // namespace Botan::PCurve
 
+#endif
 #endif

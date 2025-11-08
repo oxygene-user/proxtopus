@@ -1,4 +1,5 @@
 #include "pch.h"
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -118,6 +119,7 @@ namespace Botan {
         };
         /*oids-end*/
 
+#if 0
         consteval std::span<const uint8_t> t2id(const char* ids)
         {
             //constexpr int N = ids[3];
@@ -125,6 +127,7 @@ namespace Botan {
 
             return std::span(oids, ids[0] - '0');
         }
+#endif
         //Algo_Group t2a(const char*)
         //{
         //    return Algo_Group();
@@ -642,8 +645,8 @@ OID_core g_oids[] = {
     inline std::strong_ordering operator <=> (u8 i1, Algo_Group ag)
     {
 
-        u64 x1 = Botan::load_le<u64>((const u8*)&g_oids[i1].alg, 0);
-        u64 x2 = Botan::load_le<u64>((const u8*)&ag, 0);
+        u64 x1 = load_le<8>((const u8*)&g_oids[i1].alg, 0);
+        u64 x2 = load_le<8>((const u8*)&ag, 0);
 
         return x1 <=> x2;
 
@@ -799,4 +802,5 @@ _2_16_840_1_101_3_4_3_14,
 _2_16_840_1_101_3_4_3_15,
 _2_16_840_1_101_3_4_3_16,
 /*enum_end*/
+#endif
 #endif

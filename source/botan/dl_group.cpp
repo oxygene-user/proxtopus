@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/dl_group.h>
 
@@ -631,3 +632,4 @@ DL_Group::DL_Group(const uint8_t ber[], size_t ber_len, DL_Group_Format format) 
 }
 
 }  // namespace Botan
+#endif

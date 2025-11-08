@@ -26,14 +26,17 @@ enum AppExitCode
 	EXIT_FAIL_IPV46_VALS = 14,
 	EXIT_FAIL_SOCKET_TYPE = 15,
 
-	EXIT_FAIL_ICPT_NOT_SUPPORTED = 16,
-	EXIT_FAIL_ICPT_INIT_ERROR = 17,
+	EXIT_FAIL_ADAPTER_NOT_SUPPORTED = 16,
+	EXIT_FAIL_ADAPTER_INIT_ERROR = 17,
 
 	EXIT_FAIL_MODE_UNDEFINED = 18,
 	EXIT_FAIL_NEED_ALL_LISTENERS = 19,
 	EXIT_FAIL_NO_PASSWORDS_DEFINED = 20,
+	EXIT_FAIL_AUTH_INVALID = 21,
 
 	EXIT_FAIL_SSP_NOT_COMPLIANT = 22,
+	
+	EXIT_FAIL_EXPRESSION_INVALID = 23,
 
 	EXIT_FAIL_KEY_MISSED = 40,
 	EXIT_FAIL_CRT_MISSED = 41,
@@ -58,6 +61,8 @@ enum AppExitCode
 #endif
 
 };
+
+#if APP
 
 class commandline
 {
@@ -127,6 +132,7 @@ public:
         return have_option(MAKEFN("--lna"));
     }
 
+#if FEATURE_WATCHDOG
     bool actual() const // actual run (not through watchdog)
     {
         return have_option(MAKEFN("--actual"));
@@ -141,13 +147,14 @@ public:
     {
         return str::parse_int(str::view(get_option_par(MAKEFN("--ppid"))), 0);
     }
+#endif
 
     u8 btc() const // bind try count
     {
         return tools::as_byte(str::parse_int(str::view(get_option_par(MAKEFN("--btc"))), 0));
     }
 
-#if defined _DEBUG && defined _WIN32
+#if defined _DEBUG && defined _WIN32 && FEATURE_TLS
     bool compile_oids(FN &cppfile) const
     {
 		if (parar_.size() > 2 && parar_[1] == MAKEFN("oids"))
@@ -161,3 +168,4 @@ public:
 
 	FN path_config() const;
 };
+#endif

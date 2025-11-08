@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PK_KEYS_H_
 #define BOTAN_PK_KEYS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/pk_ops_fwd.h>
@@ -425,4 +427,5 @@ inline std::string create_hex_fingerprint(std::span<const uint8_t> vec, HashFunc
 
 }  // namespace Botan
 
+#endif
 #endif

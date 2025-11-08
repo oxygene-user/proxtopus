@@ -6,6 +6,7 @@
 */
 
 #include <botan/bigint.h>
+#if FEATURE_TLS
 
 #include <botan/rng.h>
 #include <botan/internal/rounding.h>
@@ -73,3 +74,4 @@ BigInt BigInt::random_integer(RandomNumberGenerator& rng, const BigInt& min, con
 }
 
 }  // namespace Botan
+#endif

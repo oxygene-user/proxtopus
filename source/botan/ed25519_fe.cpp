@@ -9,6 +9,7 @@
 */
 
 #include <botan/internal/ed25519_fe.h>
+#if FEATURE_TLS
 
 #include <botan/internal/ed25519_internal.h>
 
@@ -745,3 +746,4 @@ void FE_25519::to_bytes(uint8_t s[32]) const {
 }
 
 }  // namespace Botan
+#endif

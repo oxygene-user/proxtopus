@@ -6,6 +6,7 @@
 */
 
 #include <botan/tls_messages.h>
+#if FEATURE_TLS
 
 #include <botan/internal/hmac.h> /// PROXTOPUS
 #include "botan/internal/sha2_32.h" /// PROXTOPUS
@@ -65,3 +66,4 @@ std::vector<uint8_t> Hello_Verify_Request::serialize() const {
 }
 
 }  // namespace Botan::TLS
+#endif

@@ -7,6 +7,7 @@
 
 #include "../proxtopus/pch.h"
 
+#if FEATURE_TLS
 #include <botan/asn1_obj.h>
 
 #include <botan/data_src.h>
@@ -207,3 +208,4 @@ bool maybe_BER(DataSource& source) {
 }  // namespace ASN1
 
 }  // namespace Botan
+#endif

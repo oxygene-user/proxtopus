@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_PCURVES_WRAP_H_
 #define BOTAN_PCURVES_WRAP_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/internal/pcurves.h>
@@ -357,4 +359,5 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
 
 }  // namespace Botan::PCurve
 
+#endif
 #endif

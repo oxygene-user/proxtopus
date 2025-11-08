@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/tls_handshake_hash.h>
+#if FEATURE_TLS
 
 #include <botan/hash.h>
 
@@ -25,3 +26,4 @@ secure_vector<uint8_t> Handshake_Hash::final(Hash_Algo mac_algo) const {
 }
 
 }  // namespace Botan::TLS
+#endif

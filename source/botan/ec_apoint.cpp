@@ -5,6 +5,7 @@
 */
 
 #include <botan/ec_apoint.h>
+#if FEATURE_TLS
 
 #include <botan/ec_group.h>
 #include <botan/ec_scalar.h>
@@ -225,3 +226,4 @@ const std::shared_ptr<const EC_Group_Data>& EC_AffinePoint::_group() const {
 }
 
 }  // namespace Botan
+#endif

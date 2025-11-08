@@ -8,6 +8,7 @@
 */
 
 #include <botan/ecdh.h>
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <botan/internal/pk_ops_impl.h>
@@ -97,3 +98,4 @@ std::unique_ptr<PK_Ops::Key_Agreement> ECDH_PrivateKey::create_key_agreement_op(
 }
 
 }  // namespace Botan
+#endif

@@ -6,6 +6,7 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 #include <botan/internal/curve448_gf.h>
+#if FEATURE_TLS
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/loadstor.h>
@@ -366,3 +367,4 @@ Gf448Elem root(const Gf448Elem& elem) {
 }
 
 }  // namespace Botan
+#endif

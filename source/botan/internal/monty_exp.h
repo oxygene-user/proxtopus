@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_MONTY_EXP_H_
 #define BOTAN_MONTY_EXP_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/monty.h>
 #include <memory>
@@ -71,4 +73,5 @@ Montgomery_Int monty_multi_exp(const std::shared_ptr<const Montgomery_Params>& p
 
 }  // namespace Botan
 
+#endif
 #endif

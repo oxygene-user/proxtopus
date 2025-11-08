@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_X509_OBJECT_H_
 #define BOTAN_X509_OBJECT_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/pkix_enums.h>
@@ -138,4 +140,5 @@ class BOTAN_PUBLIC_API(2, 0) X509_Object : public ASN1_Object {
 
 }  // namespace Botan
 
+#endif
 #endif

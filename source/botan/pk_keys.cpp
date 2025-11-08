@@ -7,6 +7,7 @@
 
 #include "../proxtopus/pch.h"
 
+#if FEATURE_TLS
 #include <botan/pk_keys.h>
 
 #include <botan/der_enc.h>
@@ -142,3 +143,4 @@ std::unique_ptr<PK_Ops::Key_Agreement> Private_Key::create_key_agreement_op(Rand
 }
 
 }  // namespace Botan
+#endif

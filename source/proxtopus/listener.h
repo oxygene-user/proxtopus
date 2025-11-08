@@ -4,7 +4,7 @@
 #include "transport.h"
 
 #define RECV_BRIDGE_MODE_TIMEOUT 60000 // 1 min
-#define RECV_PREPARE_MODE_TIMEOUT 1000 // 1 sec
+#define RECV_PREPARE_MODE_TIMEOUT 5000 // 1 sec
 
 class loader;
 class proxy;
@@ -14,102 +14,98 @@ using lcoll = api_collection_uptr<listener>;
 class listener : public apiobj
 {
 protected:
-	str::astr name;
-	std::unique_ptr<handler> hand;
+    str::astr name;
+    std::unique_ptr<handler> hand;
 public:
 
-#ifdef _DEBUG
-	size_t accept_tid = 0;
-#endif // _DEBUG
+    listener(loader& /*ldr*/, const str::astr& name, const asts& /*bb*/) :name(name) {}
+    listener(handler* h) { hand.reset(h); h->owner = this; }
+    virtual ~listener() {}
 
-	listener(loader& ldr, const str::astr& name, const asts& bb);
-	listener(handler* h) { hand.reset(h); h->owner = this; }
-	virtual ~listener() {}
+    const str::astr& get_name() const
+    {
+        return name;
+    }
 
-	/*virtual*/ void api(json_saver &) const override;
+    /*virtual*/ void api(json_saver &) const override;
 
-	virtual void open() = 0;
-	virtual void stop() = 0;
-	virtual void close(bool fbc) = 0;
+    virtual void open() = 0;
+    virtual void stop() = 0;
+    virtual void close() = 0;
 
-	const str::astr& get_name() const
-	{
-		return name;
-	}
-
-	static void build(lcoll &arr, loader& ldr, const str::astr& name, const asts& bb);
+    static void build(lcoll &arr, loader& ldr, const str::astr& name, const asts& bb);
 };
 
 class socket_listener : public listener
 {
-	enum state_stage : size_t
-	{
-		IDLE,
-		ACCEPTOR_START,
-		ACCEPTOR_WORKS,
-	};
+    enum state_stage : size_t
+    {
+        IDLE,
+        ACCEPTOR_START,
+        ACCEPTOR_WORKS,
+    };
 
 
 protected:
     volatile state_stage stage = IDLE;
     netkit::ipap bind;
-	void acceptor();
-	virtual void accept_impl() = 0;
-	NIXONLY(virtual void kick_socket()=0);
+    void acceptor();
+    virtual void accept_impl() = 0;
+    NIXONLY(virtual void kick_socket()=0);
 public:
 
-	socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type_e st);
-	socket_listener(const netkit::ipap &bind, handler *h);
-	/*virtual*/ ~socket_listener() {}
+    socket_listener(loader& ldr, const str::astr& name, const asts& bb, netkit::socket_type_e st);
+    socket_listener(const netkit::ipap &bind, handler *h);
+    /*virtual*/ ~socket_listener() {}
 
-	/*virtual*/ void api(json_saver&) const override;
+    /*virtual*/ void api(json_saver&) const override;
 
-	/*virtual*/ void open() override;
-	/*virtual*/ void stop() override;
+    /*virtual*/ void open() override;
+    /*virtual*/ void stop() override;
 
 };
 
 
-class tcp_listener : public socket_listener
+class tcp_listener final : public socket_listener
 {
-	netkit::waitable_socket sock;
+    netkit::SYSTEM_STREAM_ACCEPTOR_SOCKET sock;
 
 protected:
-	/*virtual*/ void accept_impl() override;
-	NIXONLY(virtual void kick_socket());
+    /*virtual*/ void accept_impl() override;
+    NIXONLY(virtual void kick_socket() override);
 
 public:
 
-	tcp_listener(loader& ldr, const str::astr& name, const asts& bb);
-	/*virtual*/ ~tcp_listener() {}
+    tcp_listener(loader& ldr, const str::astr& name, const asts& bb);
+    /*virtual*/ ~tcp_listener() {}
 
-	/*virtual*/ void api(json_saver&) const override;
+    /*virtual*/ void api(json_saver&) const override;
 
-	/*virtual*/ void close(bool fbc) override
-	{
-		sock.close(fbc);
-	}
+    /*virtual*/ void close() override
+    {
+        sock.close();
+    }
 };
 
 
-class udp_listener : public socket_listener
+class udp_listener final : public socket_listener
 {
-	netkit::socket sock;
+    netkit::SYSTEM_DATAGRAM_SOCKET sock;
 
 protected:
-	/*virtual*/ void accept_impl() override;
-	NIXONLY(virtual void kick_socket());
+    /*virtual*/ void accept_impl() override;
+    NIXONLY(virtual void kick_socket() override);
 public:
 
-	udp_listener(loader& ldr, const str::astr& name, const asts& bb);
-	udp_listener(const netkit::ipap& bind, handler* h);
-	/*virtual*/ ~udp_listener() {}
+    udp_listener(loader& ldr, const str::astr& name, const asts& bb);
+    udp_listener(const netkit::ipap& bind, handler* h);
+    /*virtual*/ ~udp_listener() {}
 
-	/*virtual*/ void api(json_saver&) const override;
+    /*virtual*/ void api(json_saver&) const override;
 
-	/*virtual*/ void close(bool fbc) override
-	{
-		sock.close(fbc);
-	}
+    /*virtual*/ void close() override
+    {
+        sock.close();
+    }
 
 };

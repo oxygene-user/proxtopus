@@ -9,7 +9,7 @@
 */
 
 #include <botan/internal/sha2_32.h>
-
+#ifdef ARCH_X86
 #include <botan/internal/simd_4x32.h>
 #include <immintrin.h>
 
@@ -107,3 +107,4 @@ void SHA_256::compress_digest_x86(digest_type& digest, std::span<const uint8_t> 
 }
 
 }  // namespace Botan
+#endif

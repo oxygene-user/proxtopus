@@ -345,6 +345,7 @@ void operator delete[](void* ptr, std::size_t /*size*/, std::align_val_t /*align
 	ma::mf(ptr);
 }
 
+#if USE_DLMALLOC
 // dlmalloc -----------------
 
 #ifdef _MSC_VER
@@ -369,4 +370,7 @@ static size_t dlmalloc_spinlock = 0;
 #undef M_MMAP_THRESHOLD
 #define mallinfo dlmallinfo
 
+extern "C" {
 #include "dlmalloc/dlmalloc.c"
+}
+#endif

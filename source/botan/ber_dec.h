@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_BER_DECODER_H_
 #define BOTAN_BER_DECODER_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/data_src.h>
@@ -409,4 +411,5 @@ bool BER_Decoder::decode_optional_list(std::vector<T>& vec, ASN1_Type type_tag, 
 
 }  // namespace Botan
 
+#endif
 #endif

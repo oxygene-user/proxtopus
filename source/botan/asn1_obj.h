@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_ASN1_OBJECT_TYPES_H_
 #define BOTAN_ASN1_OBJECT_TYPES_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <chrono>
@@ -527,4 +529,5 @@ class std::hash<Botan::OID> {
       size_t operator()(const Botan::OID& oid) const noexcept { return static_cast<size_t>(oid.index()); }
 };
 
+#endif
 #endif

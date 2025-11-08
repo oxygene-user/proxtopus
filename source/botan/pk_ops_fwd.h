@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PK_OPERATIONS_FWD_H_
 #define BOTAN_PK_OPERATIONS_FWD_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 namespace Botan::PK_Ops {
 
@@ -20,4 +22,5 @@ class KEM_Decryption;
 
 }  // namespace Botan::PK_Ops
 
+#endif
 #endif

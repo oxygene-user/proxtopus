@@ -9,6 +9,8 @@
 
 #ifndef BOTAN_TLS_PROTOCOL_VERSION_H_
 #define BOTAN_TLS_PROTOCOL_VERSION_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/types.h>
 #include <string>
@@ -158,4 +160,5 @@ class BOTAN_PUBLIC_API(2, 0) Protocol_Version final {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

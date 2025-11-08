@@ -6,6 +6,7 @@
 */
 
 #include <botan/x509_crl.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/x509_ext.h>
@@ -267,3 +268,4 @@ std::vector<std::string> X509_CRL::issuing_distribution_points() const {
 }
 
 }  // namespace Botan
+#endif

@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/rsa.h>
 
@@ -815,3 +816,4 @@ std::unique_ptr<PK_Ops::Signature> RSA_PrivateKey::create_signature_op(RandomNum
 }
 
 }  // namespace Botan
+#endif

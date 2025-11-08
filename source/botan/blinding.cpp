@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/blinding.h>
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -51,3 +52,4 @@ BigInt Blinder::unblind(const BigInt& i) const {
 }
 
 }  // namespace Botan
+#endif

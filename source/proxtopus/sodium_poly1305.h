@@ -39,7 +39,7 @@ class poly1305
         }
     }
 
-
+#ifdef ARCH_X86
     struct internal_sse2
     {
         enum consts {
@@ -71,6 +71,7 @@ class poly1305
         void poly1305_blocks(const uint8_t* m, size_t len);
         void fin(uint8_t* tag);
     };
+#endif
 
 #ifndef SSE2_SUPPORTED
     struct internal_donna
@@ -79,7 +80,7 @@ class poly1305
             poly1305_block_size = 16,
         };
 
-#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__)
+#if defined (_M_AMD64) || defined (_M_X64) || defined (WIN64) || defined(__LP64__) || defined(ARCH_64BIT)
         uint64_t    r[3];
         uint64_t    h[3];
         uint64_t    pad[2];
@@ -102,7 +103,9 @@ class poly1305
     {
         union
         {
+#ifdef ARCH_X86
             internal_sse2 isse2;
+#endif
             internal_donna idonna;
         };
     };

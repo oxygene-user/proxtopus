@@ -9,6 +9,7 @@
 */
 
 #include <botan/internal/ed25519_internal.h>
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -156,3 +157,4 @@ void sc_reduce(uint8_t* s) {
 }
 
 }  // namespace Botan
+#endif

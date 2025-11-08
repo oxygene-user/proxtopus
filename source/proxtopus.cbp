@@ -48,7 +48,7 @@
 			<Add option="-m64" />
 			<Add option="-fexceptions" />
 			<Add option="-std=c++20" />
-			<Add directory="/home/user/dev/proxtopus/" />
+			<Add directory="/home/user/dev/proxtopus/source/" />
 		</Compiler>
 		<Linker>
 			<Add option="-m64" />
@@ -296,6 +296,8 @@
 		<Unit filename="debug/handler_dbg.h">
 			<Option target="Debug" />
 		</Unit>
+		<Unit filename="proxtopus/adapter.cpp" />
+		<Unit filename="proxtopus/adapter.h" />
 		<Unit filename="proxtopus/aead_chacha20poly1305.cpp" />
 		<Unit filename="proxtopus/arena.h" />
 		<Unit filename="proxtopus/base.h" />
@@ -311,6 +313,8 @@
 		<Unit filename="proxtopus/dnsq.h" />
 		<Unit filename="proxtopus/engine.cpp" />
 		<Unit filename="proxtopus/engine.h" />
+		<Unit filename="proxtopus/expression.cpp" />
+		<Unit filename="proxtopus/expression.h" />
 		<Unit filename="proxtopus/fsys.cpp" />
 		<Unit filename="proxtopus/fsys.h" />
 		<Unit filename="proxtopus/handler_http.cpp" />
@@ -321,8 +325,8 @@
 		<Unit filename="proxtopus/handlers.h" />
 		<Unit filename="proxtopus/http_api.cpp" />
 		<Unit filename="proxtopus/http_api.h" />
-		<Unit filename="proxtopus/icpt.cpp" />
-		<Unit filename="proxtopus/icpt.h" />
+		<Unit filename="proxtopus/ip_machine.cpp" />
+		<Unit filename="proxtopus/ip_machine.h" />
 		<Unit filename="proxtopus/json.cpp" />
 		<Unit filename="proxtopus/json.h" />
 		<Unit filename="proxtopus/known_oids.cpp" />
@@ -369,6 +373,10 @@
 		<Unit filename="proxtopus/transport.h" />
 		<Unit filename="proxtopus/transport_tls.cpp" />
 		<Unit filename="proxtopus/transport_tls.h" />
+		<Unit filename="proxtopus/udp.cpp" />
+		<Unit filename="proxtopus/udp.h" />
+		<Unit filename="proxtopus/upstream.cpp" />
+		<Unit filename="proxtopus/upstream.h" />
 		<Unit filename="proxtopus/watchdog.cpp" />
 		<Unit filename="proxtopus/watchdog.h" />
 		<Unit filename="res/help.txt">

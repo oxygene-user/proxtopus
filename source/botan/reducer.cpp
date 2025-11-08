@@ -6,6 +6,7 @@
 */
 
 #include <botan/reducer.h>
+#if FEATURE_TLS
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/divide.h>
@@ -143,3 +144,4 @@ void Modular_Reducer::reduce(BigInt& t1, const BigInt& x, secure_vector<word>& w
 }
 
 }  // namespace Botan
+#endif

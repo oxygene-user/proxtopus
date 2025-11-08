@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PUBKEY_H_
 #define BOTAN_PUBKEY_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <botan/pk_keys.h>
@@ -830,4 +832,5 @@ class BOTAN_PUBLIC_API(2, 0) PK_KEM_Decryptor final {
 
 }  // namespace Botan
 
+#endif
 #endif

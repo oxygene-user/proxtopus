@@ -7,6 +7,7 @@
 */
 
 #include <botan/bigint.h>
+#if FEATURE_TLS
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/divide.h>
@@ -205,3 +206,4 @@ BigInt operator>>(const BigInt& x, size_t shift) {
 }
 
 }  // namespace Botan
+#endif

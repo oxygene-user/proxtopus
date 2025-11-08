@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_CALENDAR_H_
 #define BOTAN_CALENDAR_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/types.h>
 #include <chrono>
@@ -88,4 +90,5 @@ class BOTAN_TEST_API calendar_point {
 
 }  // namespace Botan
 
+#endif
 #endif

@@ -35,6 +35,10 @@ handler* handler::new_handler(loader& ldr, listener *owner, const asts& bb, netk
     {
         h = NEW handler_http(ldr, owner, bb, st);
     }
+    else if (ASTR("dummy") == t)
+    {
+        h = NEW handler_dummy(ldr, owner, bb);
+    }
 
 #ifdef _DEBUG
     else if (ASTR("debug") == t)
@@ -60,59 +64,34 @@ handler* handler::new_handler(loader& ldr, listener *owner, const asts& bb, netk
 
 handler::handler(loader& ldr, listener* owner, const asts& bb):owner(owner)
 {
-    const proxy* p = nullptr;
-    str::astr_view pch = str::view(bb.get_string(ASTR("udp-proxy"), glb.emptys));
-    if (!pch.empty())
+    auto lazyinfo = [owner]() -> str::astr
     {
-        p = ldr.find_proxy(pch);
-        if (p == nullptr)
-        {
-        per:
-            LOG_FATAL("unknown {proxy} [$] for handler of listener [$]", pch, str::clean(owner->get_name()));
-            ldr.exit_code = EXIT_FAIL_PROXY_NOTFOUND;
-            return;
-        }
+        str::astr s(ASTR("listener: ["));
+        str::clean(owner->get_name()).append_to(s);
+        s.push_back(']');
+        return s;
+    };
 
-        if (!p->support(netkit::ST_UDP))
-        {
-            ldr.exit_code = EXIT_FAIL_SOCKET_TYPE;
-            LOG_FATAL("upstream {proxy} [$] does not support UDP protocol (listener: [$])", pch, str::clean(owner->get_name()));
-            return;
-        }
-
-        udp_proxy = p;
-    }
-
-    pch = str::view(bb.get_string(ASTR("proxychain"), glb.emptys));
-    if (!pch.empty())
-    {
-        enum_tokens_a(tkn, pch, ',')
-        {
-            p = ldr.find_proxy(*tkn);
-            if (p == nullptr)
-            {
-                pch = *tkn;
-                goto per;
-            }
-            proxychain.push_back(p);
-        }
-    }
+    ups.load(ldr, bb, lazyinfo);
 }
 
 void handler::make_bridge(tools::circular_buffer_extdata& rcvd, const str::astr& epa, netkit::pipe* clientpipe, mbresult res)
 {
-    netkit::pipe_ptr p(clientpipe);
+    netkit::pipe_ptr pp(clientpipe); // just keep ref
     netkit::endpoint ep;
     ep.preparse(epa);
 
-    if (netkit::pipe_ptr outcon = connect(clientpipe->get_info(netkit::pipe::I_SUMMARY), ep, false))
+    ups_conn_log clogger(owner->get_name(), clientpipe, &ep);
+
+    if (netkit::pipe_ptr outcon = ups.connect(clogger, ep, false))
     {
         res(true);
-        p->unrecv(rcvd);
-        glb.e->bridge(std::move(p), std::move(outcon));
+        clientpipe->unrecv(rcvd);
+        glb.e->bridge(clientpipe, outcon.get());
     }
     else
         res(false);
+
 }
 
 
@@ -203,294 +182,20 @@ void traffic_logger::log21(u8* data, signed_t sz)
 }
 #endif
 
-
-void handler::release_udps()
-{
-#ifdef _DEBUG
-    ASSERT(spinlock::current_thread_uid() == owner->accept_tid);
-#endif // _DEBUG
-
-    auto keys = std::move( finished.lock_write()() );
-
-    for(const auto &k : keys)
-        udp_pth.erase(k);
-}
-
-void handler::release_udp(udp_processing_thread* udp_wt)
-{
-    finished.lock_write()().push_back(udp_wt->key());
-}
-
-
-netkit::pipe_ptr handler::connect(str::astr_view loginfo, netkit::endpoint& addr, bool direct)
-{
-    if (direct || proxychain.size() == 0)
-    {
-        if (netkit::pipe* pipe = conn::connect(addr))
-        {
-            if (proxychain.size() == 0)
-            {
-                LOG_N("[$/$] connected to ($)", str::clean(owner->get_name()), loginfo, addr.desc());
-            }
-
-            netkit::pipe_ptr pp(pipe);
-            return pp;
-        }
-
-        if (proxychain.size() == 0)
-        {
-            LOG_N("[$/$] not connected to ($)", str::clean(owner->get_name()), loginfo, addr.desc());
-        }
-
-        return netkit::pipe_ptr();
-    }
-
-    u8 stagb[sizeof(str::astr)];
-    size_t tl = 0;
-    auto stag = [&]() ->str::astr&
-    {
-        return ref_cast<str::astr>(stagb);
-    };
-
-    auto ps = [&](const str::astr_view& s)
-    {
-        stag().resize(tl);
-        stag().append(s);
-    };
-
-    if (log_enabled())
-    {
-        static volatile size_t tag = 1;
-
-        size_t t = spinlock::atomic_increment(tag);
-        new (& stag()) str::astr(ASTR("["));
-        str::append_num(stag(), t, 0);
-        stag().append(ASTR("] "));
-
-        tl = stag().size();
-
-        if (proxychain.size() == 1)
-        {
-            ps("[$/$] connecting to upstream proxy ($)"); LOG_N(stag().c_str(), str::clean(owner->get_name()), loginfo, proxychain[0]->desc());
-        }
-        else
-        {
-            ps("[$/$] connecting through proxy chain"); LOG_N(stag().c_str(), str::clean(owner->get_name()), loginfo);
-            ps("connecting to proxy ($)"); LOG_N(stag().c_str(), proxychain[0]->desc());
-        }
-    }
-
-    netkit::endpoint prx_ep;
-    auto get_proxy_addr = [&](signed_t i) -> netkit::endpoint&
-        {
-            prx_ep = proxychain[i]->get_addr();
-            return prx_ep;
-        };
-
-    netkit::pipe_ptr pp = connect(loginfo, get_proxy_addr(0), true);
-
-    for (signed_t i = 0; pp != nullptr && i < (signed_t)proxychain.size(); ++i)
-    {
-        bool finala = i + 1 >= (signed_t)proxychain.size();
-        netkit::endpoint &na = finala ? addr : get_proxy_addr(i + 1);
-
-        if (log_enabled())
-        {
-            if (finala)
-            {
-                ps("connecting to address ($)"); LOG_N(stag().c_str(), na.desc());
-            }
-            else
-            {
-                ps("connecting to proxy ($)"); LOG_N(stag().c_str(), proxychain[i + 1]->desc());
-            }
-        }
-
-        pp = proxychain[i]->prepare(pp, na);
-    }
-
-    if (log_enabled())
-        stag().~basic_string();
-
-    return pp;
-}
-
-void handler::udp_processing_thread::udp_bridge(SOCKET initiator)
-{
-    u8 packet[65536];
-    netkit::pgen pg(packet, 65535);
-    if (auto to = h->udp_timeout(); to > 0)
-        cutoff_time = chrono::ms() + to;
-
-    netkit::udp_pipe* pipe = this;
-    std::unique_ptr<netkit::udp_pipe> proxypipe;
-
-    if (const proxy *prx = h->udp_proxy)
-    {
-        proxypipe = prx->prepare(this);
-        pipe = proxypipe.get();
-        if (!pipe)
-            return;
-
-        LOG_N("UDP connection from $ via proxy $ established", hashkey.to_string(true), prx->desc());
-    }
-
-    for(auto loopstart = chrono::ms();;)
-    {
-        auto x = sendb.lock_write();
-        sdptr b;
-        if (x().get(b))
-        {
-            if (b == nullptr)
-                return; // stop due error
-            x.unlock();
-            netkit::pgen spg(b->data(), b->datasz, b->pre());
-            pipe->send(b->tgt, spg);
-        }
-        else
-        {
-            if (!ts.data)
-            {
-                // wait for send and init thread storage for pipe
-                spinlock::sleep(0);
-
-                auto ct = chrono::ms();
-                if ((ct - loopstart) > 1000)
-                {
-                    // no data too long
-                    return;
-                }
-
-                continue;
-            }
-
-            sendor = pipe;
-            break;
-        }
-    }
-
-    netkit::ipap from;
-    for (;;)
-    {
-        pg.set_extra(32);
-        auto ior = pipe->recv(from, pg, 65535-32);
-        if (ior != netkit::ior_ok)
-        {
-            if (ior == netkit::ior_timeout && !is_timeout(chrono::ms()))
-                continue;
-            break;
-        }
-        if (!h->encode_packet(handler_state, from, pg))
-            break;
-        if (!hashkey.sendto(initiator, pg.to_span()))
-            break;
-
-        if (auto to = h->udp_timeout(); to > 0)
-            cutoff_time = chrono::ms() + to;
-
-    }
-
-    sendor = nullptr;
-}
-
-/*virtual*/ netkit::io_result handler::udp_processing_thread::send(const netkit::endpoint& toaddr, const netkit::pgen& pg)
-{
-    return netkit::udp_send(ts, toaddr, pg);
-}
-/*virtual*/ netkit::io_result handler::udp_processing_thread::recv(netkit::ipap &from, netkit::pgen& pg, signed_t max_bufer_size)
-{
-    return netkit::udp_recv(ts, from, pg, max_bufer_size);
-}
-
 /*virtual*/ void handler::api(json_saver& j) const
 {
     j.field(ASTR("type"), desc());
-    if (proxychain.size() > 0)
-    {
-        j.arr(ASTR("proxychain"));
-        for (const proxy* p : proxychain)
-            j.num(p->get_id());
-        j.arrclose();
-    }
-    if (udp_proxy)
-        j.field(ASTR("udp-proxy"), udp_proxy->get_id());
+    ups.api(j);
 }
 
 void handler::stop()
 {
-
     if (owner == nullptr)
         return;
 
-#ifdef _DEBUG
-    ASSERT(owner->accept_tid == 0 || spinlock::current_thread_uid() == owner->accept_tid);
-#endif // _DEBUG
-
-    for (auto &pp : udp_pth)
-    {
-        if (pp.second)
-            pp.second->close();
-    }
-
-    for (; !udp_pth.empty();)
-    {
-        spinlock::sleep(100);
-        release_udps();
-    }
+    udp_dispatcher::stop();
 
     owner = nullptr;
-}
-
-void handler::udp_dispatch(netkit::socket& lstnr, netkit::udp_packet& p)
-{
-    ptr::shared_ptr<udp_processing_thread> wt;
-
-    release_udps();
-    auto rslt = udp_pth.insert(std::pair(p.from, nullptr));
-
-    if (!rslt.second)
-    {
-        wt = rslt.first->second; // already exist, return it
-
-        if (wt != nullptr)
-            wt->update_cutoff_time();
-    }
-
-    bool new_thread = false;
-
-    netkit::endpoint ep;
-    netkit::pgen pg;
-    netkit::thread_storage hss;
-    netkit::thread_storage* hs = wt ? wt->geths() : &hss;
-    if (!handle_packet(*hs, p, ep, pg))
-        return;
-
-    if (wt == nullptr)
-    {
-        wt = NEW udp_processing_thread(this, std::move(hss), p.from);
-        rslt.first->second = wt;
-
-        std::thread th(&handler::udp_worker, this, &lstnr, wt.get());
-        th.detach();
-        new_thread = true;
-    }
-
-    wt->convey(pg, ep);
-
-    if (new_thread)
-        log_new_udp_thread(p.from, ep);
-
-}
-
-void handler::udp_worker(netkit::socket* lstnr, udp_processing_thread* udp_wt)
-{
-    ostools::set_current_thread_name(str::build_string("udp-wrk $", udp_wt->key().to_string(true)));
-
-    ptr::shared_ptr<udp_processing_thread> lock(udp_wt); // lock
-    // handle answers
-    udp_wt->udp_bridge(lstnr->s);
-    release_udp(udp_wt);
-
 }
 
 
@@ -520,20 +225,20 @@ handler_direct::handler_direct(loader& ldr, listener* owner, const asts& bb, net
 void handler_direct::handle_pipe(netkit::pipe* pipe)
 {
     // now try to connect to out
-
-    netkit::pipe_ptr p(pipe);
     ep.preparse(to_addr);
 
-    if (netkit::pipe_ptr outcon = connect(pipe->get_info(netkit::pipe::I_SUMMARY), ep, false))
+    ups_conn_log clogger(owner->get_name(), pipe, &ep);
+
+    if (netkit::pipe_ptr outcon = ups.connect(clogger, ep, false))
     {
-        glb.e->bridge(std::move(p), std::move(outcon));
+        glb.e->bridge(pipe, outcon.get());
     }
 }
 
 
 /*virtual*/ void handler_direct::log_new_udp_thread(const netkit::ipap& from, const netkit::endpoint& to)
 {
-    LOG_N("new UDP mapping ($ <-> $) via listener [$]", from.to_string(true), to.desc(), str::clean(owner->get_name()));
+    LOG_N("new UDP mapping ($ <-> $) via listener [$]", from.to_string(), to.desc(), str::clean(owner->get_name()));
 }
 
 /*virtual*/ bool handler_direct::handle_packet(netkit::thread_storage& /*ctx*/, netkit::udp_packet& p, netkit::endpoint& epr, netkit::pgen& pg)
@@ -544,7 +249,7 @@ void handler_direct::handle_pipe(netkit::pipe* pipe)
 
         if (ep.state() == netkit::EPS_DOMAIN)
         {
-            if (!proxychain.empty())
+            if (!ups.is_proxychain_empty())
             {
                 // keep unresolved, resolve via proxy
             }
@@ -572,30 +277,6 @@ void handler_direct::handle_pipe(netkit::pipe* pipe)
     return true;
 }
 
-void handler::udp_processing_thread::close()
-{
-
-}
-
-void handler::udp_processing_thread::convey(netkit::pgen& p, const netkit::endpoint& tgt)
-{
-    if (sendor)
-    {
-        // send now
-        sendor->send(tgt, p);
-        return;
-    }
-
-    auto sb = sendb.lock_write();
-    if (send_data* b = send_data::build(p.to_span(), tgt))
-    {
-        sb().emplace(b);
-    }
-    else {
-        sb().emplace();
-    }
-}
-
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -606,83 +287,190 @@ void handler::udp_processing_thread::convey(netkit::pgen& p, const netkit::endpo
 handler_socks::handler_socks(loader& ldr, listener* owner, const asts& bb, const str::astr_view& st) :handler(ldr, owner, bb)
 {
     if (st == ASTR("4"))
-        allow_5 = false;
+        flags.unset<f_allow_5>();
     if (st == ASTR("5"))
-        allow_4 = false;
+        flags.unset<f_allow_4>();
 
-    if (allow_4)
+    if (flags.is<f_allow_4>())
     {
-        userid = bb.get_string(ASTR("userid"), glb.emptys);
+        const str::astr& userid = bb.get_string(ASTR("userid"), glb.emptys);
+        if (!userid.empty())
+            authdata = std::make_unique<auth_data>();
     }
 
-    if (allow_5)
+    if (flags.is<f_allow_5>())
     {
-        login = bb.get_string(ASTR("auth"), glb.emptys);
-        size_t dv = login.find(':');
-        if (dv != login.npos)
+        const asts *authpar = bb.get(ASTR("auth"));
+        const asts* obfs_authpar = bb.get(ASTR("obfs-auth"));
+
+        str::astr login, pass;
+
+        if (authpar != nullptr)
         {
-            pass = login.substr(dv + 1);
-            login.resize(dv);
+            const str::astr &auths = authpar->as_string(glb.emptys);
+
+            if (size_t dv = auths.find(':'); dv != login.npos)
+            {
+                pass = str::substr(auths, dv + 1);
+                login = str::substr(auths, 0, dv);
+
+                if (login.length() > 254 || pass.length() > 254)
+                {
+                    ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+                    LOG_FATAL("auth too long (listener: $)", str::clean(owner->get_name()));
+                    return;
+                }
+
+                if (!authdata)
+                    authdata = std::make_unique<auth_data>();
+                authdata->login = login;
+                authdata->pass = pass;
+                if (authpar->has_elements())
+                {
+                    const str::astr& allowrules = authpar->get_string(ASTR("allow"), glb.emptys);
+                    if (!allowrules.empty())
+                    {
+                        macro_context ctx(&bb);
+                        if (!authdata->parse(ctx, allowrules))
+                        {
+                            ldr.exit_code = EXIT_FAIL_EXPRESSION_INVALID;
+                            LOG_FATAL("can't parse allow expression (auth, listener: $)", str::clean(owner->get_name()));
+                            return;
+                        }
+                    }
+                }
+            }
+            else
+                login.clear();
         }
 
-        if (login.length() > 254 || pass.length() > 254)
+        if (obfs_authpar != nullptr)
         {
-            login.clear();
-            pass.clear();
+            str::astr_view pass1, login1;
+            const str::astr& oauths = obfs_authpar->as_string(glb.emptys);
+            if (size_t dv = oauths.find(':'); dv != login.npos)
+            {
+                pass1 = str::substr(oauths, dv + 1);
+                login1 = str::substr(oauths, 0, dv);
+            }
+            if (login1.empty() || pass1.empty())
+            {
+                ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+                LOG_FATAL("{obfs-auth} is invalid (must be {obfs-auth}=user:pass) (listener: $)", str::clean(owner->get_name()));
+                return;
+            }
+
+            if (login.length() == 16 && pass.length() == 32)
+            {
+                LOG_FATAL("please change length of login or pass of {auth} param (not compatible with {obfs-auth}) (listener: $)", str::clean(owner->get_name()));
+                ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+                return;
+            }
+
+            obfsdata = std::make_unique<obfs_data>();
+            ss::core::keyspace zeros(true);
+            ss::core::keyspace ons(true); ons.space[1] = 1;
+            hkdf< hmac<sha256> >::perform_kdf(std::span(obfsdata->masterkey), zeros.span(), ons.span(), str::span(oauths));
+
+            if (obfs_authpar->has_elements())
+            {
+                const str::astr& allowrules = obfs_authpar->get_string(ASTR("allow"), glb.emptys);
+                if (!allowrules.empty())
+                {
+                    macro_context ctx(&bb);
+                    if (!obfsdata->parse(ctx, allowrules))
+                    {
+                        ldr.exit_code = EXIT_FAIL_EXPRESSION_INVALID;
+                        LOG_FATAL("can't parse allow expression (obfs-auth, listener: $)", str::clean(owner->get_name()));
+                        return;
+                    }
+                }
+            }
         }
 
-        if (login.empty() || bb.get_bool(ASTR("anon")))
-            socks5_allow_anon = true;
+        if ((login.empty() && !obfsdata) || bb.get_bool(ASTR("anon")))
+            flags.set<f_socks5_allow_anon>();
 
-        allow_udp_assoc = bb.get_bool(ASTR("udp-assoc"), true);
+        flags.set<f_allow_udp_assoc>(bb.get_bool(ASTR("udp-assoc"), true));
 
-        const str::astr &bs = bb.get_string(ASTR("udp-bind"), glb.emptys);
+        const str::astr& bs = bb.get_string(ASTR("udp-bind"), glb.emptys);
         udp_bind = netkit::ipap::parse(bs);
 
-        allow_private = bb.get_bool(ASTR("allow-private"), true);
+        if (!flags.is<f_socks5_allow_anon>() && flags.is<f_allow_4>() && (authdata == nullptr || authdata->userid.empty()))
+        {
+            LOG_FATAL("anonymous socks4 not allowed (listener: $)", str::clean(owner->get_name()));
+            ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+            return;
+        }
+
+        if (flags.is<f_socks5_allow_anon>() || flags.is<f_allow_4>())
+        {
+            macro_context ctx(&bb);
+            const str::astr& allow = bb.get_string(ASTR("allow"), glb.emptys);
+            if (allow.empty())
+            {
+                defexpr = std::make_unique<expression>();
+                defexpr->parse(ctx, ASTR("!prvt()")); // means "disable private target"
+                LOG_W("{allow} rule not defined for listener $; default rule has been applied (\"!prvt()\")", str::clean(owner->get_name()));
+            } else
+            {
+                defexpr = std::make_unique<expression>();
+                if (!defexpr->parse(ctx, allow))
+                {
+                    ldr.exit_code = EXIT_FAIL_EXPRESSION_INVALID;
+                    LOG_FATAL("can't parse anon allow expression (listener: $)", str::clean(owner->get_name()));
+                    return;
+                }
+            }
+        }
 
     }
-
 
 }
 
 void handler_socks::handle_pipe(netkit::pipe* pipe)
 {
-    u8 packet[512];
-    tools::circular_buffer_extdata rcvb( std::span(packet, sizeof(packet)) );
+    tools::circular_buffer_preallocated<2048> rcvb;
     if (signed_t rb = pipe->recv(rcvb, 1, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 1)
         return;
 
-    if (packet[0] == 4)
+    u8 ver = rcvb.getle<u8>();
+    if (ver == 4)
     {
-        rcvb.skip(1);
         handshake4(rcvb, pipe);
         return;
     }
 
-    if (packet[0] == 5)
+    if (ver == 5)
     {
-        rcvb.skip(1);
         handshake5(rcvb, pipe);
         return;
     }
+
+    pipe->close(false);
 }
 
 void handler_socks::handshake4(tools::circular_buffer_extdata& rcvd, netkit::pipe* pipe)
 {
-    if (!allow_4)
+    if (!flags.is<f_allow_4>())
         return;
 
     signed_t rb = pipe->recv(rcvd, 7, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
-    const u8* packet = rcvd.data1st(7);
+    u8 temp[8];
+    const u8* packet = rcvd.plain_data(temp, 7);
     if (rb != 7 || packet[0] != 1)
         return;
 
-    u16 port = (((u16)packet[1]) << 8) | packet[2];
+    u16 port = load_be<2>(packet + 1);
     netkit::ipap dst = netkit::ipap::build(packet + 3, 4, port);
 
-    if (!allow_private && dst.is_private())
-        return;
+    if (defexpr)
+    {
+        netkit::endpoint epsrc(pipe->get_remote_ipap()), eptgt(dst);
+        econtext ctx(&epsrc, &eptgt, !ups.is_proxychain_empty()); // CONTEXT
+        if (defexpr->calc(ctx) == 0)
+            return;
+    }
 
     rcvd.skip(7);
 
@@ -698,38 +486,45 @@ void handler_socks::handshake4(tools::circular_buffer_extdata& rcvd, netkit::pip
         uid.push_back(byt);
     }
 
-    if (uid != userid)
+    if (authdata)
     {
-        u8 sb[8] = {0, 93, 0, 0, 0, 0, 0, 0}; // request rejected because the client program and identd report different user - ids
-        pipe->send(sb, 8);
-        return;
+        if (uid != authdata->userid)
+        {
+            u8 sb[8] = { 0, 93, 0, 0, 0, 0, 0, 0 }; // request rejected because the client program and identd report different user - ids
+            pipe->send(sb, 8);
+            return;
+        }
+
+    }
+    else
+    {
+        // pass any userid if server not configured for auth
     }
 
     netkit::endpoint inf(dst);
-    worker(rcvd, pipe, inf, [port, dst](netkit::pipe* p, rslt ec) {
+    ups_conn_log clogger(owner->get_name(), pipe, &inf);
+    if (netkit::pipe_ptr outcon = ups.connect(clogger, inf, false))
+    {
+        pipe->unrecv(rcvd);
 
-        u8 rp[8];
+        temp[0] = 0;
+        temp[1] = 90;
+        temp[2] = (port >> 8) & 0xff;
+        temp[3] = port & 0xff;
+        *(u32*)(temp + 4) = (u32)dst;
+        pipe->send(temp, 8);
 
-        rp[0] = 0;
+        glb.e->bridge(pipe, outcon.get());
+    }
+    else {
 
-        switch (ec)
-        {
-        case EC_GRANTED:
-            rp[1] = 90;
-            break;
-        case EC_REMOTE_HOST_UNRCH:
-            rp[1] = 92;
-            break;
-        default:
-            rp[1] = 91;
-            break;
-        }
-
-        rp[2] = (port>>8) & 0xff; rp[3] = port & 0xff;
-        *(u32*)(rp + 4) = (u32)dst;
-
-        p->send(rp, 8);
-    });
+        temp[0] = 0;
+        temp[1] = 92;
+        temp[2] = (port >> 8) & 0xff;
+        temp[3] = port & 0xff;
+        *(u32*)(temp + 4) = (u32)dst;
+        pipe->send(temp, 8);
+    }
 }
 
 namespace
@@ -738,7 +533,7 @@ namespace
     {
         netkit::ipap bind;
         netkit::pipe_ptr pipe;
-        bool allow_private;
+        const expression * allow_check;
 
         str::astr_view desc() const override { return str::astr_view(); }
 
@@ -761,8 +556,16 @@ namespace
             if (!proxy_socks5::read_atyp(pgr, epr))
                 return false;
 
-            if (!allow_private && epr.state() == netkit::EPS_RESLOVED && epr.get_ip().is_private())
-                return false;
+            if (allow_check)
+            {
+                netkit::endpoint epsrc(pipe->get_remote_ipap());
+                econtext ctx(&epsrc, &epr, !ups.is_proxychain_empty()); // CONTEXT
+                if (allow_check->calc(ctx) == 0)
+                {
+                    LOG_W("{allow} rule rejects udp packet $ -> $ ($)", p.from.to_string(), epr.desc(), this->desc());
+                    return false;
+                }
+            }
 
             pg.set(p, pgr.ptr);
             return true;
@@ -804,7 +607,7 @@ namespace
         {
             return 0; // infinite because udp assoc keeps the connection until the tcp connection is disconnected
         }
-        /*virtual*/ void on_listen_port(signed_t port) override
+        /*virtual*/ void on_listen_port(size_t port) override
         {
             u8 rp[512];
 
@@ -819,7 +622,7 @@ namespace
             pipe->send(rp, pg.ptr+3);
         }
     public:
-        udp_assoc_handler(const netkit::ipap& bind, netkit::pipe* pipe, bool allow_private) :bind(bind), pipe(pipe), allow_private(allow_private) {}
+        udp_assoc_handler(const netkit::ipap& bind, netkit::pipe* pipe, const expression* allow) :bind(bind), pipe(pipe), allow_check(allow) {}
     };
 
     /*
@@ -832,68 +635,190 @@ namespace
     };
     */
 
+    struct decode_sni_socket : public netkit::replace_socket
+    {
+        chacha20 decoder;
+        bool first_packet = true;
+        decode_sni_socket(chacha20&& enc) :decoder(std::move(enc)) {}
+
+        /*virtual*/ system_socket* update(std::unique_ptr<system_socket>& mp) override
+        {
+            if (!first_packet)
+            {
+                mp = std::move(sock);
+            }
+            return mp.get();
+        }
+
+        /*virtual*/ u8 setup_wait_slot(netkit::wait_slot* slot) override
+        {
+            return sock->setup_wait_slot(slot);
+        }
+        /*virtual*/ u8 get_event_info(netkit::wait_slot* slot) override
+        {
+            return sock->get_event_info(slot);
+        }
+        /*virtual*/ void readypipe(bool rp) override
+        {
+            sock->readypipe(rp);
+        }
+        /*virtual*/ u8 wait(size_t evts, signed_t timeout_ms) override
+        {
+            return sock->wait(evts, timeout_ms);
+        }
+        /*virtual*/ bool connect(const netkit::ipap& a, netkit::socket_info_func sif) override
+        {
+            return sock->connect(a, sif);
+        }
+        /*virtual*/ void sendfull(bool sff) override
+        {
+            sock->sendfull(sff);
+        }
+        /*virtual*/ signed_t send(std::span<const u8> data) override
+        {
+            return sock->send(data);
+        }
+        /*virtual*/ void close(bool flush_before_close) override
+        {
+            sock->close(flush_before_close);
+        }
+        /*virtual*/ signed_t recv(tools::memory_pair& mp) override
+        {
+            signed_t rv = sock->recv(mp);
+
+            if (first_packet && rv > 0)
+            {
+                first_packet = false;
+                size_t psz = rv;
+                bool already_plain = psz <= mp.p0.size();
+                u8* plainbuf = already_plain ? mp.p0.data() : ALLOCA(psz);
+                if (!already_plain) mp.copy_out(plainbuf, psz);
+                std::span<const u8> snin = extract_tls_clienthello_sni(plainbuf, psz);
+                if (!snin.empty())
+                {
+                    str::astr sni = decoder.decode_host(str::view(snin));
+                    size_t offs = snin.data() - plainbuf;
+                    mp.copy_in(offs, (const u8 *)sni.c_str(), snin.size());
+                }
+            }
+
+            return rv;
+        }
+    };
 }
 
 void handler_socks::handshake5(tools::circular_buffer_extdata& rcvd, netkit::pipe* pipe)
 {
-    if (!allow_5)
+    if (!flags.is<f_allow_5>())
         return;
 
     if (signed_t rb = pipe->recv(rcvd, 1, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 1)
         return;
-    u8 numauth = rcvd.getle<u8>();
+    signed_t numauth = rcvd.getle<u8>();
     if (signed_t rb = pipe->recv(rcvd, numauth, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); numauth != rb)
         return;
 
+    u8 temp[512];
     u8 rauth = 0xff;
-    const u8* packet = rcvd.data1st(numauth);
+
+    const u8 *packet = rcvd.plain_data(temp, numauth);
+    if (nullptr == packet)
+        return;
+
     for (signed_t i = 0; i < numauth && rauth != 0; ++i)
     {
         switch (packet[i])
         {
         case 0: // anonymous access request
-            if (socks5_allow_anon && rauth > 0)
+            if (flags.is<f_socks5_allow_anon>() && rauth > 0)
                 rauth = 0;
             break;
         case 2:
-            if (!login.empty() && rauth > 2)
+            if (authdata && !authdata->login.empty() && rauth > 2)
                 rauth = 2;
             break;
         }
     }
     rcvd.skip(numauth);
 
-    u8 temp[16];
     temp[0] = 5;
     temp[1] = rauth;
     if (pipe->send(temp, 2) == netkit::pipe::SEND_FAIL || rauth == 0xff)
         return;
 
+    const expression* checkexpr = defexpr.get();
+    chacha20 decr;
     if (rauth == 2)
     {
         // wait for auth packet
-        signed_t rb = pipe->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
-        packet = rcvd.data1st(2);
-        if (rb != 2 || packet[0] != 1)
+        if (signed_t rb = pipe->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
+            return;
+        packet = rcvd.plain_data(temp, 2);
+        if (packet[0] != 1)
             return;
         signed_t loginlen = 1 + packet[1]; // and one byte - len of pass
         rcvd.skip(2);
-        if (rb = pipe->recv(rcvd, loginlen, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != loginlen)
+        if (signed_t rb = pipe->recv(rcvd, loginlen, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != loginlen)
             return;
         str::astr rlogin, rpass;
         rcvd.peek(rlogin, loginlen-1);
         u8 passlen = rcvd.getle<u8>();
-        if (rb = pipe->recv(rcvd, passlen, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != passlen)
+        if (signed_t rb = pipe->recv(rcvd, passlen, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != passlen)
             return;
         rcvd.peek(rpass, passlen);
-
         temp[0] = 1;
-        if (rlogin != login || rpass != pass)
+
+        bool rfc1929 = obfsdata == nullptr;
+        if (!rfc1929 && (loginlen != 17 || passlen != 32))
+            rfc1929 = true;
+
+        if (rfc1929)
         {
-            temp[1] = 1;
-            pipe->send(temp, 2);
-            return;
+            if (!authdata || rlogin != authdata->login || rpass != authdata->pass)
+            {
+                temp[1] = 1;
+                pipe->send(temp, 2);
+
+                LOG_W("auth failed from $ (listener: $)", pipe->get_info(netkit::pipe::I_REMOTE), str::clean(owner->get_name()));
+
+                return;
+            }
+            checkexpr = authdata->initialized() ? authdata.get() : nullptr;
         }
+        else
+        {
+            u8 calckey[sha256::output_bytes];
+
+            hkdf< hmac<sha256> >::perform_kdf(
+                std::span(calckey, 32),                             // output
+                std::span(obfsdata->masterkey),                     // masterkey (kdf generated on proxy load)
+                std::span<const u8>((const u8 *)rlogin.data(), 16), // salt
+                str::span(ASTR("socks-obfs")));
+
+            if (!secure::equals<32>(calckey, rpass.data()))
+            {
+                temp[1] = 1;
+                pipe->send(temp, 2);
+
+                LOG_W("obfs-auth failed from $ (listener: $)", pipe->get_info(netkit::pipe::I_REMOTE), str::clean(owner->get_name()));
+
+                return;
+            }
+
+            if (!obfsdata->flt.test_and_add(std::span<const u8>((const u8*)rlogin.data(), 16)))
+            {
+                // not pass! Replay Attack detected! (or false positive)
+                // 
+                LOG_W("reply-attack-filter rejects packet from $ (listener: $)", pipe->get_info(netkit::pipe::I_REMOTE), str::clean(owner->get_name()));
+                return;
+            }
+
+            decr.set_iv(std::span<const u8>((const u8*)rlogin.data(), 12));
+            decr.set_key(obfsdata->masterkey);
+
+            checkexpr = obfsdata->initialized() ? obfsdata.get() : nullptr;
+        }
+
         temp[1] = 0;
         pipe->send(temp, 2);
     }
@@ -915,14 +840,14 @@ void handler_socks::handshake5(tools::circular_buffer_extdata& rcvd, netkit::pip
         return;
     }
 
-    packet = rcvd.data1st(5);
+    packet = rcvd.plain_data(temp, 5);
     if (packet[0] != 5)
     {
         fail_answer(1); // FAILURE
         return;
     }
-
-    if (allow_udp_assoc && packet[1] == 3 /* UDP ASSOC */)
+    
+    if (flags.is<f_allow_udp_assoc>() && packet[1] == 3 /* UDP ASSOC */)
     {
         //rcvd have 5 bytes not skipped
 
@@ -947,17 +872,19 @@ void handler_socks::handshake5(tools::circular_buffer_extdata& rcvd, netkit::pip
             break;
         }
 
-        udp_assoc_handler udph(udp_bind, pipe, allow_private);
+        udp_assoc_handler udph(udp_bind, pipe, checkexpr);
         udp_listener udpl(udp_bind, &udph);
         udpl.open();
 
         for (;!glb.is_stop();)
         {
             rcvd.clear();
-            auto rslt = netkit::wait(pipe->get_waitable(), -1);
-            if (rslt == netkit::WR_CLOSED)
+
+            u8 rslt = pipe->wait(netkit::SE_READ, -1);
+
+            if (rslt & netkit::SE_CLOSED)
                 break;
-            if (rslt == netkit::WR_READY4READ)
+            if (rslt & netkit::SE_READ)
                 pipe->recv(rcvd, 0, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
         }
 
@@ -980,89 +907,188 @@ void handler_socks::handshake5(tools::circular_buffer_extdata& rcvd, netkit::pip
     case 1: // ip4
         if (signed_t rb = pipe->recv(rcvd, 5 + 3, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 5+3)
             return;
-        ep.set_ipap(netkit::ipap::build(packet + 4, 4));
-        rcvd.skip(5 + 3);
+
+        if (const u8* plain = rcvd.plain_data(temp, 8))
+        {
+            if (decr.ready())
+            {
+                u8* deca = temp + 256;
+                decr.cipher(plain + 4, deca, 4);
+                ep.set_ipap(netkit::ipap::build(deca, 4));
+            }
+            else
+                ep.set_ipap(netkit::ipap::build(plain + 4, 4));
+
+            rcvd.skip(5 + 3);
+        }
+        else
+            return;
+
         break;
     case 3: // domain name
 
         numauth = packet[4] + 5; // len of domain
         if (signed_t rb = pipe->recv(rcvd, numauth, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != numauth)
             return;
-        ep.set_domain( str::astr_view((const char *)packet+5, numauth-5) );
-        rcvd.skip(numauth);
+
+        if (const u8* plain = rcvd.plain_data(temp, numauth))
+        {
+            if (decr.ready())
+            {
+                size_t domlen = numauth - 5;
+                u8* deca = temp + 256;
+                decr.cipher(plain + 5, deca, domlen);
+                ep.set_domain(str::astr_view((const char*)deca, domlen));
+            }
+            else
+                ep.set_domain(str::astr_view((const char*)plain + 5, numauth - 5));
+            rcvd.skip(numauth);
+        }
+        else
+            return;
+
         break;
 
     case 4: // ipv6
         // read 15 of 16 bytes of ipv6 address (1st byte already read) (also 5 bytes already read)
         if (signed_t rb = pipe->recv(rcvd, 5 + 15, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 5+15)
             return;
-        ep.set_ipap(netkit::ipap::build(packet + 4, 16));
-        rcvd.skip(5 + 15);
+        if (const u8* plain = rcvd.plain_data(temp, 20))
+        {
+            if (decr.ready())
+            {
+                u8* deca = temp + 256;
+                decr.cipher(plain + 4, deca, 16);
+                ep.set_ipap(netkit::ipap::build(deca, 16));
+            }
+            else
+                ep.set_ipap(netkit::ipap::build(plain + 4, 16));
+            rcvd.skip(5 + 15);
+        }
+        else
+            return;
         break;
     }
-
-    if (!allow_private && ep.state() == netkit::EPS_RESLOVED && ep.get_ip().is_private())
-        return;
 
     if (signed_t rb = pipe->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
         return;
 
-    const u8* port_ptr = rcvd.data1st(2);
-    signed_t port = ((signed_t)port_ptr[0]) << 8 | port_ptr[1];
+    const u8* port_ptr = rcvd.plain_data(temp, 2);
+    size_t port;
+    if (decr.ready())
+    {
+        u8 deca[2];
+        decr.cipher(port_ptr, deca, 2);
+        port = load_be<2>(deca);
+    }
+    else
+    {
+        port = load_be<2>(port_ptr);
+    }
     ep.set_port(port);
 
     rcvd.skip(2);
 
-    worker(rcvd, pipe, ep, [port, &ep](netkit::pipe* p, rslt ec) {
-
-        u8 rp[10];
-
-        rp[0] = 5; // VER
-        rp[2] = 0;
-        rp[3] = 1; // ATYPE // ip4
-
-        switch (ec)
-        {
-        case EC_GRANTED:
-            rp[1] = 0; // SUCCESS
-            break;
-        case EC_REMOTE_HOST_UNRCH:
-            rp[1] = 4;
-            break;
-        default:
-            rp[1] = 1;
-            break;
-        }
-
-        *(u32*)(rp + 4) = 0; // (u32)ep.get_ip(conf::gip_only4);
-        rp[8] = (port >> 8) & 0xff;
-        rp[9] = port & 0xff;
-        p->send(rp, 10);
-    });
-}
-
-
-void handler_socks::worker(tools::circular_buffer_extdata& rcvd, netkit::pipe* pipe, netkit::endpoint &inf, sendanswer answ)
-{
-    // now try to connect to out
-
-    netkit::pipe_ptr p(pipe);
-    if (netkit::pipe_ptr outcon = connect(pipe->get_info(netkit::pipe::I_SUMMARY), inf, false))
+    if (checkexpr)
     {
-        answ( pipe, EC_GRANTED );
-        p->unrecv(rcvd);
+        netkit::endpoint epsrc(pipe->get_remote_ipap());
+        econtext ctx(&epsrc, &ep, !ups.is_proxychain_empty()); // CONTEXT
+        if (checkexpr->calc(ctx) == 0)
+        {
+            LOG_W("{allow} rule rejects connection $ -> $ ($)", pipe->get_info(netkit::pipe::I_REMOTE), ep.desc(), str::clean(owner->get_name()));
+            return;
+        }
+    }
 
+    str::astr_view ent = owner->get_name();
+    str::astr tmps;
+    if (decr.ready())
+    {
+        tmps = ent;
+        tmps.append(ASTR("/obfs"));
+        ent = tmps;
+    }
+    ups_conn_log clogger(ent, pipe, &ep);
+    if (netkit::pipe_ptr outcon = ups.connect(clogger, ep, false))
+    {
 #ifdef _DEBUG
-        if (inf.domain() == "rutracker.org")
+        if (ep.domain() == "wikipedia.org")
         {
             outcon->tag = 1;
         }
+        pipe->calc_entropy = 0;
 #endif
 
-        glb.e->bridge(std::move(p), std::move(outcon));
+        pipe->unrecv(rcvd);
+
+        temp[0] = 5; // VER
+        temp[1] = 0; // SUCCESS
+        temp[2] = 0;
+        temp[3] = 1; // ATYPE // ip4
+
+        *(u32*)(temp + 4) = 0; // (u32)ep.get_ip(conf::gip_only4);
+        temp[8] = (port >> 8) & 0xff;
+        temp[9] = port & 0xff;
+
+        pipe->send(temp, 10);
+
+        if (decr.ready())
+            pipe->replace(NEW decode_sni_socket(std::move(decr)));
+
+        glb.e->bridge(pipe, outcon.get());
     }
     else {
-        answ(pipe, EC_REMOTE_HOST_UNRCH);
+
+        temp[0] = 5; // VER
+        temp[1] = 4; // HOST_UNRCH
+        temp[2] = 0;
+        temp[3] = 1; // ATYPE // ip4
+
+        *(u32*)(temp + 4) = 0; // (u32)ep.get_ip(conf::gip_only4);
+        temp[8] = (port >> 8) & 0xff;
+        temp[9] = port & 0xff;
+
+        pipe->send(temp, 10);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+//
+// dummy
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+handler_dummy::handler_dummy(loader& ldr, listener* /*owner*/, const asts& bb):handler(ldr,nullptr,bb)
+{
+    echo = bb.get_bool(ASTR("echo"), false);
+}
+/*virtual*/ void handler_dummy::handle_pipe(netkit::pipe* pipe)
+{
+    ostools::set_current_thread_name(ASTR("dummy"));
+
+    u8 packet[65536], temp[65536];
+    tools::circular_buffer_extdata rcvb(std::span(packet, sizeof(packet)));
+
+    for (; !glb.is_stop();)
+    {
+        rcvb.clear();
+
+        u8 wr = pipe->wait(netkit::SE_READ, 1000);
+        if (wr & netkit::SE_CLOSED)
+            break;
+        if (wr & netkit::SE_TIMEOUT)
+        {
+            if (glb.is_stop())
+                break;
+            continue;
+        }
+
+        signed_t r = pipe->recv(rcvb,0,1000);
+        if (r < 0)
+            break;
+
+        if (echo && rcvb.datasize() > 0)
+            pipe->send( rcvb.plain_data(temp, rcvb.datasize()), rcvb.datasize() );
     }
 
 }

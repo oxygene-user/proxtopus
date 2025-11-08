@@ -2,12 +2,13 @@
 
 #define ENOUGH_ACCEPTORS_COUNT 10
 #define BRIDGE_BUFFER_SIZE (65536*2)
-#define BAN_TIME 3600 // 1 hour
+#define IP_BAN_DURATION 3600 // 1 hour
+#define IP_BANCHECK_TIME 600 // 10 min
 
 struct slot_statistics
 {
-    slot_statistics(signed_t inatime) :inactive_start(inatime) {}
-    signed_t inactive_start = 0;
+    slot_statistics(chrono::mils inatime) :inactive_start(inatime) {}
+    chrono::mils inactive_start;
     bool one_sec_inactive = false;
 #if DEEP_SLOT_TRACE
     size_t uid = tools::unique_id();
@@ -26,8 +27,8 @@ struct deep_tracer
 
     struct trace_rec
     {
-        trace_rec(signed_t t) :time(t) {}
-        signed_t time;
+        trace_rec(chrono::mils t) :time(t) {}
+        chrono::mils time;
         size_t tid;
         size_t utid;
         size_t numlines = 0;
@@ -51,7 +52,7 @@ struct deep_tracer
         if (!deep_trace_enabled)
             return;
 
-        signed_t ct = chrono::ms();
+        chrono::mils ct = chrono::ms();
 
         trace_rec& rec = recs.empty() || recs[recs.size() - 1].time < ct ? recs.emplace_back(ct) : recs[recs.size() - 1];
         rec.tid = cur_thread_id;
@@ -72,6 +73,12 @@ class engine
 	lcoll listners;
 	api_collection_uptr<proxy> prox;
 
+#if FEATURE_ADAPTER
+    std::unique_ptr<adapters> adptrs;
+#endif
+
+    std::unique_ptr<dns_resolver> dnsr;
+
     std::mutex mtx;
     std::condition_variable cv;
 
@@ -79,11 +86,39 @@ class engine
 	volatile size_t check_acceptors = 0;
 	volatile size_t current_absorber = 0;
 
-	struct tcp_pipe_and_handler
+    struct acceptor_job;
+    using job_handler = bool(acceptor_job&);
+	struct acceptor_job
 	{
-        handler* h;
-		netkit::tcp_pipe* pipe;
-	};
+        static bool handle_tcp(acceptor_job&);
+        static bool handle_udp(acceptor_job&);
+#if FEATURE_ADAPTER
+        static bool handle_atcp(acceptor_job&);
+#endif
+
+        union
+        {
+            struct
+            {
+                handler* h;
+                netkit::tcp_pipe* pipe;
+            } tcpj;
+            struct
+            {
+                udp_dispatcher* ud;
+                udp_processing_thread* upt;
+                netkit::datagram_socket* lstnr;
+            } udpj;
+#if FEATURE_ADAPTER
+            struct
+            {
+                adapter* a;
+                netkit::pipe* pipe;
+            } atcpj;
+#endif
+        };
+        job_handler *jh;
+    };
 
     struct bridge_ready
     {
@@ -92,37 +127,53 @@ class engine
 		slot_statistics* stat;
     };
 
-	alignas(8) tools::bucket<tcp_pipe_and_handler> newpipes;
+	alignas(8) tools::bucket<acceptor_job> newjobs;
 	alignas(8) tools::bucket<bridge_ready> ready_bridges;
 
     struct banned_ip
     {
-        netkit::ipap ip;
-        time_t unbantime;
+        time_t event_time;
+        tools::flags<1> flags;
 
-        banned_ip(const netkit::ipap& ip, time_t &next_unban_time) :ip(ip), unbantime(chrono::now()+BAN_TIME)
+        enum
         {
-            if (next_unban_time > unbantime)
-                next_unban_time = unbantime;
+            f_actual_ban = 1,
+            f_touched = 2,
+        };
+
+        bool need_unban() const
+        {
+            return flags.is<f_actual_ban>() || !flags.is<f_touched>();
+        }
+        bool is_banned() const
+        {
+            return flags.is<f_actual_ban>();
+        }
+        bool banned()
+        {
+            if (!flags.is<f_actual_ban>())
+            {
+                flags.set<f_actual_ban>();
+                return true;
+            }
+            return false;
+        }
+        void touch()
+        {
+            flags.set<f_touched>();
+        }
+
+        banned_ip(/*const netkit::ipap& ip,*/ time_t &next_ban_action)
+        {
+            event_time = chrono::now() + IP_BANCHECK_TIME;
+
+            if (next_ban_action > event_time)
+                next_ban_action = event_time;
         }
     };
 
-    struct banned_ip_cmp {
-        using is_transparent = void;
-        bool operator()(const banned_ip& a, const banned_ip& b) const {
-            return a.ip < b.ip;
-        }
-        bool operator()(const banned_ip& a, const netkit::ipap& b) const {
-            return a.ip < b;
-        }
-        bool operator()(const netkit::ipap& a, const banned_ip& b) const {
-            return a < b.ip;
-        }
-    };
-
-
-    spinlock::syncvar<std::set<banned_ip, banned_ip_cmp>> banned;
-    time_t next_unban_time = math::maximum<time_t>::value;
+    spinlock::syncvar<std::map<netkit::ipap, banned_ip>> banned;
+    time_t next_ban_action = math::maximum<time_t>::value;
 
 	void acceptor();
 
@@ -142,8 +193,16 @@ class engine
 
         void clear()
         {
-            pipe1 = nullptr;
-            pipe2 = nullptr;
+            if (pipe1)
+            {
+                pipe1->close(true);
+                pipe1 = nullptr;
+            }
+            if (pipe2)
+            {
+                pipe2->close(true);
+                pipe2 = nullptr;
+            }
             mask1 = 0;
             mask2 = 0;
             stat.reset();
@@ -154,7 +213,7 @@ class engine
 
         bool is_empty() const
         {
-            return pipe1 == nullptr || pipe2 == nullptr;
+            return pipe1.is_empty() || pipe2.is_empty();
         }
 
         bool prepare_wait(netkit::pipe_waiter& w)
@@ -288,7 +347,10 @@ class engine
     }
     bool bridge_alienation(netkit::pipe* pipe1, netkit::pipe* pipe2)
     {
-        return ready_bridges.put([&](bridge_ready& brr) {
+        pipe1->add_ref();
+        pipe2->add_ref();
+
+        bool ok = ready_bridges.put([&](bridge_ready& brr) {
             brr.pipe1 = pipe1;
             brr.pipe2 = pipe2;
 #if DEEP_SLOT_TRACE
@@ -297,6 +359,12 @@ class engine
             brr.stat = nullptr;
 #endif
         });
+        if (!ok)
+        {
+            netkit::pipe::release(pipe1);
+            netkit::pipe::release(pipe2);
+        }
+        return ok;
     }
 
     void absorber_signal()
@@ -306,14 +374,18 @@ class engine
     }
     void release_tcp(tcp_processing_thread* udp_wt);
 
+    void rise_acceptor();
+
 public:
 
 	int exit_code = EXIT_OK;
 
-	engine();
+	engine(LIBONLY( const str::astr_view &cfg ));
 	~engine();
 
 	bool heartbeat(); // called once per second
+
+    dns_resolver* dns() { return dnsr.get(); }
 
 	const proxy* find_proxy(const str::astr_view& pn) const
 	{
@@ -326,23 +398,45 @@ public:
 	const lcoll& l() const { return listners; }
 	const api_collection_uptr<proxy>& p() const { return prox; }
 
-	void new_tcp_pipe(handler* h, netkit::tcp_pipe* p); // new incoming tcp connection // add pipe to dispatch bucket, so free acceptor will handle it
+#if FEATURE_ADAPTER
+    void new_tcp_pipe(adapter* a, netkit::pipe* p); // new outgoing tcp connection through adapter
+#endif
+    void new_tcp_pipe(handler* h, netkit::tcp_pipe* p); // new incoming tcp connection
+	void new_udp_pipe(udp_dispatcher* ud, udp_processing_thread* upt, netkit::datagram_socket* lstnr);
 	void wake_up_acceptors()
 	{
 		check_acceptors = num_acceptors;
 		cv.notify_all();
 	}
+    void on_exit()
+    {
+#if FEATURE_ADAPTER
+        adptrs.reset();
+#endif
+        wake_up_acceptors();
+    }
 
-    void bridge(netkit::pipe_ptr&& pipe1, netkit::pipe_ptr&& pipe2); // either does job in current thread or forwards job to another thread with same endpoint
+    void bridge(netkit::pipe *pipe1, netkit::pipe *pipe2);
 
 
     void ban(const netkit::ipap& ip)
     {
-        banned.lock_write()().emplace(ip, next_unban_time);
+        auto w = banned.lock_write();
+        auto rslt = w().emplace(ip, next_ban_action);
+        if (!rslt.second)
+            rslt.first->second.touch();
     }
-    bool is_banned(const netkit::ipap& ip) const
+    void unban(const netkit::ipap& ip)
     {
-        return banned.lock_read()().contains(ip);
+        banned.lock_write()().erase(ip);
+    }
+    signed_t ban_staus(const netkit::ipap& ip) const // -1 - preban, 0 - clear, 1 - ban
+    {
+        auto r = banned.lock_read();
+        auto it = r().find(ip);
+        if (it != r().end())
+            return it->second.is_banned() ? 1 : -1;
+        return 0;
     }
 
 };

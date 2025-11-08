@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/dl_scheme.h>
+#if FEATURE_TLS
 
 #include <botan/assert.h>
 #include <botan/ber_dec.h>
@@ -129,3 +130,4 @@ const BigInt& DL_PrivateKey::get_int_field(Any_Algo algo, std::string_view field
 }
 
 }  // namespace Botan
+#endif

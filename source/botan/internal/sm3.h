@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_SM3_H_
 #define BOTAN_SM3_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/mdx_hash.h>
 
@@ -52,4 +54,5 @@ class SM3 final : public HashFunction {
 
 }  // namespace Botan
 
+#endif
 #endif

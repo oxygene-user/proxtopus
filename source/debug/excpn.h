@@ -1,4 +1,5 @@
 #pragma once
+#if FEATURE_FILELOG
 #include "stkwlk.h"
 
 #ifdef _WIN32
@@ -32,4 +33,5 @@ public:
 
 }
 
+#endif
 #endif

@@ -9,6 +9,7 @@
 */
 
 #include <botan/internal/tls_cbc.h>
+#if FEATURE_TLS
 
 #include <botan/internal/cbc.h>
 
@@ -481,3 +482,4 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish_msg(secure_vector<uint8_t>& buffer, si
 }
 
 }  // namespace Botan::TLS
+#endif

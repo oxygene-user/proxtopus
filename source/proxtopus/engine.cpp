@@ -2,120 +2,143 @@
 
 DST(bool deep_tracer::deep_trace_enabled = true);
 
-engine::engine()
-{
-	glb.e = this;
-#ifdef _WIN32
-	WSADATA wsa;
-	WSAStartup(MAKEWORD(2, 2), &wsa);
+engine::engine(LIBONLY( const str::astr_view &cfg )) {
+
+#if !APP
+    glb.unstop();
 #endif
 
-	loader ldr(this);
+    glb.e = this;
+#ifdef _WIN32
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
 
-	if (!ldr.load_conf(glb.path_config))
-	{
-		exit_code = ldr.exit_code;
-		glb.stop();
-		return;
-	}
+    loader ldr(this);
 
-	glb.path_config = FN();
-
-	if (!glb.actual)
-		return;
-
-	ldr.iterate_p([&](const str::astr& name, const asts& lb) {
-
-		if (name.empty())
-		{
-			LOG_W("proxy with no name skipped");
-			return true;
-		}
-
-		proxy* p = proxy::build(ldr, name, lb);
-		if (nullptr == p)
-			return false;
-
-		prox.emplace_back(p);
-		return true;
-	});
-
-	if (ldr.exit_code != 0)
-	{
-		exit_code = ldr.exit_code;
-		glb.stop();
-		return;
-	}
-
-	ldr.iterate_l([&](const str::astr& name, const asts& lb) {
-
-		if (name.empty())
-		{
-			if (glb.listeners_need_all)
-			{
-				ldr.exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
-				return false;
-			}
-
-			LOG_W("listener with no name skipped");
-			return true;
-		}
-
-		listener::build(listners, ldr, name, lb);
-		if (ldr.exit_code != EXIT_OK)
-			return false;
-
-		return true;
-	});
-
-	if (ldr.exit_code != 0)
-	{
-		exit_code = ldr.exit_code;
-		glb.stop();
-		return;
-	}
-
-	if (listners.empty())
-	{
-		LOG_FATAL("empty (or not loaded) \"listeners\" block");
-		exit_code = EXIT_FAIL_NOLISTENERS;
-		glb.stop();
-		return;
-	}
-
-    for (signed_t idpool = 1; auto & p : prox)
+#if APP
+    if (!ldr.load_conf(glb.path_config))
     {
-        p->id = idpool++;
+        exit_code = ldr.exit_code;
+        glb.stop();
+        return;
     }
 
-	for (signed_t idpool = 1; auto &l : listners)
-	{
-		l->id = idpool++;
-	}
+    glb.path_config = FN();
+#endif
 
-	if (ldr.nameservers && glb.dns != nullptr)
-	{
-		glb.dns->load_serves(this, ldr.nameservers);
-	}
+#if FEATURE_WATCHDOG
+    if (!glb.actual)
+        return;
+#endif
 
-	if (ldr.icpt)
-	{
-		if (!glb.icpt.load(this, ldr.icpt))
-		{
-			exit_code = ldr.exit_code;
+#if !APP
+    if (!ldr.load_conf(cfg))
+    {
+        exit_code = ldr.exit_code;
+        glb.stop();
+        return;
+    }
+#endif
+
+    ldr.iterate_p([&](const str::astr& name, const asts& lb) {
+
+        if (name.empty())
+        {
+            LOG_W("proxy with no name skipped");
+            return true;
+        }
+
+        proxy* p = proxy::build(ldr, name, lb);
+        if (nullptr == p)
+            return false;
+
+        prox.emplace_back(p);
+        return true;
+    });
+
+    if (ldr.exit_code != 0)
+    {
+        exit_code = ldr.exit_code;
+        glb.stop();
+        return;
+    }
+
+    ldr.iterate_l([&](const str::astr& name, const asts& lb) {
+
+        if (name.empty())
+        {
+            if (glb.listeners_need_all)
+            {
+                ldr.exit_code = EXIT_FAIL_NEED_ALL_LISTENERS;
+                return false;
+            }
+
+            LOG_W("listener with no name skipped");
+            return true;
+        }
+
+        listener::build(listners, ldr, name, lb);
+        if (ldr.exit_code != EXIT_OK)
+            return false;
+
+        return true;
+    });
+
+    if (ldr.exit_code != 0)
+    {
+        exit_code = ldr.exit_code;
+        glb.stop();
+        return;
+    }
+
+    if (listners.empty())
+    {
+        LOG_FATAL("empty (or not loaded) \"listeners\" block");
+        exit_code = EXIT_FAIL_NOLISTENERS;
+        glb.stop();
+        return;
+    }
+
+    for (signed_t idpool = 1; auto & p : prox)
+        p->id = idpool++;
+
+    for (signed_t idpool = 1; auto &l : listners)
+        l->id = idpool++;
+
+    if (ldr.nameservers)
+    {
+        if (IS_ACTUAL && (glb.cfg.dnso & conf::dnso_mask) == conf::dnso_internal)
+        {
+            dnsr.reset(NEW dns_resolver(0 != (glb.cfg.dnso & conf::dnso_bit_parse_hosts)));
+            dnsr->load_serves(this, ldr.nameservers);
+        }
+    }
+
+#if FEATURE_ADAPTER
+    if (ldr.adapters)
+    {
+        adptrs.reset(NEW adapters);
+        if (!adptrs->load(ldr))
+        {
+            exit_code = ldr.exit_code;
             glb.stop();
             return;
-		}
-	}
+        }
 
-	for (auto &l : listners)
-		l->open();
+        for (signed_t idpool = 1; auto& a : *adptrs)
+            a->id = idpool++;
+    }
+#endif
+
+    for (auto &l : listners)
+        l->open();
 
 }
 
 engine::~engine()
 {
-	glb.stop();
+    glb.stop();
 
     current_absorber = 0; // force remove absorber
 
@@ -135,154 +158,291 @@ engine::~engine()
 
     glb.e = nullptr;
 
-	std::array<netkit::pipe*,256> pipes2del;
-	std::array<slot_statistics*, 256> stat2del;
-	size_t p2dsz = 0, s2dsz = 0;
-	while (newpipes.get([&](tcp_pipe_and_handler& h) {
-		pipes2del[p2dsz++] = h.pipe;
-	}));
+    std::array<netkit::pipe*,256> pipes2del;
+    std::array<slot_statistics*, 256> stat2del;
+    std::array<udp_processing_thread*, 256> udpp2del;
+    size_t p2dsz = 0, s2dsz = 0, p2dudp = 0;
+    while (newjobs.get([&](acceptor_job& h) {
+
+        if (h.jh == acceptor_job::handle_tcp)
+            pipes2del[p2dsz++] = h.tcpj.pipe;
+        else if (h.jh == acceptor_job::handle_udp)
+            udpp2del[p2dudp++] = h.udpj.upt;
+#if FEATURE_ADAPTER
+        else if (h.jh == acceptor_job::handle_atcp)
+            pipes2del[p2dsz++] = h.atcpj.pipe;
+#endif
+
+    }));
 
     while (ready_bridges.get([&](bridge_ready& h) {
         pipes2del[p2dsz++] = h.pipe1;
-		pipes2del[p2dsz++] = h.pipe2;
-		stat2del[s2dsz++] = h.stat;
+        pipes2del[p2dsz++] = h.pipe2;
+        stat2del[s2dsz++] = h.stat;
     }));
 
     for (size_t i = 0; i < p2dsz; ++i)
     {
-        if (pipes2del[i]->is_ref_new())
-        {
-            delete pipes2del[i];
-            continue;
-        }
+        netkit::pipe::release(pipes2del[i]);
 
-        netkit::pipe_ptr pp;
-        pp._assign(pipes2del[i]);
+        //if (pipes2del[i]->is_ref_new())
+        //{
+        //    delete pipes2del[i];
+        //    continue;
+        //}
+
+        //netkit::pipe_ptr pp;
+        //pp._assign(pipes2del[i]);
     }
 
     for (size_t i = 0; i < s2dsz; ++i)
         delete stat2del[i];
 
+    for (size_t i = 0; i < p2dudp; ++i)
+        udp_processing_thread::release(udpp2del[i]);
+
 #ifdef _WIN32
-	WSACleanup();
+    WSACleanup();
 #endif
 }
+
+bool engine::acceptor_job::handle_tcp(acceptor_job& ja)
+{
+    spinlock::atomic_decrement(glb.e->num_acceptors); // exclude current acceptor from available acceptors pool
+    ostools::set_current_thread_name(ja.tcpj.h->desc());
+    netkit::pipe* ppp = ja.tcpj.pipe;
+    ja.tcpj.h->handle_pipe(ppp); // can take long time...
+    netkit::pipe::release(ppp);
+    if (glb.is_stop())
+        return true;
+    if (glb.e->num_acceptors >= ENOUGH_ACCEPTORS_COUNT)
+        return true; // no need more acceptors
+    spinlock::atomic_increment(glb.e->num_acceptors);
+    return false;
+}
+bool engine::acceptor_job::handle_udp(acceptor_job& ja)
+{
+    spinlock::atomic_decrement(glb.e->num_acceptors); // exclude current acceptor from available acceptors pool
+    ja.udpj.ud->udp_worker(ja.udpj.lstnr, ja.udpj.upt); // can take long time...
+    ja.udpj.lstnr->unlock();
+    udp_processing_thread::release(ja.udpj.upt);
+
+    if (glb.is_stop())
+        return true;
+    if (glb.e->num_acceptors >= ENOUGH_ACCEPTORS_COUNT)
+        return true; // no need more acceptors
+    spinlock::atomic_increment(glb.e->num_acceptors);
+    return false;
+
+}
+#if FEATURE_ADAPTER
+bool engine::acceptor_job::handle_atcp(acceptor_job& ja)
+{
+    spinlock::atomic_decrement(glb.e->num_acceptors); // exclude current acceptor from available acceptors pool
+    ostools::set_current_thread_name(ja.atcpj.a->desc());
+    netkit::pipe* ppp = ja.atcpj.pipe;
+    ja.atcpj.a->handle_pipe(ppp); // can take long time...
+    netkit::pipe::release(ppp);
+    if (glb.is_stop())
+        return true;
+    if (glb.e->num_acceptors >= ENOUGH_ACCEPTORS_COUNT)
+        return true; // no need more acceptors
+    spinlock::atomic_increment(glb.e->num_acceptors);
+    return false;
+}
+#endif
+
 
 void engine::acceptor()
 {
     spinlock::atomic_increment(num_acceptors);
-	ostools::set_current_thread_name(ASTR("acceptor"));
+    ostools::set_current_thread_name(ASTR("acceptor"));
 
-    auto process_pipes = [&](handler* h, netkit::tcp_pipe* p)->bool {
+    acceptor_job aj;
+    while (newjobs.get([&](acceptor_job& x) { aj = x; }))
+        if (aj.jh(aj))
+            return;
 
-        spinlock::atomic_decrement(num_acceptors); // exclude current acceptor from available acceptors pool
-        ostools::set_current_thread_name(h->desc());
-        h->handle_pipe(p); // can take long time...
-        if (glb.is_stop())
-            return true;
-        if (num_acceptors >= ENOUGH_ACCEPTORS_COUNT)
-            return true; // no need more acceptors
-        spinlock::atomic_increment(num_acceptors);
-		return false;
-	};
+    // no more ready-to-work pipes or udp connections
+    // enter wait mode and... wait
 
-	handler* hg;
-	netkit::tcp_pipe* pg;
-	while (newpipes.get([&](tcp_pipe_and_handler& x) { hg = x.h; pg = x.pipe; }))
-	{
-		if (process_pipes(hg,pg))
-			return;
-	}
+    time_t last_use = chrono::now();
 
-	// no more ready-to-work pipes
-	// enter wait mode and... wait
-
-	time_t last_use = chrono::now();
-
-	for (;!glb.is_stop();)
+    for (;!glb.is_stop();)
     {
         ostools::set_current_thread_name(ASTR("acceptor"));
 
-		pg = nullptr;
+        aj.jh = nullptr;
         std::unique_lock<std::mutex> m(mtx);
         cv.wait(m, [&] {
-			return glb.is_stop() || check_acceptors > 0 || newpipes.get([&](tcp_pipe_and_handler& x) { hg = x.h; pg = x.pipe; });
+            return glb.is_stop() || check_acceptors > 0 || newjobs.get([&](acceptor_job& x) { aj = x; });
         });
-		m.unlock();
+        m.unlock();
 
-		if (glb.is_stop())
-		{
-            if (pg)
-                delete pg;
-			break;
-		}
-		if (pg == nullptr)
-		{
-			// just check last use
-			time_t ct = chrono::now();
-			if ((ct - last_use) > 600)
-			{
-				// thread unused more then 10 min - close
-				break;
-			}
+        if (glb.is_stop())
+        {
+            // release in-queue objects
 
-			size_t cav = check_acceptors;
+            if (aj.jh == acceptor_job::handle_tcp)
+                netkit::pipe::release(aj.tcpj.pipe);
+            else if (aj.jh == acceptor_job::handle_udp)
+                udp_processing_thread::release(aj.udpj.upt);
+#if FEATURE_ADAPTER
+            else if (aj.jh == acceptor_job::handle_atcp)
+                netkit::pipe::release(aj.atcpj.pipe);
+#endif
+            break;
+        }
+        if (aj.jh == nullptr)
+        {
+            // just check last use
+            time_t ct = chrono::now();
+            if ((ct - last_use) > 600)
+            {
+                // thread unused more then 10 min - close
+                break;
+            }
+
+            size_t cav = check_acceptors;
             if (cav > 0)
                 spinlock::atomic_cas(check_acceptors, cav, cav - 1);
-			continue;
-		}
+            continue;
+        }
 
-		if (process_pipes(hg, pg))
+        if (aj.jh(aj))
             return;
 
-		while (newpipes.get([&](tcp_pipe_and_handler& x) { hg = x.h; pg = x.pipe; }))
+        while (newjobs.get([&](acceptor_job& x) { aj = x; }))
         {
-            if (process_pipes(hg, pg))
+            if (aj.jh(aj))
                 return;
         }
 
-		last_use = chrono::now();
-	}
+        last_use = chrono::now();
+    }
 
-	spinlock::atomic_decrement(num_acceptors);
-	size_t cav = check_acceptors;
+    spinlock::atomic_decrement(num_acceptors);
+    size_t cav = check_acceptors;
     if (cav > num_acceptors)
         spinlock::atomic_cas(check_acceptors, cav, cav - 1);
 
 }
 
+void engine::rise_acceptor()
+{
+    if (num_acceptors == 0)
+    {
+        std::thread th(&engine::acceptor, this);
+        th.detach();
+    }
+}
+
 void engine::new_tcp_pipe(handler* h, netkit::tcp_pipe* p)
 {
-    ASSERT(p->is_ref_new());
+    ASSERT(!p->is_ref_new());
 
+    rise_acceptor();
+
+    p->add_ref(); // for job array
+
+    for (size_t spinlockcount = 0;;++spinlockcount)
+    {
+        if (newjobs.put([&](acceptor_job& buck) {
+            buck.jh = acceptor_job::handle_tcp;
+            buck.tcpj.h = h;
+            buck.tcpj.pipe = p;
+        }))
+        {
+            rise_acceptor();
+            break;
+        }
+
+        rise_acceptor();
+
+        spinlock::sleep(1);
+        if (spinlockcount > 1000)
+        {
+            netkit::pipe::release(p); // goodbye pipe
+            return;
+        }
+    }
+
+    cv.notify_one();
+}
+
+#if FEATURE_ADAPTER
+void engine::new_tcp_pipe(adapter* a, netkit::pipe* p)
+{
+    ASSERT(!p->is_ref_new());
+
+    rise_acceptor();
+
+    p->add_ref(); // for job array
+
+    for (size_t spinlockcount = 0;; ++spinlockcount)
+    {
+        if (newjobs.put([&](acceptor_job& buck) {
+            buck.jh = acceptor_job::handle_atcp;
+            buck.atcpj.a = a;
+            buck.atcpj.pipe = p;
+        }))
+        {
+            rise_acceptor();
+            break;
+        }
+
+        rise_acceptor();
+
+        spinlock::sleep(1);
+        if (spinlockcount > 1000)
+        {
+            netkit::pipe::release(p); // goodbye pipe
+            return;
+        }
+    }
+
+    cv.notify_one();
+}
+#endif
+
+void engine::new_udp_pipe(udp_dispatcher* ud, udp_processing_thread* upt, netkit::datagram_socket* lstnr)
+{
     if (num_acceptors == 0)
     {
         std::thread th(&engine::acceptor, this);
         th.detach();
     }
 
-	for (size_t spinlockcount = 0;;++spinlockcount)
-    {
-        if (newpipes.put([&](tcp_pipe_and_handler& buck) {
-            buck.h = h;
-            buck.pipe = p;
-        })) break;
+    upt->add_ref();
+    lstnr->lock();
 
-        if (num_acceptors == 0)
+    for (size_t spinlockcount = 0;; ++spinlockcount)
+    {
+        if (newjobs.put([&](acceptor_job& buck) {
+
+            buck.jh = acceptor_job::handle_udp;
+            buck.udpj.ud = ud;
+            buck.udpj.upt = upt;
+            buck.udpj.lstnr = lstnr;
+        }))
         {
-            std::thread th(&engine::acceptor, this);
-            th.detach();
+            rise_acceptor();
+            break;
         }
 
-		spinlock::sleep(1);
-		if (spinlockcount > 1000)
-		{
-			delete p;
-			return;
-		}
-	}
+        rise_acceptor();
 
-	cv.notify_one();
+        spinlock::sleep(1);
+        if (spinlockcount > 1000)
+        {
+            lstnr->unlock();
+            udp_processing_thread::release(upt);
+            return;
+        }
+    }
+
+    cv.notify_one();
+
 }
 
 void engine::release_tcp(tcp_processing_thread* tcp_wt)
@@ -452,47 +612,19 @@ bool engine::release_absorber_status(const tcp_processing_thread* th, bool full_
 }
 
 
-void engine::bridge(netkit::pipe_ptr&& pipe1, netkit::pipe_ptr&& pipe2)
+void engine::bridge(netkit::pipe* pipe1, netkit::pipe* pipe2)
 {
-    ASSERT(!pipe1->is_multi_ref() && !pipe2->is_multi_ref()); // avoid memory leak! bridge is now owner of pipe1 and pipe2
+    ASSERT(!pipe1->is_ref_new() && !pipe2->is_ref_new());
+
+    if (has_absorber() && bridge_alienation(pipe1, pipe2))
+    {
+        absorber_signal();
+        return;
+    }
 
     ostools::set_current_thread_name(ASTR("bridge"));
 
-#ifdef _WIN32
-    // it will call WSACreateEvent
-    pipe1->get_waitable();
-    pipe2->get_waitable();
-#endif
-
-#if 0
-    if (IS_SINGLE_CORE)
-    {
-        // do not merge connection threads if single core
-        tcp_processing_thread pt;
-
-        pt.try_add_bridge(pipe1, pipe2);
-        bridge(&pt);
-
-        pipe1 = nullptr;
-        pipe2 = nullptr;
-        return;
-    }
-#endif
-
-	if (has_absorber() && bridge_alienation(pipe1, pipe2))
-	{
-		absorber_signal();
-
-        // pipes is now in bridge-bucket, so no need to delete them now
-        pipe1._assign(nullptr);
-        pipe2._assign(nullptr);
-
-        return;
-	}
-
     tcp_processing_thread* npt = NEW tcp_processing_thread(pipe1, pipe2);
-    pipe1 = nullptr;
-    pipe2 = nullptr;
 
     spinlock::lock_write(lock_tcp_list); //<< LOCK b
     npt->get_next_ptr()->reset(tcps.get());
@@ -551,6 +683,7 @@ rep_prep:
     {
         if (!slots[i].prepare_wait(waiter))
         {
+            slots[i].clear();
             --numslots;
             moveslot(i, numslots);
 
@@ -639,8 +772,9 @@ rep_prep:
     if (glb.is_stop())
         return false;
 
-    signed_t cleanup = -1, curms = 0;
-    auto getms = [&curms]() ->signed_t { if (curms == 0) curms = chrono::ms(); return curms; };
+    signed_t cleanup = -1;
+    chrono::mils curms;
+    auto getms = [&curms]() ->chrono::mils { if (curms.is_empty()) curms = chrono::ms(); return curms; };
 
     auto allow_alienation = [&]()
         {
@@ -654,7 +788,7 @@ rep_prep:
             // inactive slot
             if (!slot.stat)
                 slot.stat.reset(NEW slot_statistics(getms()));
-            else if (slot.stat->inactive_start == 0)
+            else if (slot.stat->inactive_start.is_empty())
             {
                 slot.stat->inactive_start = getms();
                 slot.stat->one_sec_inactive = false;
@@ -788,7 +922,7 @@ rep_prep:
         case bridged::SLOT_PROCESSED:
             if (slots[i].stat)
             {
-                slots[i].stat->inactive_start = 0;
+                slots[i].stat->inactive_start.empty();
                 slots[i].stat->one_sec_inactive = false;
             }
         }
@@ -804,47 +938,59 @@ rep_prep:
 
 bool engine::heartbeat()
 {
-	if (glb.is_stop())
-	{
-	    LOG_I("stoping...");
-	    Print();
-		for (std::unique_ptr<listener> & l : listners)
-			l->stop();
+    if (glb.is_stop())
+    {
+        LOG_I("stoping...");
+        Print();
+        for (std::unique_ptr<listener> & l : listners)
+            l->stop();
 
-		return true;
-	}
+        return true;
+    }
 
-	if (glb.numlisteners <= 0)
-	{
-		LOG_FATAL("there are no active listeners");
-		Print();
-		return true;
-	}
+    if (glb.numlisteners <= 0)
+    {
+        exit_code = EXIT_FAIL_NOLISTENERS;
+        LOG_FATAL("there are no active listeners");
+        Print();
+        return true;
+    }
 
     time_t ct = chrono::now();
-    if (next_unban_time == 0 || ct >= next_unban_time)
+    if (next_ban_action == 0 || ct >= next_ban_action)
     {
         time_t minunbantime = math::maximum<time_t>::value;
         bool ers = false;
         auto w = banned.lock_write();
         for (auto& banip : w())
         {
-            if (ct >= banip.unbantime)
+            if (banip.second.event_time > 0 && ct >= banip.second.event_time)
             {
-                w().erase(banip);
-                next_unban_time = w().empty() ? math::maximum<time_t>::value : 0;
-                ers = true;
-                break;
+                if (banip.second.need_unban())
+                {
+                    // not touched during check period, so it just one random fail; no need to actually ban this ip
+
+                    w().erase(banip.first);
+                    next_ban_action = w().empty() ? math::maximum<time_t>::value : 0;
+                    ers = true;
+                    break;
+
+                }
+
+                if (banip.second.banned())
+                    banip.second.event_time = ct + IP_BAN_DURATION;
             }
-            if (banip.unbantime < minunbantime)
-                minunbantime = banip.unbantime;
+
+            if (banip.second.event_time < minunbantime)
+                minunbantime = banip.second.event_time;
+
         }
         w.unlock();
         if (!ers)
-            next_unban_time = minunbantime;
+            next_ban_action = minunbantime;
     }
 
-	return false;
+    return false;
 }
 
 #if DEEP_SLOT_TRACE
@@ -947,3 +1093,5 @@ void deep_tracer::save_log()
     }
 }
 #endif
+
+

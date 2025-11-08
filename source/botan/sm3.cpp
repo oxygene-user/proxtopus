@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/sm3.h>
+#if FEATURE_TLS
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/loadstor.h>
@@ -242,3 +243,4 @@ void SM3::final_result(std::span<uint8_t> output) {
 }
 
 }  // namespace Botan
+#endif

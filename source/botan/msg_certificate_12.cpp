@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_messages.h>
 
@@ -102,3 +103,4 @@ std::vector<uint8_t> Certificate_12::serialize() const {
 }
 
 }  // namespace Botan::TLS
+#endif

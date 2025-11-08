@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_TLS_HANDSHAKE_IO_H_
 #define BOTAN_TLS_HANDSHAKE_IO_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/tls_magic.h>
 #include <botan/tls_version.h>
@@ -220,4 +222,5 @@ class Datagram_Handshake_IO final : public Handshake_IO {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

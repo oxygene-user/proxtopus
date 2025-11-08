@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_EC_INNER_DATA_PC_H_
 #define BOTAN_EC_INNER_DATA_PC_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/ec_inner_data.h>
 
@@ -113,4 +115,5 @@ class EC_Mul2Table_Data_PC final : public EC_Mul2Table_Data {
 
 }  // namespace Botan
 
+#endif
 #endif

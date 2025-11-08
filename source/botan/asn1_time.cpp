@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 
@@ -282,3 +283,4 @@ bool operator>(const ASN1_Time& t1, const ASN1_Time& t2) {
 }
 
 }  // namespace Botan
+#endif

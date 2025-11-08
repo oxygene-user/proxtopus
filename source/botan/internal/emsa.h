@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PUBKEY_EMSA_H_
 #define BOTAN_PUBKEY_EMSA_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/types.h>
 #include <memory>
@@ -88,4 +90,5 @@ class BOTAN_TEST_API EMSA {
 
 }  // namespace Botan
 
+#endif
 #endif

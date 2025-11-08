@@ -8,6 +8,7 @@
 */
 
 #include <botan/tls_ciphersuite.h>
+#if FEATURE_TLS
 
 namespace Botan::TLS {
 
@@ -131,3 +132,4 @@ const std::vector<Ciphersuite>& Ciphersuite::all_known_ciphersuites() {
 }
 
 }  // namespace Botan::TLS
+#endif

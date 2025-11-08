@@ -142,6 +142,7 @@ class BOTAN_PUBLIC_API(2, 0) Invalid_Argument : public Exception {
       ErrorType error_type() const noexcept override { return ErrorType::InvalidArgument; }
 };
 
+#if FEATURE_TLS
 /**
 * An invalid/unknown field name was passed to Public_Key::get_int_field
 */
@@ -149,6 +150,7 @@ class BOTAN_PUBLIC_API(3, 0) Unknown_PK_Field_Name final : public Invalid_Argume
    public:
       Unknown_PK_Field_Name(ALG algo_name, std::string_view field_name);
 };
+#endif
 
 /**
 * An invalid key length was used

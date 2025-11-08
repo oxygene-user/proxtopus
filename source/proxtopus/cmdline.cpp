@@ -1,39 +1,40 @@
 #include "pch.h"
 
+#if APP
 commandline::commandline()
 {
-	get_exec_full_commandline(parar_);
+    get_exec_full_commandline(parar_);
 }
 commandline::commandline(FNARR&& mas) :parar_(std::move(mas))
 {
-	// never do anything here, except just init parar_
+    // never do anything here, except just init parar_
 }
 
 #ifdef _WIN32
 str::astr read_reg(const wchar *n)
 {
-	HKEY k;
-	if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", &k) != ERROR_SUCCESS)
-		return str::astr();
+    HKEY k;
+    if (RegOpenKeyW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", &k) != ERROR_SUCCESS)
+        return str::astr();
 
-	DWORD lt = REG_SZ;
-	DWORD sz;
-	int rz = RegQueryValueExW(k, n, 0, &lt, nullptr, &sz);
-	if (rz != ERROR_SUCCESS)
-	{
-		RegCloseKey(k);
-		return str::astr();
-	}
-	if (sz > 0)
-	{
-		str::wstr s;
-		s.resize(sz / sizeof(wchar) - 1);
-		RegQueryValueExW(k, n, 0, &lt, (LPBYTE)s.data(), &sz);
-		RegCloseKey(k);
-		return str::to_utf8(s);
-	}
-	RegCloseKey(k);
-	return str::astr();
+    DWORD lt = REG_SZ;
+    DWORD sz;
+    int rz = RegQueryValueExW(k, n, 0, &lt, nullptr, &sz);
+    if (rz != ERROR_SUCCESS)
+    {
+        RegCloseKey(k);
+        return str::astr();
+    }
+    if (sz > 0)
+    {
+        str::wstr s;
+        s.resize(sz / sizeof(wchar) - 1);
+        RegQueryValueExW(k, n, 0, &lt, (LPBYTE)s.data(), &sz);
+        RegCloseKey(k);
+        return str::to_utf8(s);
+    }
+    RegCloseKey(k);
+    return str::astr();
 }
 
 #endif
@@ -102,14 +103,14 @@ str::astr get_system_output(const char* cmd)
 str::astr lazy_os_desc()
 {
 #ifdef _WIN32
-	str::astr product = read_reg(L"ProductName");
+    str::astr product = read_reg(L"ProductName");
 
-	product.push_back(' ');
-	product.append(read_reg(L"ReleaseId"));
-	product.append(ASTR(" v"));
-	product.append(read_reg(L"CurrentVersion"));
-	product.append(ASTR(" build "));
-	product.append(read_reg(L"CurrentBuild"));
+    product.push_back(' ');
+    product.append(read_reg(L"ReleaseId"));
+    product.append(ASTR(" v"));
+    product.append(read_reg(L"CurrentVersion"));
+    product.append(ASTR(" build "));
+    product.append(read_reg(L"CurrentBuild"));
 
 #endif
 
@@ -122,50 +123,50 @@ str::astr lazy_os_desc()
     utsname n = {};
     uname(&n);
 
-	product.append(n.release);
-	product.push_back(' ');
-	product.append(n.version);
-	product.push_back(' ');
-	product.append(n.machine);
+    product.append(n.release);
+    product.push_back(' ');
+    product.append(n.version);
+    product.push_back(' ');
+    product.append(n.machine);
 #endif
-	return product;
+    return product;
 }
 
 str::astr lazy_exe()
 {
-	return str::to_utf8(get_name(get_exec_full_name()));
+    return str::to_utf8(get_name(get_exec_full_name()));
 
 }
 
 void rpl(buffer& file, const str::astr_view& var, std::function<str::astr()> lazyrepl)
 {
-	str::astr lrs;
-	for (;;)
-	{
-		str::astr_view fv = str::view(file);
-		size_t x = fv.find(var);
-		if (x == fv.npos)
-			return;
-		if (lrs.empty())
-			lrs = lazyrepl();
+    str::astr lrs;
+    for (;;)
+    {
+        str::astr_view fv = str::view(file);
+        size_t x = fv.find(var);
+        if (x == fv.npos)
+            return;
+        if (lrs.empty())
+            lrs = lazyrepl();
 
-		file.replace(x, var.length(), str::span(lrs));
-	}
+        file.replace(x, var.length(), str::span(lrs));
+    }
 }
 
 buffer load_res(int idr)
 {
-	buffer file;
+    buffer file;
 
 #ifdef _WIN32
-	glb.module = GetModuleHandleW(nullptr);
-	HRSRC hRes = FindResourceW(glb.module, MAKEINTRESOURCE(idr), L"HELP");
-	HGLOBAL resh = LoadResource(glb.module, hRes);
-	void * data = LockResource(resh);
-	signed_t datasize = SizeofResource(glb.module, hRes);
-	std::span<const u8> d((const u8*)data, datasize);
-	file += d;
-	FreeResource(resh);
+    glb.module = GetModuleHandleW(nullptr);
+    HRSRC hRes = FindResourceW(glb.module, MAKEINTRESOURCE(idr), L"HELP");
+    HGLOBAL resh = LoadResource(glb.module, hRes);
+    void * data = LockResource(resh);
+    signed_t datasize = SizeofResource(glb.module, hRes);
+    std::span<const u8> d((const u8*)data, datasize);
+    file += d;
+    FreeResource(resh);
 #endif
 
 #ifdef _NIX
@@ -177,7 +178,7 @@ buffer load_res(int idr)
             file += data;
         }
         break;
-		case IDR_HELP_PLATFORM:
+        case IDR_HELP_PLATFORM:
         {
             std::span<const u8> data(&_binary_res_help_nix_txt_start, &_binary_res_help_nix_txt_end-&_binary_res_help_nix_txt_start);
             file += data;
@@ -186,50 +187,50 @@ buffer load_res(int idr)
     }
 #endif
 
-	if (idr == IDR_HELP)
-	{
-		buffer h2part = load_res(IDR_HELP_PLATFORM);
-		file += h2part;
-		rpl(file, ASTR("$(OS_DESC)"), lazy_os_desc);
-	}
+    if (idr == IDR_HELP)
+    {
+        buffer h2part = load_res(IDR_HELP_PLATFORM);
+        file += h2part;
+        rpl(file, ASTR("$(OS_DESC)"), lazy_os_desc);
+    }
 
-	rpl(file, ASTR("$(EXE)"), lazy_exe);
+    rpl(file, ASTR("$(EXE)"), lazy_exe);
 
-	return file;
+    return file;
 }
 
 bool commandline::help() const
 {
-	if (parar_.size() > 1 ? parar_[1] == MAKEFN("help") : false)
-	{
-		if (parar_.size() == 2)
-		{
-			Print(load_res(IDR_HELP));
-			return true;
-		}
+    if (parar_.size() > 1 ? parar_[1] == MAKEFN("help") : false)
+    {
+        if (parar_.size() == 2)
+        {
+            Print(load_res(IDR_HELP));
+            return true;
+        }
 
 
-		Print("We are very sorry, but this help is under construction.\n");
+        Print("We are very sorry, but this help is under construction.\n");
 
-		return true;
-	}
-	return false;
+        return true;
+    }
+    return false;
 }
 
 FN commandline::path_config() const
 {
-	if (signed_t ci = tools::find(parar_, MAKEFN("conf")); ci > 0 && (size_t)(ci + 1) < parar_.size())
-	{
-		FN pc(parar_[ci+1]);
-		path_simplify(pc, true);
-		return pc;
-	}
+    if (signed_t ci = tools::find(parar_, MAKEFN("conf")); ci > 0 && UNSIGNED % (ci + 1) < parar_.size())
+    {
+        FN pc(parar_[ci+1]);
+        path_simplify(pc, true);
+        return pc;
+    }
 
-	FN cp = parar_[0];
-	signed_t i = cp.find_last_of(MAKEFN("\\/"));
-	cp.resize(i + 1);
-	cp.append(MAKEFN("config.txt"));
-	return cp;
+    FN cp = parar_[0];
+    signed_t i = cp.find_last_of(MAKEFN("\\/"));
+    cp.resize(i + 1);
+    cp.append(MAKEFN("config.txt"));
+    return cp;
 }
 
 void commandline::handle_options()
@@ -249,9 +250,13 @@ void commandline::handle_options()
     if (auto c = btc())
         glb.bind_try_count = c;
 
+#if FEATURE_WATCHDOG
     if (actual())
         glb.actual = true;
 
     if (auto p = ppid())
         glb.ppid = p;
+#endif
+
 }
+#endif

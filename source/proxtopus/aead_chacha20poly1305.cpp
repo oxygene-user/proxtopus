@@ -8,7 +8,7 @@ void aead_chacha20poly1305::start(poly1305 &poly, std::span<const uint8_t> nonce
     chacha.keystream(first_block, sizeof(first_block));
 
     poly.init(first_block);
-    Botan::secure_scrub_memory(first_block, sizeof(first_block));
+    secure::scrub_memory(first_block, sizeof(first_block));
 
     poly.update(ad);
 

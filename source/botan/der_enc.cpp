@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/der_enc.h>
 
@@ -354,3 +355,4 @@ DER_Encoder& DER_Encoder::add_object(ASN1_Type type_tag, ASN1_Class class_tag, u
 }
 
 }  // namespace Botan
+#endif

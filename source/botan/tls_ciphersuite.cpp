@@ -6,6 +6,7 @@
 */
 
 #include <botan/tls_ciphersuite.h>
+#if FEATURE_TLS
 
 #include <botan/assert.h>
 #include <botan/block_cipher.h>
@@ -230,3 +231,4 @@ bool Ciphersuite::is_usable() const {
 }
 
 }  // namespace Botan::TLS
+#endif

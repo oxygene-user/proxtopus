@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_EME_PKCS1_H_
 #define BOTAN_EME_PKCS1_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/eme.h>
 
@@ -29,4 +31,5 @@ class BOTAN_FUZZER_API EME_PKCS1v15 final : public EME {
 
 }  // namespace Botan
 
+#endif
 #endif

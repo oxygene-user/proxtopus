@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/pcurves.h>
+#if FEATURE_TLS
 
 #include <botan/assert.h>
 #include <botan/internal/pcurves_instance.h>
@@ -104,3 +105,4 @@ std::shared_ptr<const PrimeOrderCurve> PrimeOrderCurve::for_named_curve(ALG::alg
 }
 
 }  // namespace Botan::PCurve
+#endif

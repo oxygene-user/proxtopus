@@ -9,6 +9,7 @@
 */
 
 #include <botan/ed25519.h>
+#if FEATURE_TLS
 
 #include <botan/rng.h>
 #include <botan/internal/ct_utils.h>
@@ -127,3 +128,4 @@ bool ed25519_verify(const uint8_t* m,
 }
 
 }  // namespace Botan
+#endif

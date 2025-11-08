@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_DIVISON_ALGORITHM_H_
 #define BOTAN_DIVISON_ALGORITHM_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 
@@ -120,4 +122,5 @@ BigInt ct_modulo(const BigInt& x, const BigInt& modulo);
 
 }  // namespace Botan
 
+#endif
 #endif

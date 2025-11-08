@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_MONTY_INT_H_
 #define BOTAN_MONTY_INT_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 
@@ -195,4 +197,5 @@ class BOTAN_TEST_API Montgomery_Params final {
 
 }  // namespace Botan
 
+#endif
 #endif

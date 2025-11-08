@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/tls_handshake_transitions.h>
+#if FEATURE_TLS
 
 #include <botan/tls_exceptn.h>
 
@@ -177,3 +178,4 @@ bool Handshake_Transitions::change_cipher_spec_expected() const {
 }
 
 }  // namespace Botan::TLS
+#endif

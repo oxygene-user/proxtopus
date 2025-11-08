@@ -9,6 +9,8 @@
 
 #ifndef BOTAN_ECC_PUBLIC_KEY_BASE_H_
 #define BOTAN_ECC_PUBLIC_KEY_BASE_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/ec_group.h>
 #include <botan/pk_keys.h>
@@ -223,4 +225,5 @@ BOTAN_DIAGNOSTIC_POP
 
 }  // namespace Botan
 
+#endif
 #endif

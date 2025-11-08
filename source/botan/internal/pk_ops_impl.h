@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_PK_OPERATION_IMPL_H_
 #define BOTAN_PK_OPERATION_IMPL_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_ops.h>
 
@@ -59,7 +61,7 @@ class Verification_with_Hash : public Verification {
       void update(std::span<const uint8_t> input) override;
       bool is_valid_signature(std::span<const uint8_t> sig) override;
 
-      virtual Hash_Algo hash_function() const { return m_hash->alg(); }
+      virtual Hash_Algo hash_function() const override { return m_hash->alg(); }
 
    protected:
       explicit Verification_with_Hash(Algo_Group hash);
@@ -167,4 +169,5 @@ class KEM_Decryption_with_KDF : public KEM_Decryption {
 
 }  // namespace Botan::PK_Ops
 
+#endif
 #endif

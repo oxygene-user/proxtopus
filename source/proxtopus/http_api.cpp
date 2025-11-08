@@ -36,7 +36,7 @@ mode_result host_mode_api::do_GET(http_server& s)
                 }
                 j.arrclose();
             }
-            else if (signed_t id = str::parse_int(str::view(s.path).substr(x.name.length()), 0); id > 0)
+            else if (signed_t id = str::parse_int(str::substr(s.path, x.name.length()), 0); id > 0)
             {
                 if (const apiobj* o = x.col.by_id(id))
                 {

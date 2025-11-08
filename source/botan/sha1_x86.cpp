@@ -9,9 +9,9 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/sha1.h>
 
+#ifdef ARCH_X86
 #include <botan/internal/simd_4x32.h>
 #include <immintrin.h>
 
@@ -123,3 +123,4 @@ void SHA_1::sha1_compress_x86(digest_type& digest, std::span<const uint8_t> inpu
 }
 
 }  // namespace Botan
+#endif

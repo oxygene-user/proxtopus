@@ -5,6 +5,7 @@
 */
 
 #include <botan/pkix_types.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
@@ -165,3 +166,4 @@ void AlternativeName::decode_from(BER_Decoder& source) {
 }
 
 }  // namespace Botan
+#endif

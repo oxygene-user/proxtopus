@@ -5,6 +5,7 @@
 */
 
 #include <botan/tls_algos.h>
+#if FEATURE_TLS
 
 #include <botan/ec_group.h>
 #include <botan/exceptn.h>
@@ -524,3 +525,4 @@ std::optional<std::string> Group_Params::to_string() const {
 #endif
 
 }  // namespace Botan::TLS
+#endif

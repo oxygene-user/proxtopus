@@ -7,6 +7,8 @@
 */
 #ifndef BOTAN_X448_H_
 #define BOTAN_X448_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 
@@ -108,4 +110,5 @@ BOTAN_DIAGNOSTIC_POP
 
 }  // namespace Botan
 
+#endif
 #endif

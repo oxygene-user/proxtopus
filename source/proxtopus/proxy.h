@@ -7,7 +7,7 @@ protected:
 	netkit::endpoint addr;
 
 public:
-	proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required = true);
+	proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required = true, bool port_required = true);
 	virtual ~proxy() {}
 
 	static proxy* build(loader& ldr, const str::astr& name, const asts& bb);
@@ -37,7 +37,7 @@ public:
 };
 
 
-class proxy_socks4 : public proxy
+class proxy_socks4 final : public proxy
 {
 	str::astr userid;
 public:
@@ -48,10 +48,12 @@ public:
 	/*virtual*/ void api(json_saver& j) const override;
 };
 
-class proxy_socks5 : public proxy
+class proxy_socks5 final : public proxy
 {
-	buffer authpacket;
-	bool initial_setup(tools::circular_buffer_extdata & rcvd, netkit::pipe* p2p) const;
+	tools::keep_buffer auth;
+	bool obfs = false;
+
+	bool initial_setup(tools::circular_buffer_extdata & rcvd, netkit::pipe* p2p, chacha20 &cryptor) const;
 	bool recv_rep(tools::circular_buffer_extdata& rcvd, netkit::pipe* p2p, netkit::endpoint*ep, const str::astr_view *addr2domain) const; // addr2domain not null means logging
 public:
 	proxy_socks5(loader& ldr, const str::astr& name, const asts& bb);
@@ -60,16 +62,16 @@ public:
 	/*virtual*/ void api(json_saver&) const override;
 	/*virtual*/ netkit::pipe_ptr prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr) const override; // tcp tunnel
 	/*virtual*/ std::unique_ptr<netkit::udp_pipe> prepare(netkit::udp_pipe* /*transport*/) const override; //udp tunnel
-	/*virtual*/ bool support(netkit::socket_type_e) const { return true; }
+	/*virtual*/ bool support(netkit::socket_type_e) const override { return true; }
 
 	bool prepare_udp_assoc(netkit::endpoint & udp_assoc_ep, netkit::pipe_ptr &pip, bool log_fails) const;
-	static void push_atyp(netkit::pgen& pg, const netkit::endpoint& addr);
+	static void push_atyp(netkit::pgen& pg, const netkit::endpoint& addr, chacha20 *enc = nullptr);
 	static signed_t atyp_size(const netkit::endpoint& addr); // including ATYP octet
 	static bool read_atyp(netkit::pgen& pg, netkit::endpoint& addr);
 
 };
 
-class proxy_http : public proxy
+class proxy_http final : public proxy
 {
 	str::astr host;
 	std::vector<std::pair<str::astr, str::astr>> fields;

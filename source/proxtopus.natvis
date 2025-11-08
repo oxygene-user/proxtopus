@@ -3,11 +3,11 @@
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
 	<Type Name="netkit::ipap">
-		<DisplayString Condition="v4">{(unsigned char)(ipv4.S_un.S_un_b.s_b1),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b2),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b3),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b4),nvo}:{port}</DisplayString>
-		<DisplayString Condition="!v4">{(unsigned short)(ipv6.u.Byte[0]*256+ipv6.u.Byte[1]),hb}:{(unsigned short)(ipv6.u.Byte[2]*256+ipv6.u.Byte[3]),hb}:{(unsigned short)(ipv6.u.Byte[4]*256+ipv6.u.Byte[5]),hb}:{(unsigned short)(ipv6.u.Byte[6]*256+ipv6.u.Byte[7]),hb}:{(unsigned short)(ipv6.u.Byte[8]*256+ipv6.u.Byte[9]),hb}:{(unsigned short)(ipv6.u.Byte[10]*256+ipv6.u.Byte[11]),hb}:{(unsigned short)(ipv6.u.Byte[12]*256+ipv6.u.Byte[13]),hb}:{(unsigned short)(ipv6.u.Byte[14]*256+ipv6.u.Byte[15]),hb}</DisplayString>
+		<DisplayString Condition="(flags.f &amp; 1) != 0">{(unsigned char)(ipv4.S_un.S_un_b.s_b1),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b2),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b3),nvo}.{(unsigned char)(ipv4.S_un.S_un_b.s_b4),nvo}:{port}</DisplayString>
+		<DisplayString Condition="(flags.f &amp; 1) == 0">{(unsigned short)(ipv6.u.Byte[0]*256+ipv6.u.Byte[1]),hb}:{(unsigned short)(ipv6.u.Byte[2]*256+ipv6.u.Byte[3]),hb}:{(unsigned short)(ipv6.u.Byte[4]*256+ipv6.u.Byte[5]),hb}:{(unsigned short)(ipv6.u.Byte[6]*256+ipv6.u.Byte[7]),hb}:{(unsigned short)(ipv6.u.Byte[8]*256+ipv6.u.Byte[9]),hb}:{(unsigned short)(ipv6.u.Byte[10]*256+ipv6.u.Byte[11]),hb}:{(unsigned short)(ipv6.u.Byte[12]*256+ipv6.u.Byte[13]),hb}:{(unsigned short)(ipv6.u.Byte[14]*256+ipv6.u.Byte[15]),hb}</DisplayString>
 		<Expand>
 			<Item Name="port">port</Item>
-			<Item Name="v4">v4</Item>
+			<Item Name="v4">(flags.f &amp; 1) != 0</Item>
 		</Expand>
 	</Type>
 	<Type Name="str::shared_str">
@@ -73,5 +73,12 @@
 		</Expand>
 
 	</Type>
+
+    <Type Name="u32be">
+        <DisplayString>le: {((beval &amp; 255) &lt;&lt; 24) | ((beval &amp; 65280) &lt;&lt; 8) | ((beval &amp; 16711680) &gt;&gt; 8) | (beval&gt;&gt;24) }</DisplayString>
+    </Type>
+    <Type Name="u16be">
+        <DisplayString>le: { ((beval &amp; 255) &lt;&lt; 8) | (beval&gt;&gt;8) }</DisplayString>
+    </Type>
 
 </AutoVisualizer>

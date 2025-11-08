@@ -10,6 +10,8 @@
 
 #ifndef BOTAN_ED25519_FE_H_
 #define BOTAN_ED25519_FE_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
@@ -211,4 +213,5 @@ inline void fe_pow22523(FE_25519& x, const FE_25519& y) {
 
 }  // namespace Botan
 
+#endif
 #endif

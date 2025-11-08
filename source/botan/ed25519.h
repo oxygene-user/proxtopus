@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_ED25519_H_
 #define BOTAN_ED25519_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 #include <span>
@@ -150,4 +152,5 @@ bool ed25519_verify(const uint8_t msg[],
 
 }  // namespace Botan
 
+#endif
 #endif

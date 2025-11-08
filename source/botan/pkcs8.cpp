@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/pkcs8.h>
 
@@ -360,3 +361,4 @@ std::unique_ptr<Private_Key> load_key(DataSource& source) {
 }
 
 }  // namespace Botan::PKCS8
+#endif

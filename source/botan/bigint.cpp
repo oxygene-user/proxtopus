@@ -6,6 +6,7 @@
 */
 
 #include <botan/bigint.h>
+#if FEATURE_TLS
 
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/ct_utils.h>
@@ -543,3 +544,4 @@ void BigInt::_const_time_unpoison() const {
 }
 
 }  // namespace Botan
+#endif

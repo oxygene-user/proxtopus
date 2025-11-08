@@ -74,8 +74,6 @@ handler_debug::handler_debug(loader& ldr, listener* owner, const asts& bb, netki
 
 void handler_debug::handle_pipe(netkit::pipe* pipe)
 {
-    netkit::pipe_ptr p(pipe);
-
     str::astr bs;
 
     bs = "proxtopus v" PROXTOPUS_VER " (build " __DATE__ " " __TIME__ ")\r\n";
@@ -85,10 +83,10 @@ void handler_debug::handle_pipe(netkit::pipe* pipe)
     tools::circular_buffer_preallocated<1024> b;
     for (;!glb.is_stop();)
     {
-        netkit::wrslt wr = netkit::wait(pipe->get_waitable(), 1000);
-        if (wr == netkit::WR_CLOSED)
+        u8 wr = pipe->wait(netkit::SE_READ, 1000);
+        if (wr & netkit::SE_CLOSED)
             break;
-        if (wr == netkit::WR_TIMEOUT)
+        if (wr & netkit::SE_TIMEOUT)
         {
             if (glb.is_stop())
                 break;
@@ -130,8 +128,6 @@ void handler_debug::handle_pipe(netkit::pipe* pipe)
         str::trim(cmd);
         execute_cmd(pipe, cmd);
     }
-
-
 }
 
 #endif

@@ -7,6 +7,7 @@
 
 #include <botan/ocsp.h>
 
+#if FEATURE_TLS
 #include <botan/ber_dec.h>
 #include <botan/certstor.h>
 #include <botan/der_enc.h>
@@ -292,3 +293,4 @@ Response online_check(const X509_Certificate& issuer,
 #endif
 
 }  // namespace Botan::OCSP
+#endif

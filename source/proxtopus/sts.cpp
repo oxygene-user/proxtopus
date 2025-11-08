@@ -2,16 +2,37 @@
 #include "sts.h"
 #include "str_helpers.h"
 
+template<typename CHX> sts_t<CHX>::element::element()
+{
+    static_assert(sizeof(stsd) >= sizeof(sts_t<CHX>));
+    new (&sts()) sts_t<CHX>();
+}
+
+template<typename CHX> sts_t<CHX>::element::element(sts_t<CHX>* parnt)
+{
+    new (&sts()) sts_t<CHX>(parnt);
+}
+template<typename CHX> sts_t<CHX>::element::element(sts_t<CHX>* parnt, const sts_t<CHX>& oth)
+{
+    new (&sts()) sts_t<CHX>(parnt, oth);
+}
+
+template<typename CHX> sts_t<CHX>::element::~element()
+{
+    static_assert(sizeof(stsd) >= sizeof(sts_t<CHX>));
+    sts().~sts_t<CHX>();
+}
+
 template <typename CH> sts_t<CH>& sts_t<CH>::add_comment(const string_view_type& comment)
 {
 	element* e = NEW element(this);
 
-	/*auto rslt =*/ elements.insert(std::pair(static_name_comment, &e->sts));
+	/*auto rslt =*/ elements.insert(std::pair(static_name_comment, e));
 	
 	e->name = &static_name_comment;
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
-	e->sts.value = comment;
+	e->sts().value = string_type(comment);
 
 	return *this;
 }
@@ -21,49 +42,35 @@ template <typename CH> sts_t<CH>& sts_t<CH>::add_block()
 	element* e = NEW element(this);
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
-	return e->sts;
+	return e->sts();
 }
 
 template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_view_type &name)
 {
-	element* e;
+	element* e = NEW element(this);
 	if (!name.empty())
 	{
-		auto rslt = elements.insert(std::pair(name, nullptr));
-		if (!rslt.second)
-			return *rslt.first->second; // already exist, return it
-
-		e = NEW element(this);
+		auto rslt = elements.insert(std::pair(name, e));
 		e->name = &rslt.first->first;
-		rslt.first->second = &e->sts;
-	} else
-		e = NEW element(this);
+	}
 
     if (first_element == nullptr) first_element = e; else last_element->next = e;
     last_element = e;
-    return e->sts;
+    return e->sts();
 }
 
 template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name)
 {
-	element* e;
+	element* e = NEW element(this);
 	if (!name.empty())
 	{
-		auto rslt = elements.insert(std::pair(name, nullptr));
-		if (!rslt.second)
-		{
-			return *rslt.first->second; // already exist, return it
-		}
-		e = NEW element(this);
-		e->name = &rslt.first->first;
-		rslt.first->second = &e->sts;
+		auto rslt = elements.insert(std::pair(name, e));
+        e->name = &rslt.first->first;
 	}
-	else
-		e = NEW element(this);
 
 	if (first_element == nullptr) first_element = e; else last_element->next = e;
 	last_element = e;
-	return e->sts;
+	return e->sts();
 }
 
 template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name, const sts_t &oth) // create copy
@@ -72,22 +79,17 @@ template <typename CH> sts_t<CH> &sts_t<CH>::add_block(const string_type &name, 
 
 	if (!name.empty())
 	{
-		auto rslt = elements.insert(std::pair(name, &e->sts));
-		e->name = &rslt.first->first;
-#ifdef _DEBUG
-		if (!rslt.second)
-			rslt.first->second = nullptr; // mark as duplicate
-#endif
+		auto rslt = elements.insert(std::pair(name, e));
+        e->name = &rslt.first->first;
 	}
-
 
     if (first_element == nullptr) first_element = e; else last_element->next = e;
     last_element = e;
-    return e->sts;
+    return e->sts();
 }
 
 
-template <typename CH> int sts_t<CH>::get_current_line(const CH *s)
+template <typename CH> int sts_t<CH>::get_current_line([[maybe_unused]] const CH *s)
 {
 #ifdef _DEBUG
 	if (source_basis && s)
@@ -102,8 +104,6 @@ template <typename CH> int sts_t<CH>::get_current_line(const CH *s)
 			else if (*t == CH('\n')) line++;
 		return line;
 	}
-#else
-	(void)s;
 #endif
 	return -1;
 }
@@ -155,19 +155,12 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 	if (!source_basis) source_basis = s;
 #endif
 #define END_CHECK(msg) if (s >= end) { LOG_W("unexpected eof while " msg "(line: $)", get_current_line(s)); return false; }
-#define SKIP_SEPARATORS(additional_check) \
-	while (true)\
-	{\
-		/*END_CHECK("skipping separators")*/if (s >= end) break;\
-		if (*s!=CH(' ') && *s!=CH('\t') && additional_check) break;\
-		s++;\
-	}
 
 	const CH *start = s;
 	if ((s = token_start(s, end)) == nullptr) return false;
 	if (s > start) // keep comments if needed (only top level block)
 	{
-		string_view_type comment(start, (signed_t)(s-start));
+		string_view_type comment(start, s-start);
 		if (comment.length() >= 2)
 		{
 			comment = str::trim(comment);
@@ -178,20 +171,24 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 	if (*s == CH('}')) {++s; return false;}
 
 	start = s;
-	string_type name(start, (signed_t)(token_end(s, end, CH('=')) - start));
+	string_type name(start, token_end(s, end, CH('=')) - start);
 	sts_t<CH> & sts = add_block(name);
 #ifdef _DEBUG
 	sts.source_basis = source_basis;
 #endif
-	//skip separators
-	//SKIP_SEPARATORS(*s!=TCHARACTER('\r') && *s!=TCHARACTER('\n'))
 	if (!s) return false;
 
 	switch (*s)
 	{
 	case CH('='):
 		s++;
-		NOWARNING(4127, SKIP_SEPARATORS(true))
+
+		// skip separators
+        for (;s < end; ++s)
+        {
+            if (*s != CH(' ') && *s != CH('\t'))
+				break;
+        }
 
 		if (*s == CH('`'))
 		{
@@ -203,13 +200,13 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 				{
 					if (s<end-1 && *(s+1)==CH('`')) // quoted '`'
 					{
-						v.append(str::xstr_view<CH>(start, (signed_t)(s+1-start)));
+						v.append(string_view_type(start, s+1-start));
 						start = s+=2;
 						continue;
 					}
 					else // line end
 					{
-						v.append(str::xstr_view<CH>(start, (signed_t)(s-start)));
+						v.append(string_view_type(start, s-start));
 						break;
 					}
 				}
@@ -218,14 +215,20 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 			sts.set_value(v);
 			END_CHECK("looking for '`'")
 			s++;
-			SKIP_SEPARATORS(true)
+
+            // skip separators
+            for (; s < end; ++s)
+            {
+                if (*s != CH(' ') && *s != CH('\t'))
+                    break;
+            }
 		}
 		else
 		{
 			start = s;
 			const CH *t;
-			sts.set_value(str::xstr_view<CH>(start, (signed_t)((t=token_end(s, end, CH('}'))) - start)));
-			string_type comment(t, (signed_t)((!s?end:s)-t));
+			sts.set_value(string_view_type(start, (t=token_end(s, end, CH('}'))) - start));
+			string_type comment(t, (!s?end:s)-t);
 			if (comment.length() >= 2)
 			{
 				str::trim(comment);
@@ -245,7 +248,6 @@ template <typename CH> bool sts_t<CH>::read_sts(const CH *&s, const CH *end)
 		LOG_W("'=' or '{' expected (line: $)", get_current_line(s));
 		return true;
 	}
-#undef SKIP_SEPARATORS
 #undef END_CHECK
 
 	return true;
@@ -273,9 +275,9 @@ template <typename CH> static const str::xstr<CH> store_value(const str::xstr<CH
 	if (allow_unquoted && value.find_first_of(XSTR(CH, " \t\r\n`{}"), 0) == str::xstr<CH>::npos) // any of these symbols mean string must be quoted
 	{
 		signed_t i = 0;
-		for (; i<(signed_t)value.length()-1; i++)
+		for (; i < SIGNED % value.length()-1; i++)
 			if (value[i] == CH('/') && (value[i+1] == CH('/') || value[i+1] == CH('*'))) break;
-		if (i >= (signed_t)value.length()-1) return value;
+		if (i >= SIGNED % value.length()-1) return value;
 	}
 	str::xstr<CH> r(value);
 	str::replace_all(r, XSTR(CH,"`"), XSTR(CH,"``"));
@@ -290,27 +292,27 @@ template <typename CH> const str::xstr<CH> sts_t<CH>::store(int level) const
 		one_line = false;
 	else
 	{
-		signed_t totalLen = value.length();
-		for (element *e=first_element; e; e=e->next)
+		signed_t totalLen = as_string(string_view_type()).length();
+		for (element* e = first_element; e; e=e->next)
 		{
-			if (e->sts.first_element) {one_line = false; break;} // no - there are inner blocks detected
-			totalLen += e->name->length() + e->sts.value.length();
+			if (e->sts().first_element) { one_line = false; break; } // no - there are inner blocks detected
+			totalLen += e->name->length() + e->sts().as_string(string_view_type()).length();
 			if (totalLen > 40/*ONE_LINE_LIMIT*/) {one_line = false; break;}
 		}
 	}
 	// write
 	string_type r, cmnt;
-	for (element *e=first_element; e; e=e->next)
+	for (element* e = first_element; e; e=e->next)
 	{
 		if (e->name == &static_name_comment)
         {
             // this is comment
 			r.push_back(' ');
-			r.append(e->sts.value);
+			r.append(e->sts().as_string(string_view_type()));
             continue;
         }
 
-		if (e->sts.value_not_specified() && !e->sts.first_element)
+		if (e->sts().value_not_specified() && !e->sts().first_element)
         {
             // correct element skip
             if (e == last_element)
@@ -326,21 +328,21 @@ template <typename CH> const str::xstr<CH> sts_t<CH>::store(int level) const
 		if (e->name)
 			r.append( *e->name ), has_name = true;
 
-		if (!e->sts.value_not_specified() && !e->sts.value.empty())
-			append_value(r, store_value(e->sts.value, !one_line || e == last_element));
-		else if (has_name && nullptr == e->sts.first_element)
+		if (auto s = e->sts().as_string(string_view_type()); !s.empty())
+			append_value(r, store_value(s, !one_line || e == last_element));
+		else if (has_name && nullptr == e->sts().first_element)
 			r.push_back('=');
 
-		if (e->sts.has_comment(&cmnt) && e->sts.elements.size() == 1)
+		if (e->sts().has_comment(&cmnt) && e->sts().elements.size() == 1)
 		{
 			r.push_back(' ');
 			r.append(cmnt);
-		} else if (e->sts.first_element)// inner blocks?
+		} else if (e->sts().first_element)// inner blocks?
 		{
 			if (r.length() > prev_len)
                 r.push_back(' '); // append space if block has name or/and value
 			r.push_back('{');
-			r.append(e->sts.store(level + 1)).push_back('}');
+			r.append(e->sts().store(level + 1)).push_back('}');
 		}
 		if (e != last_element)
         {
@@ -353,8 +355,6 @@ template <typename CH> const str::xstr<CH> sts_t<CH>::store(int level) const
 	}
 	return r;
 }
-
-template <typename CH> str::xstr<CH> sts_t<CH>::static_name_comment;
 
 template class sts_t<char>;
 // no need

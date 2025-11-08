@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_X25519_H_
 #define BOTAN_X25519_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 
@@ -119,4 +121,5 @@ void curve25519_basepoint(uint8_t mypublic[32], const uint8_t secret[32]);
 
 }  // namespace Botan
 
+#endif
 #endif

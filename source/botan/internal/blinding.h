@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_BLINDER_H_
 #define BOTAN_BLINDER_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <botan/reducer.h>
@@ -94,4 +96,5 @@ class Blinder final {
 
 }  // namespace Botan
 
+#endif
 #endif

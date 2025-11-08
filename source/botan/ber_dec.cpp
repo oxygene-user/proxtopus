@@ -6,6 +6,7 @@
 */
 
 #include <botan/ber_dec.h>
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <botan/internal/int_utils.h>
@@ -542,3 +543,4 @@ BER_Decoder& BER_Decoder::decode(std::vector<uint8_t>& buffer,
 }
 
 }  // namespace Botan
+#endif

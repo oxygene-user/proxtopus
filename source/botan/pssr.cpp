@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/pssr.h>
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
@@ -261,3 +262,4 @@ Algo_Group PSSR_Raw::name() const {
 #endif
 
 }  // namespace Botan
+#endif

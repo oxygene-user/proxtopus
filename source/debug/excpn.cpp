@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#if FEATURE_FILELOG
 #if (defined _DEBUG || defined _CRASH_HANDLER) && defined _WIN32
 #include "excpn.h"
 
@@ -327,14 +328,14 @@ long __stdcall crash_exception_filter( _EXCEPTION_POINTERS* pExp )
 
 void set_unhandled_exception_filter()
 {
-#ifdef _WIN32
+#if defined _WIN32 && defined _DEBUG
     ::SetUnhandledExceptionFilter(&dbg::exceptions_best_friend::exception_filter);
 #endif
 }
 
-void set_dump_type(bool full)
+void set_dump_type([[maybe_unused]] bool full)
 {
-#ifdef _WIN32
+#if defined _WIN32 && defined _DEBUG
     MINIDUMP_TYPE dump_type = (MINIDUMP_TYPE)(MiniDumpWithFullMemory /*| MiniDumpWithProcessThreadData*/ | MiniDumpWithDataSegs | MiniDumpWithHandleData /*| MiniDumpWithFullMemoryInfo | MiniDumpWithThreadInfo*/);
     if (!full)
         dump_type = (MINIDUMP_TYPE)(MiniDumpWithDataSegs | MiniDumpWithHandleData);
@@ -342,3 +343,4 @@ void set_dump_type(bool full)
 #endif
 }
 
+#endif

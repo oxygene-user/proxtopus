@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_HANDSHAKE_STATE_H_
 #define BOTAN_TLS_HANDSHAKE_STATE_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/pk_keys.h>
 #include <botan/pubkey.h>
@@ -206,4 +208,5 @@ class Handshake_State {
 
 }  // namespace Botan
 
+#endif
 #endif

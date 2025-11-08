@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_TLS_SERVER_IMPL_12_H_
 #define BOTAN_TLS_SERVER_IMPL_12_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/credentials_manager.h>
 #include <botan/tls_policy.h>
@@ -106,4 +108,5 @@ class Server_Impl_12 : public Channel_Impl_12 {
 
 }  // namespace Botan::TLS
 
+#endif
 #endif

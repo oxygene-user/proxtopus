@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/calendar.h>
+#if FEATURE_TLS
 
 #include <botan/assert.h>
 #include <botan/exceptn.h>
@@ -95,3 +96,4 @@ calendar_point::calendar_point(const std::chrono::system_clock::time_point& time
 }
 
 }  // namespace Botan
+#endif

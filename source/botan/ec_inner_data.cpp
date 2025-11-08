@@ -5,6 +5,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/internal/ec_inner_data.h>
 
@@ -479,3 +480,4 @@ std::unique_ptr<EC_Mul2Table_Data> EC_Group_Data::make_mul2_table(const EC_Affin
 }
 
 }  // namespace Botan
+#endif

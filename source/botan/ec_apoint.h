@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_EC_APOINT_H_
 #define BOTAN_EC_APOINT_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/concepts.h>
 #include <botan/types.h>
@@ -271,4 +273,5 @@ class BOTAN_UNSTABLE_API EC_AffinePoint final {
 
 }  // namespace Botan
 
+#endif
 #endif

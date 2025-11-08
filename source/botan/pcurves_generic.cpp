@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/pcurves_generic.h>
+#if FEATURE_TLS
 
 #include <botan/bigint.h>
 #include <botan/exceptn.h>
@@ -1606,3 +1607,4 @@ std::shared_ptr<const PrimeOrderCurve> PCurveInstance::from_params(
 }
 
 }  // namespace Botan::PCurve
+#endif

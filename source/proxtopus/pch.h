@@ -6,7 +6,6 @@
 #pragma once
 
 #include "../conf.h"
-#include "../proxtopus/conf_def.h"
 
 #define PROXTOPUS_PCH
 
@@ -95,7 +94,7 @@ extern bool g_single_core;
 #include "fsys.h"
 #include "arena.h"
 #include "sts.h"
-#ifndef _NIX
+#ifdef _WIN32
 #include "../debug/excpn.h"
 #endif
 #include "rndgen.h"
@@ -104,7 +103,7 @@ extern bool g_single_core;
 #include "json.h"
 #include "macro.h"
 #include "netkit.h"
-#include "icpt.h"
+#include "expression.h"
 #include "os_tools.h"
 #include "main.h"
 #include "resource.h"
@@ -118,8 +117,11 @@ extern bool g_single_core;
 
 #include "cmdline.h"
 #include "loader.h"
+#include "upstream.h"
 #include "listener.h"
 #include "proxy.h"
+#include "ip_machine.h"
+#include "adapter.h"
 
 #include "engine.h"
 #include "connect.h"

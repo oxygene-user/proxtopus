@@ -5,7 +5,7 @@
 */
 
 #include <botan/internal/sha2_64.h>
-
+#ifdef ARCH_X86
 #include <immintrin.h>
 
 namespace Botan {
@@ -114,3 +114,4 @@ void SHA_512::compress_digest_x86(digest_type& digest, std::span<const uint8_t> 
 #endif
 
 }  // namespace Botan
+#endif

@@ -7,6 +7,7 @@
 */
 
 #include <botan/pkix_types.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/x509cert.h>
@@ -563,3 +564,4 @@ bool NameConstraints::is_excluded(const X509_Certificate& cert, bool reject_unkn
 }
 
 }  // namespace Botan
+#endif

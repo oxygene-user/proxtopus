@@ -13,7 +13,9 @@ class loader
 
 public:
 	const asts* nameservers = nullptr;
-	const asts* icpt = nullptr;
+#if FEATURE_ADAPTER
+	const asts* adapters = nullptr;
+#endif
 
 	using listener_loader = std::function< bool(const str::astr&, const asts&) >;
 	using proxy_loader = std::function< bool(const str::astr&, const asts&) >;
@@ -21,9 +23,9 @@ public:
 	loader(engine *eng):e(eng) {}
 	~loader() {}
 
-	int exit_code = EXIT_OK;
+    int exit_code = EXIT_OK;
 
-	bool load_conf(const FN& cfp);
+	bool load_conf(APPONLY(const FN& cfp) LIBONLY(const str::astr_view &cfg));
 
 
 	bool iterate_l(listener_loader ll);

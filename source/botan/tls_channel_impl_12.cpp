@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/tls_channel_impl_12.h>
+#if FEATURE_TLS
 
 #include <botan/kdf.h>
 #include <botan/tls_messages.h>
@@ -653,3 +654,4 @@ SymmetricKey Channel_Impl_12::key_material_export(std::string_view label,
 }
 
 }  // namespace Botan::TLS
+#endif

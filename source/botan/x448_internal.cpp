@@ -6,6 +6,7 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 #include <botan/internal/x448_internal.h>
+#if FEATURE_TLS
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/curve448_gf.h>
@@ -87,3 +88,4 @@ Point448 x448(const ScalarX448& k, const Point448& u) {
 }
 
 }  // namespace Botan
+#endif

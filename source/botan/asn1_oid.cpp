@@ -5,6 +5,7 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 #include <botan/asn1_obj.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
@@ -304,3 +305,4 @@ void OID::decode_from(BER_Decoder& decoder) {
 }
 
 }  // namespace Botan
+#endif

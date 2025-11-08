@@ -8,6 +8,7 @@
 */
 
 #include <botan/tls_version.h>
+#if FEATURE_TLS
 
 #include <botan/tls_exceptn.h>
 
@@ -90,3 +91,4 @@ bool Protocol_Version::known_version() const {
 }
 
 }  // namespace Botan::TLS
+#endif

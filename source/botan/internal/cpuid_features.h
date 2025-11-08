@@ -14,7 +14,7 @@
 #include <string_view>
 
 namespace Botan {
-
+#ifdef ARCH_X86
 class BOTAN_TEST_API CPUFeature {
    public:
       enum Bit : uint32_t {
@@ -54,7 +54,50 @@ class BOTAN_TEST_API CPUFeature {
    private:
       Bit m_bit;
 };
+#endif
+#if defined(ARCH_ARM) && defined(ARCH_32BIT)
+class BOTAN_TEST_API CPUFeature {
+   public:
+      enum Bit : uint32_t {
+         NEON = (1U << 0),
+         AES = (1U << 16),
+         PMULL = (1U << 17),
+         SHA1 = (1U << 18),
+         SHA2 = (1U << 19),
+      };
 
+      CPUFeature(Bit b) : m_bit(b) {}
+
+      uint32_t as_u32() const { return static_cast<uint32_t>(m_bit); }
+
+   private:
+      Bit m_bit;
+};
+#endif
+#if defined(ARCH_ARM) && defined(ARCH_64BIT)
+class BOTAN_TEST_API CPUFeature {
+   public:
+      enum Bit : uint32_t {
+         NEON = (1U << 0),
+         SVE = (1U << 1),
+         AES = (1U << 16),
+         PMULL = (1U << 17),
+         SHA1 = (1U << 18),
+         SHA2 = (1U << 19),
+         SHA3 = (1U << 20),
+         SHA2_512 = (1U << 21),
+         SM3 = (1U << 22),
+         SM4 = (1U << 23),
+      };
+
+      CPUFeature(Bit b) : m_bit(b) {}
+
+      uint32_t as_u32() const { return static_cast<uint32_t>(m_bit); }
+
+   private:
+      Bit m_bit;
+};
+#endif
 }  // namespace Botan
 
 #endif

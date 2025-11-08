@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_EC_KEY_DATA_H_
 #define BOTAN_EC_KEY_DATA_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/ec_apoint.h>
 #include <botan/ec_group.h>
@@ -78,4 +80,5 @@ class EC_PrivateKey_Data final {
 
 }  // namespace Botan
 
+#endif
 #endif

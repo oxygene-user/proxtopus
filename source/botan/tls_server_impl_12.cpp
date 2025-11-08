@@ -7,6 +7,7 @@
 */
 
 #include <botan/internal/tls_server_impl_12.h>
+#if FEATURE_TLS
 
 #include <botan/ocsp.h>
 #include <botan/tls_magic.h>
@@ -847,3 +848,4 @@ void Server_Impl_12::session_create(Server_Handshake_State& pending_state) {
    pending_state.server_hello_done(new Server_Hello_Done(pending_state.handshake_io(), pending_state.hash()));
 }
 }  // namespace Botan::TLS
+#endif

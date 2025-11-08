@@ -4,14 +4,14 @@
 
 void chacha20::impl::key_setup(const uint8_t* k)
 {
-    input4 = tools::load32_le(k + 0);
-    input5 = tools::load32_le(k + 4);
-    input6 = tools::load32_le(k + 8);
-    input7 = tools::load32_le(k + 12);
-    input8 = tools::load32_le(k + 16);
-    input9 = tools::load32_le(k + 20);
-    input10 = tools::load32_le(k + 24);
-    input11 = tools::load32_le(k + 28);
+    input4 = load_le<4>(k);
+    input5 = load_le<4>(k + 4);
+    input6 = load_le<4>(k + 8);
+    input7 = load_le<4>(k + 12);
+    input8 = load_le<4>(k + 16);
+    input9 = load_le<4>(k + 20);
+    input10 = load_le<4>(k + 24);
+    input11 = load_le<4>(k + 28);
 }
 u64 chacha20::impl::ic_setup(size_t ic)
 {
@@ -25,22 +25,23 @@ u64 chacha20::impl::ic_setup_ietf(size_t ic)
 
 void chacha20::impl::iv_setup(const uint8_t* iv)
 {
-    input14 = tools::load32_le(iv + 0);
-    input15 = tools::load32_le(iv + 4);
+    input14 = load_le<4>(iv + 0);
+    input15 = load_le<4>(iv + 4);
 }
 
 void chacha20::impl::iv_setup_ietf(const uint8_t* iv)
 {
-    ic_high = tools::load32_le(iv + 0);
-    input14 = tools::load32_le(iv + 4);
-    input15 = tools::load32_le(iv + 8);
+    ic_high = load_le<4>(iv + 0);
+    input14 = load_le<4>(iv + 4);
+    input15 = load_le<4>(iv + 8);
 }
 
-#ifdef _MSC_VER
+#ifdef __clang__
+#define ROTL(v,s) __builtin_rotateleft32(v,s)
+#elif defined ARCH_X86
+#if defined (_MSC_VER) || defined (__GNUC__)
 #define ROTL(v,s) _rotl(v,s)
 #endif
-#ifdef __GNUC__
-#define ROTL(v,s) _rotl(v,s)
 #endif
 
 inline void chacha_quarter_round(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t& d) {
@@ -73,14 +74,14 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
     uint32_t x2 = 0x79622d32;
     uint32_t x3 = 0x6b206574;
 
-    uint32_t x4 = tools::load32_le(k + 0);
-    uint32_t x5 = tools::load32_le(k + 4);
-    uint32_t x6 = tools::load32_le(k + 8);
-    uint32_t x7 = tools::load32_le(k + 12);
-    uint32_t x8 = tools::load32_le(k + 16);
-    uint32_t x9 = tools::load32_le(k + 20);
-    uint32_t x10 = tools::load32_le(k + 24);
-    uint32_t x11 = tools::load32_le(k + 28);
+    uint32_t x4 = load_le<4>(k + 0);
+    uint32_t x5 = load_le<4>(k + 4);
+    uint32_t x6 = load_le<4>(k + 8);
+    uint32_t x7 = load_le<4>(k + 12);
+    uint32_t x8 = load_le<4>(k + 16);
+    uint32_t x9 = load_le<4>(k + 20);
+    uint32_t x10 = load_le<4>(k + 24);
+    uint32_t x11 = load_le<4>(k + 28);
 
     if (n == nullptr)
     {
@@ -93,12 +94,12 @@ void chacha20::impl::key_setup_xchacha20(const unsigned char* k, const unsigned 
 
     } else
     {
-        x12 = tools::load32_le(n + 0);
-        x13 = tools::load32_le(n + 4);
-        x14 = tools::load32_le(n + 8);
-        x15 = tools::load32_le(n + 12);
-        input14 = tools::load32_le(n + 16);
-        input15 = tools::load32_le(n + 20);
+        x12 = load_le<4>(n + 0);
+        x13 = load_le<4>(n + 4);
+        x14 = load_le<4>(n + 8);
+        x15 = load_le<4>(n + 12);
+        input14 = load_le<4>(n + 16);
+        input15 = load_le<4>(n + 20);
 
     }
 
@@ -150,11 +151,11 @@ cipher_##ext(in,out,size,ic_setup##ivsz(ic)); }; }
 GEN_IMPL(, ref);
 GEN_IMPL(_ietf, ref);
 #endif
-#ifndef AVX2_SUPPORTED
+#if !defined(AVX2_SUPPORTED) && defined(ARCH_X86)
 GEN_IMPL(, ssse3);
 GEN_IMPL(_ietf, ssse3);
 #endif
-#ifdef MODE64
+#if defined(ARCH_64BIT) && defined(ARCH_X86)
 GEN_IMPL(, avx2);
 GEN_IMPL(_ietf, avx2);
 #endif
@@ -164,21 +165,17 @@ struct iml_buf
     u8 key[32];
     ~iml_buf()
     {
-#ifdef _DEBUG
-        memset(key, 0xab, sizeof(key));
-#else
-        Botan::secure_scrub_memory(key, sizeof(key));
-#endif
+        secure::scrub_memory(key, sizeof(key));
     }
 };
 #define KEB void prepare(const uint8_t* k, const uint8_t* nonce, uint8_t nonce_size) override { if (k != nullptr) tools::memcopy<32>(key, k); impl::prepare(key, nonce, nonce_size); }
 #ifndef SSSE3_SUPPORTED
 struct iml_chacha20_ref_keybuf : public iml_chacha20_ref, iml_buf { KEB };
 #endif
-#ifdef MODE64
+#if defined(ARCH_64BIT) && defined(ARCH_X86)
 struct iml_chacha20_avx2_keybuf : public iml_chacha20_avx2, iml_buf { KEB };
 #endif
-#ifndef AVX2_SUPPORTED
+#if !defined(AVX2_SUPPORTED) && defined(ARCH_X86)
 struct iml_chacha20_ssse3_keybuf : public iml_chacha20_ssse3, iml_buf { KEB };
 #endif
 #undef KEB
@@ -186,10 +183,10 @@ struct iml_chacha20_ssse3_keybuf : public iml_chacha20_ssse3, iml_buf { KEB };
 #ifndef SSSE3_SUPPORTED
 #include "sodium_chacha20_ref.inl"
 #endif
-#ifndef AVX2_SUPPORTED
+#if !defined(AVX2_SUPPORTED) && defined(ARCH_X86)
 #include "sodium_chacha20_ssse3.inl"
 #endif
-#ifdef MODE64
+#if defined(ARCH_64BIT) && defined(ARCH_X86)
 #include "sodium_chacha20_avx2.inl"
 #endif
 
@@ -316,3 +313,174 @@ void chacha20::setup_implementation(size_t iv_size)
     }
 }
 
+namespace
+{
+    inline signed_t charindex(char c)
+    {
+        if (c >= 'a' && c <= 'z')
+            return c - 'a';
+        if (c >= 'A' && c <= 'Z')
+            return c - 'A';
+        if (c >= '0' && c <= '9')
+            return (c - '0') + 26;
+        if (c == '-')
+            return 36;
+
+        return -1;
+    }
+
+    inline char indexchar(signed_t i)
+    {
+        i = (i + 37 * 256) % 37;
+        if (i < 26)
+            return tools::as_byte('a' + i);
+        if (i < 36)
+            return tools::as_byte('0' + i - 26);
+        return '-';
+    }
+}
+
+str::astr chacha20::encode_host(const str::astr_view s)
+{
+    str::astr rs(s);
+    if (s.length() < 4 || s[0] == '.' || s[s.length() - 1] == '.')
+        return rs;
+
+    size_t numdots = 0;
+    for (size_t i = 0; i < s.length(); ++i)
+    {
+        char c = s[i];
+        if (s[i] == '.')
+        {
+            ++numdots;
+            continue;
+        }
+
+        if (charindex(c) < 0)
+            return rs;
+    }
+
+    u8* keystream = ALLOCA(rs.length() + 2);
+    this->keystream(keystream, rs.length() + 2);
+
+    if (numdots)
+    {
+        for (size_t i = 0; i < s.length(); ++i)
+            rs[i] = ' ';
+
+        u8 x = keystream[0];
+        bool mirror = ((x ^ (x >> 1) ^ (x >> 2) ^ (x >> 3) ^ (x >> 4) ^ (x >> 5) ^ (x >> 6) ^ (x >> 7)) & 1) != 0;
+
+        size_t dots_index_range = s.length() - 2;
+        for (size_t i = 0; i < s.length(); ++i)
+        {
+            if (s[i] == '.')
+            {
+                signed_t di = i;
+                if (mirror)
+                    di = s.length() - di - 1;
+
+                di = ((di + keystream[1] - 1) % dots_index_range) + 1;
+
+                rs[di] = '.';
+            }
+        }
+
+        for (size_t i = 0, ii = 0; i < s.length(); ++i)
+        {
+            if (s[i] == '.')
+                continue;
+            if (rs[ii] == '.')
+                ++ii;
+            rs[ii++] = s[i];
+        }
+
+        keystream += 2;
+    }
+
+    for (size_t i = 0; i < rs.length(); ++i)
+    {
+        char c = rs[i];
+        if (c == '.')
+        {
+            --keystream;
+            continue;
+        }
+
+        rs[i] = indexchar(charindex(c) + keystream[i]);
+    }
+
+    return rs;
+}
+
+str::astr chacha20::decode_host(const str::astr_view s)
+{
+    str::astr rs(s);
+    if (s.length() < 4 || s[0] == '.' || s[s.length() - 1] == '.')
+        return rs;
+
+    size_t numdots = 0;
+    for (size_t i = 0; i < s.length(); ++i)
+    {
+        char c = s[i];
+        if (s[i] == '.')
+        {
+            ++numdots;
+            continue;
+        }
+
+        if (charindex(c) < 0)
+            return rs;
+    }
+
+    u8* keystream = ALLOCA(rs.length() + 2);
+    this->keystream(keystream, rs.length() + 2);
+
+    if (numdots)
+    {
+        for (size_t i = 0; i < s.length(); ++i)
+            rs[i] = ' ';
+
+        u8 x = keystream[0];
+        bool mirror = ((x ^ (x >> 1) ^ (x >> 2) ^ (x >> 3) ^ (x >> 4) ^ (x >> 5) ^ (x >> 6) ^ (x >> 7)) & 1) != 0;
+
+        size_t dots_index_range = s.length() - 2;
+        size_t up = dots_index_range * 256 - 1;
+        for (size_t i = 0; i < s.length(); ++i)
+        {
+            if (s[i] == '.')
+            {
+                signed_t di = i;
+                di = ((up + di - keystream[1]) % dots_index_range) + 1;
+                if (mirror)
+                    di = s.length() - di - 1;
+                rs[di] = '.';
+            }
+        }
+
+        for (size_t i = 0, ii = 0; i < s.length(); ++i)
+        {
+            if (s[i] == '.')
+                continue;
+            if (rs[ii] == '.')
+                ++ii;
+            rs[ii++] = s[i];
+        }
+        keystream = keystream + 2;
+    }
+
+    for (size_t i = 0; i < rs.length(); ++i)
+    {
+        char c = rs[i];
+        if (c == '.')
+        {
+            --keystream;
+            continue;
+        }
+
+        c = indexchar(charindex(c) - keystream[i]);
+        rs[i] = c;
+    }
+
+    return rs;
+}

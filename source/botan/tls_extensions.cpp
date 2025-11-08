@@ -11,6 +11,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_extensions.h>
 
@@ -975,3 +976,4 @@ bool EarlyDataIndication::empty() const {
 
 #endif
 }  // namespace Botan::TLS
+#endif

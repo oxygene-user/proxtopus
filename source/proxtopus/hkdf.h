@@ -11,10 +11,12 @@ public:
 
         HMAC mac;
 
-        if (salt.empty()) {
+        if (salt.size() < HMAC::output_bytes) {
 
-            u8 zeros[HMAC::output_bytes] = { 0 };
-            mac.set_key(zeros);
+            u8 expanded[HMAC::output_bytes];
+            memcpy(expanded, salt.data(), salt.size());
+            memset(expanded + salt.size(), 0, HMAC::output_bytes - salt.size());
+            mac.set_key(expanded);
         }
         else {
             mac.set_key(salt);

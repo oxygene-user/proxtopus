@@ -4,6 +4,7 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/pubkey.h>
 
@@ -488,3 +489,4 @@ bool PK_Verifier::check_signature(const uint8_t sig[], size_t length) {
 }
 
 }  // namespace Botan
+#endif

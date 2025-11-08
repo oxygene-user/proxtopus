@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_X509_PUBLIC_KEY_H_
 #define BOTAN_X509_PUBLIC_KEY_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/data_src.h>
 #include <botan/pk_keys.h>
@@ -83,4 +85,5 @@ inline std::unique_ptr<Public_Key> copy_key(const Public_Key& key) {
 
 }  // namespace Botan::X509
 
+#endif
 #endif

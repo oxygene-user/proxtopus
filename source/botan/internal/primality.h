@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_PRIMALITY_TEST_H_
 #define BOTAN_PRIMALITY_TEST_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/types.h>
 #include <memory>
@@ -119,4 +121,5 @@ bool BOTAN_TEST_API generate_dsa_primes(RandomNumberGenerator& rng,
 #endif
 }  // namespace Botan
 
+#endif
 #endif

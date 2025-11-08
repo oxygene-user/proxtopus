@@ -6,6 +6,7 @@
 */
 
 #include <botan/internal/tls_handshake_io.h>
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/tls_messages.h>
@@ -422,3 +423,4 @@ std::vector<uint8_t> Datagram_Handshake_IO::send_message(uint16_t msg_seq,
 }
 
 }  // namespace Botan::TLS
+#endif

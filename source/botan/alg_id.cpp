@@ -6,6 +6,7 @@
 */
 
 #include <botan/asn1_obj.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
@@ -85,3 +86,4 @@ void AlgorithmIdentifier::decode_from(BER_Decoder& codec) {
 }
 
 }  // namespace Botan
+#endif

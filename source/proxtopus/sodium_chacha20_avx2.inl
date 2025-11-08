@@ -1,5 +1,5 @@
 
-#if defined(MODE64) && defined (ARCH_X86)
+#if defined(ARCH_64BIT) && defined (ARCH_X86)
 #ifdef GCC_OR_CLANG
 __attribute__((target("avx2")))
 #endif

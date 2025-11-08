@@ -5,6 +5,7 @@
 */
 
 #include <botan/internal/mod_inv.h>
+#if FEATURE_TLS
 
 #include <botan/numthry.h>
 #include <botan/internal/ct_utils.h>
@@ -383,3 +384,4 @@ BigInt inverse_mod(const BigInt& n, const BigInt& mod) {
 }
 
 }  // namespace Botan
+#endif

@@ -6,6 +6,7 @@
 */
 
 #include <botan/dl_group.h>
+#if FEATURE_TLS
 
 namespace Botan {
 
@@ -150,3 +151,4 @@ std::shared_ptr<DL_Group_Data> DL_Group::DL_group_info(Algo_Group name) {
 }
 
 }  // namespace Botan
+#endif

@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_PCURVES_H_
 #define BOTAN_PCURVES_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/concepts.h>
 #include <botan/types.h>
@@ -330,4 +332,5 @@ class PrimeOrderCurve {
 
 }  // namespace Botan::PCurve
 
+#endif
 #endif

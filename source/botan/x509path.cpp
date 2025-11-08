@@ -7,6 +7,7 @@
 */
 
 #include <botan/x509path.h>
+#if FEATURE_TLS
 
 #include <botan/ocsp.h>
 #include <botan/pk_keys.h>
@@ -1090,3 +1091,4 @@ std::string Path_Validation_Result::warnings_string() const {
    return res;
 }
 }  // namespace Botan
+#endif

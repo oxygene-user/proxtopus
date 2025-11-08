@@ -6,6 +6,8 @@
 
 #ifndef BOTAN_PK_OPERATIONS_H_
 #define BOTAN_PK_OPERATIONS_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 /**
 * Ordinary applications should never need to include or use this
@@ -183,4 +185,5 @@ class BOTAN_UNSTABLE_API KEM_Decryption {
 
 }  // namespace Botan::PK_Ops
 
+#endif
 #endif

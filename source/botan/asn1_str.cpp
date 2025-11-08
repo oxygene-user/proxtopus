@@ -6,6 +6,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 
@@ -114,3 +115,4 @@ void ASN1_String::decode_from(BER_Decoder& source) {
 }
 
 }  // namespace Botan
+#endif

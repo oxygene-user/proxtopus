@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_RIPEMD_160_H_
 #define BOTAN_RIPEMD_160_H_
+#include "../../conf.h"
+#if FEATURE_TLS
 
 #include <botan/internal/mdx_hash.h>
 
@@ -53,4 +55,5 @@ class RIPEMD_160 final : public HashFunction {
 
 }  // namespace Botan
 
+#endif
 #endif

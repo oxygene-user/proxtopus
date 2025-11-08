@@ -73,7 +73,7 @@ proxy* proxy::build(loader& ldr, const str::astr& name, const asts& bb)
     return nullptr;
 }
 
-proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required):name(name)
+proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_required, bool port_required):name(name)
 {
     const str::astr &a = bb.get_string(ASTR("addr"), glb.emptys);
     if (a.empty())
@@ -86,6 +86,13 @@ proxy::proxy(loader& ldr, const str::astr& name, const asts& bb, bool addr_requi
         }
     } else
         addr.preparse(a);
+
+    if (port_required && !addr.has_port())
+    {
+        ldr.exit_code = EXIT_FAIL_PORT_UNDEFINED;
+        LOG_FATAL("remote port not defined for proxy [$]", str::clean(name));
+    }
+
 }
 
 /*virtual*/ void proxy::api(json_saver& j) const
@@ -138,9 +145,7 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
 {
     addr2.resolve_ip(conf::gip_only4);
     if (addr2.state() != netkit::EPS_RESLOVED || addr2.port() == 0)
-    {
-        return netkit::pipe_ptr();
-    }
+        return {};
 
     signed_t dsz = sizeof(connect_packet_socks4) + 1 + userid.length();
     connect_packet_socks4* pd = (connect_packet_socks4 *)ALLOCA(dsz);
@@ -151,41 +156,86 @@ netkit::pipe_ptr proxy_socks4::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
     ((u8*)pd)[dsz - 1] = 0;
 
     if (pipe_to_proxy->send((u8*)pd, dsz) == netkit::pipe::SEND_FAIL)
-        return netkit::pipe_ptr();
+        return {};
 
     tools::circular_buffer_preallocated<sizeof(connect_answr_socks4)> rcvd;
-    signed_t rb = pipe_to_proxy->recv(rcvd, sizeof(connect_answr_socks4), RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
-    const connect_answr_socks4 *answ = reinterpret_cast<const connect_answr_socks4 *>(rcvd.data1st(sizeof(connect_answr_socks4)));
-    if (rb != sizeof(connect_answr_socks4) || answ->vn != 0 || answ->cd != 90)
-        return netkit::pipe_ptr();
+    if (signed_t rb = pipe_to_proxy->recv(rcvd, sizeof(connect_answr_socks4), RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != sizeof(connect_answr_socks4))
+        return {};
+    
+    if (const connect_answr_socks4* answ = reinterpret_cast<const connect_answr_socks4*>(rcvd.plain_data(nullptr, sizeof(connect_answr_socks4))); 
+        answ->vn != 0 || answ->cd != 90)
+        return {};
 
     return pipe_to_proxy;
 }
 
 proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :proxy(ldr, name, bb)
 {
-
     str::astr_view pwd, user;
-    const str::astr& auth = bb.get_string(ASTR("auth"), glb.emptys);
-    if (size_t dv = auth.find(':'); dv != auth.npos)
+    const str::astr& authpar = bb.get_string(ASTR("auth"), glb.emptys);
+    const str::astr& obfs_authpar = bb.get_string(ASTR("obfs-auth"), glb.emptys);
+    
+    if (!authpar.empty())
     {
-        pwd = str::view(auth).substr(dv + 1);
-        user = str::view(auth).substr(0, dv);
+        if (size_t dv = authpar.find(':'); dv != authpar.npos)
+        {
+            pwd = str::substr(authpar, dv + 1);
+            user = str::substr(authpar, 0, dv);
+        }
+
+        if (user.length() > 254 || pwd.length() > 254)
+        {
+            ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+            LOG_FATAL("auth too long (proxy: $)", str::clean(name));
+            return;
+        }
     }
 
-    if (user.length() > 254 || pwd.length() > 254)
-        user = str::view(glb.emptys);
+    if (!obfs_authpar.empty())
+    {
+        if (!user.empty())
+        {
+            ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+            LOG_FATAL("{auth} and {obfs-auth} are mutually exclusive (proxy: $)", str::clean(name));
+            return;
+        }
+
+        if (size_t dv = obfs_authpar.find(':'); dv != obfs_authpar.npos)
+        {
+            pwd = str::substr(obfs_authpar, dv + 1);
+            user = str::substr(obfs_authpar, 0, dv);
+        }
+
+        if (user.empty() || pwd.empty())
+        {
+            ldr.exit_code = EXIT_FAIL_AUTH_INVALID;
+            LOG_FATAL("{obfs-auth} is invalid (must be {obfs-auth}=user:pass) (proxy: $)", str::clean(name));
+            return;
+        }
+        obfs = true;
+    }
 
     if (!user.empty())
     {
-        // make auth packet
-        // username/pwd (https://datatracker.ietf.org/doc/html/rfc1929)
-        authpacket.resize(user.length() + pwd.length() + 3);
+        if (obfs)
+        {
+            // use kdf for generate masterkey
+            auth.resize(sha256::output_bytes, 0);
+            ss::core::keyspace zeros(true);
+            ss::core::keyspace ons(true); ons.space[1] = 1;
+            hkdf< hmac<sha256> >::perform_kdf(auth.span(), zeros.span(), ons.span(), str::span(obfs_authpar));
+        }
+        else
+        {
+            // make auth packet
+            // username/pwd (https://datatracker.ietf.org/doc/html/rfc1929)
+            auth.resize(user.length() + pwd.length() + 3, 0);
 
-        netkit::pgen pg(authpacket.data(), authpacket.size());
-        pg.push8(1);
-        pg.pushs(user);
-        pg.pushs(pwd);
+            netkit::pgen pg(auth.data(), auth.size());
+            pg.push8(1);    // ver
+            pg.pushs(user); // len of [user] + [user] chars
+            pg.pushs(pwd);
+        }
 
     }
 }
@@ -197,26 +247,55 @@ proxy_socks5::proxy_socks5(loader& ldr, const str::astr& name, const asts& bb) :
 }
 
 
-bool proxy_socks5::initial_setup(tools::circular_buffer_extdata& rcvd, netkit::pipe* p2p) const
+bool proxy_socks5::initial_setup(tools::circular_buffer_extdata& rcvd, netkit::pipe* p2p, chacha20& cryptor) const
 {
-    u8 sd[3] = { 5, 1, static_cast<u8>(authpacket.empty() ? 0 : 2) };
+    u8 sd[3] = { 5, 1, static_cast<u8>(auth.is_empty() ? 0 : 2) };
 
     if (p2p->send(sd, 3) == netkit::pipe::SEND_FAIL)
         return false;
 
-    signed_t rb = p2p->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
-    const u8* packet = rcvd.data1st(2);
-    if (rb != 2 || packet[0] != 5 || packet[1] != sd[2])
+    if (signed_t rb = p2p->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
+        return false;
+    u8 temp[8];
+    const u8* packet = rcvd.plain_data(temp, 2);
+    if (packet[0] != 5 || packet[1] != sd[2])
         return false;
     rcvd.skip(2);
-    if (!authpacket.empty())
+    if (!auth.is_empty())
     {
-        if (p2p->send(authpacket.data(), authpacket.size()) == netkit::pipe::SEND_FAIL)
+        const u8* ap = auth.data();
+        size_t ap_sz = auth.size();
+        u8 apspace[16 + 32 + 3];
+        if (obfs)
+        {
+            apspace[0] = 1; // socks5 auth ver
+            apspace[1] = 16; // nonce 16 bytes
+            // generate nonce
+            randomgen::get().randombytes_buf(apspace + 2, 16);
+
+            apspace[18] = 32; // 32 bytes for key
+
+            hkdf< hmac<sha256> >::perform_kdf(
+                std::span(apspace + 19, 32),  // output
+                std::span(ap, 32),            // masterkey (kdf generated on proxy load)
+                std::span(apspace + 2, 16),   // salt
+                str::span(ASTR("socks-obfs")));
+
+            cryptor.set_iv(std::span(apspace + 2, 12));
+            cryptor.set_key(std::span<const u8, 32>(ap, 32));
+
+            ap = apspace;
+            ap_sz = 16 + 32 + 3;
+
+        }
+
+        if (p2p->send(ap, ap_sz) == netkit::pipe::SEND_FAIL)
             return false;
 
-        signed_t rb1 = p2p->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
-        packet = rcvd.data1st(2);
-        if (rb1 != 2 || packet[1] != 0)
+        if (signed_t rb = p2p->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
+            return false;
+        packet = rcvd.plain_data(temp, 2);
+        if (packet[1] != 0)
             return false;
         rcvd.skip(2);
     }
@@ -225,11 +304,12 @@ bool proxy_socks5::initial_setup(tools::circular_buffer_extdata& rcvd, netkit::p
 
 bool proxy_socks5::recv_rep(tools::circular_buffer_extdata& rcvd, netkit::pipe* p2p, netkit::endpoint* ep, const str::astr_view *addr2domain) const
 {
-    signed_t rb = p2p->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr));
-    if (rb != 2)
+    
+    if (signed_t rb = p2p->recv(rcvd, 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 2)
         return false;
-    const u8* packet = rcvd.data1st(2);
-    if (packet[0] != 5 || packet[1] != 0)
+    u8 temp[32];
+    
+    if (const u8* packet = rcvd.plain_data(temp, 2); packet[0] != 5 || packet[1] != 0)
     {
         if (addr2domain)
         {
@@ -265,20 +345,20 @@ bool proxy_socks5::recv_rep(tools::circular_buffer_extdata& rcvd, netkit::pipe* 
         return false;
     }
 
-    if (rb = p2p->recv(rcvd, 2 + 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 4) // read next 2 bytes
+    if (signed_t rb = p2p->recv(rcvd, 2 + 2, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 4) // read next 2 bytes
         return false;
-    u8 atyp = rcvd.data1st(4)[3];
+    u8 atyp = rcvd.plain_data(temp, 4)[3];
     rcvd.skip(4);
 
     switch (atyp)
     {
     case 1:
         // read ip4 and port
-        if (rb = p2p->recv(rcvd, 6, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 6)
+        if (signed_t rb = p2p->recv(rcvd, 6, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 6)
             return false;
 
         if (ep)
-            ep->read(rcvd.data1st(6), 6);
+            ep->read(rcvd.plain_data(temp, 6), 6);
         rcvd.skip(6);
         break;
     case 3:
@@ -287,9 +367,10 @@ bool proxy_socks5::recv_rep(tools::circular_buffer_extdata& rcvd, netkit::pipe* 
 
         if (signed_t n = rcvd.getle<u8>() + 2; n == p2p->recv(rcvd, n, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr))) // read domain and port
         {
-            const u8* d = rcvd.data1st(n);
+            u8 temp256[256 + 8];
+            const u8* d = rcvd.plain_data(temp256, n);
             ep->set_domain(str::astr_view((const char*)d, n-2));
-            ep->set_port(((u16)d[n-2] << 8) | d[n-1]);
+            ep->set_port(load_be<2>(d+n-2));
             rcvd.skip(n);
             break;
         }
@@ -297,11 +378,11 @@ bool proxy_socks5::recv_rep(tools::circular_buffer_extdata& rcvd, netkit::pipe* 
 
     case 4:
         // read ip6 and port
-        if (rb = p2p->recv(rcvd, 18, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 18)
+        if (signed_t rb = p2p->recv(rcvd, 18, RECV_PREPARE_MODE_TIMEOUT DST(, nullptr)); rb != 18)
             return false;
 
         if (ep)
-            ep->read(rcvd.data1st(18), 18);
+            ep->read(rcvd.plain_data(temp, 18), 18);
         rcvd.skip(18);
         break;
 
@@ -312,13 +393,89 @@ bool proxy_socks5::recv_rep(tools::circular_buffer_extdata& rcvd, netkit::pipe* 
     return true;
 }
 
+namespace
+{
+    struct encode_sni_socket : public netkit::replace_socket
+    {
+        chacha20 encoder;
+        bool first_packet = true;
+        explicit encode_sni_socket(chacha20&& enc) :encoder(std::move(enc)) {}
+
+        /*virtual*/ system_socket* update(std::unique_ptr<system_socket>& mp) override
+        {
+            if (!first_packet)
+            {
+                mp = std::move(sock);
+            }
+            return mp.get();
+        }
+
+        /*virtual*/ u8 setup_wait_slot(netkit::wait_slot* slot) override
+        {
+            return sock->setup_wait_slot(slot);
+        }
+        /*virtual*/ u8 get_event_info(netkit::wait_slot* slot) override
+        {
+            return sock->get_event_info(slot);
+        }
+        /*virtual*/ void readypipe(bool rp) override
+        {
+            sock->readypipe(rp);
+        }
+        /*virtual*/ u8 wait(size_t evts, signed_t timeout_ms) override
+        {
+            return sock->wait(evts, timeout_ms);
+        }
+        /*virtual*/ bool connect(const netkit::ipap& a, netkit::socket_info_func sif) override
+        {
+            return sock->connect(a, sif);
+        }
+        /*virtual*/ void sendfull(bool sff) override
+        {
+            sock->sendfull(sff);
+        }
+        /*virtual*/ signed_t send(std::span<const u8> data) override
+        {
+            if (first_packet)
+            {
+                first_packet = false;
+                size_t psz = data.size();
+                std::span<const u8> snin = extract_tls_clienthello_sni(data.data(), psz);
+                if (!snin.empty())
+                {
+                    size_t offs = snin.data() - data.data();
+                    u8* newbuf = ALLOCA( data.size() );
+                    memcpy(newbuf, data.data(), data.size());
+                    str::astr encoded_sni = encoder.encode_host(str::view(snin));
+                    memcpy(newbuf + offs, encoded_sni.data(), snin.size());
+                    return sock->send(std::span(newbuf, data.size()));
+
+                    //LOG_I("tls trough proxy to: $", str::view(snin));
+
+                }
+            }
+
+            return sock->send(data);
+        }
+        /*virtual*/ void close(bool flush_before_close) override
+        {
+            sock->close(flush_before_close);
+        }
+        /*virtual*/ signed_t recv(tools::memory_pair& mp) override
+        {
+            return sock->recv(mp);
+        }
+    };
+}
+
 netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::endpoint& addr2) const
 {
     if (addr2.state() == netkit::EPS_EMPTY || addr2.port() == 0)
         return netkit::pipe_ptr();
 
+    chacha20 cryp;
     tools::circular_buffer_preallocated<512> rcvd;
-    if (!initial_setup(rcvd, pipe_to_proxy.get()))
+    if (!initial_setup(rcvd, pipe_to_proxy.get(), cryp))
         return netkit::pipe_ptr();
 
     u8 packet[512];
@@ -328,7 +485,7 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
     pg.push8(1); // connect
     pg.push8(0);
 
-    push_atyp(pg, addr2);
+    push_atyp(pg, addr2, &cryp);
 
     if (pipe_to_proxy->send(packet, pg.ptr) == netkit::pipe::SEND_FAIL)
         return netkit::pipe_ptr();
@@ -337,6 +494,9 @@ netkit::pipe_ptr proxy_socks5::prepare(netkit::pipe_ptr pipe_to_proxy, netkit::e
         return netkit::pipe_ptr();
 
     pipe_to_proxy->unrecv(rcvd);
+
+    if (cryp.ready())
+        pipe_to_proxy->replace(NEW encode_sni_socket(std::move(cryp)));
 
     return pipe_to_proxy;
 }
@@ -448,7 +608,7 @@ bool proxy_socks5::read_atyp(netkit::pgen& pg, netkit::endpoint& addr)
 
 }
 
-void proxy_socks5::push_atyp(netkit::pgen& pg, const netkit::endpoint& addr2)
+void proxy_socks5::push_atyp(netkit::pgen& pg, const netkit::endpoint& addr2, chacha20* enc)
 {
     //  +------+----------+----------+
     //  | ATYP | DST.ADDR | DST.PORT |
@@ -460,18 +620,31 @@ void proxy_socks5::push_atyp(netkit::pgen& pg, const netkit::endpoint& addr2)
     //    o  DOMAINNAME : X'03'
     //    o  IP V6 address : X'04'
 
+    size_t oldptr;
+
     if (addr2.domain().empty())
     {
+        oldptr = pg.ptr + 1;
+
         const netkit::ipap &ip = addr2.get_ip();
 
-        pg.push8(ip.v4 ? 1 : 4);
+        pg.push8(ip.v4() ? 1 : 4);
         pg.push(ip, true);
+
     }
     else
     {
+        oldptr = pg.ptr + 2;
+
         pg.push8(3); // atyp: domain name
         pg.pushs(addr2.domain());
         pg.push16(addr2.port());
+    }
+
+    if (enc && enc->ready())
+    {
+        // obfs-auth encoding of  atyp
+        enc->cipher(pg.get_data() + oldptr, pg.get_data() + oldptr, pg.ptr - oldptr);
     }
 }
 
@@ -480,7 +653,7 @@ signed_t proxy_socks5::atyp_size(const netkit::endpoint& addr)
     if (addr.domain().empty())
     {
         const netkit::ipap& ip = addr.get_ip();
-        return ip.v4 ? 7 : 19;
+        return ip.v4() ? 7 : 19;
     }
 
     return 1 + 2 + 1 + addr.domain().length(); // ATYP(1) + port(2) + size_of_domain(1) + size_of_domain
@@ -492,7 +665,7 @@ bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pip
     LOG_I("udp assoc prepare to $", addr.desc());
 #endif
     netkit::endpoint addrr(addr);
-    netkit::pipe* pip = conn::connect(addrr);
+    netkit::pipe* pip = conn::connect(addrr, /*glb.icpt ? [](const netkit::ipap& p1, const netkit::ipap& p2) {glb.icpt.self_conn(p1, p2); } :*/ nullptr);
     if (!pip)
     {
     not_success:
@@ -500,9 +673,10 @@ bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pip
             LOG_W("not connected to proxy ($)", desc());
         return false;
     }
+    chacha20 cryp;
     netkit::pipe_ptr p2p(pip);
     tools::circular_buffer_preallocated<512> rcvd;
-    if (!initial_setup(rcvd, pip))
+    if (!initial_setup(rcvd, pip, cryp))
         goto not_success;
 
     u8 sd[10];
@@ -521,7 +695,7 @@ bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pip
     if (!recv_rep(rcvd, pip, &udp_assoc_ep, log_fails ? makeptr(ASTR("udp")) : nullptr))
         goto not_success;
 
-    if (udp_assoc_ep.get_ip().is_wildcard() && udp_assoc_ep.domain().empty())
+    if (udp_assoc_ep.get_ip().is_wildcard_address() && udp_assoc_ep.domain().empty())
         udp_assoc_ep.set_addr(addrr.get_ip());
 
     pip_out = p2p;
@@ -535,7 +709,7 @@ bool proxy_socks5::prepare_udp_assoc(netkit::endpoint& udp_assoc_ep, netkit::pip
     netkit::pipe_ptr p2p;
     if (prepare_udp_assoc(ep, p2p, true))
         return std::make_unique<udp_via_socks5>(this, transport, ep, p2p);
-    return std::unique_ptr<netkit::udp_pipe>();
+    return {};
 }
 
 
@@ -546,7 +720,7 @@ proxy_http::proxy_http(loader& ldr, const str::astr& name, const asts& bb) :prox
     host = bb.get_string(ASTR("host"), host);
     if (const auto* f = bb.get(ASTR("fields")))
     {
-        for (auto it = f->begin(); it; ++it)
+        for (auto it = f->begin_skip_comments(); it; ++it)
             fields.emplace_back( it.name(), it->as_string() );
     }
 }

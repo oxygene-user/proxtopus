@@ -6,6 +6,7 @@
 */
 
 #include <botan/x509_crl.h>
+#if FEATURE_TLS
 
 #include <botan/ber_dec.h>
 #include <botan/bigint.h>
@@ -151,3 +152,4 @@ const Extensions& CRL_Entry::extensions() const {
 }
 
 }  // namespace Botan
+#endif

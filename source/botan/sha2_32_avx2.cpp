@@ -3,9 +3,9 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/sha2_32.h>
 
+#ifdef ARCH_X86
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/rotate.h>
 #include <botan/internal/sha2_32_f.h>
@@ -381,3 +381,4 @@ BOTAN_AVX2_BMI2_FN void SHA_256::compress_digest_x86_avx2(digest_type& digest,
 }
 
 }  // namespace Botan
+#endif

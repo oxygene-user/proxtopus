@@ -1,5 +1,9 @@
 #pragma once
 
+template<typename T> struct is_relocatable {
+
+    static constexpr bool value = std::is_trivially_copyable_v<T>;
+};
 
 namespace ptr
 {
@@ -9,6 +13,8 @@ namespace ptr
 		example:
 		shared_ptr<MyClass> p(new MyClass(...)), p2(p), p3=p;
 		. . .
+
+		attention!!! just after new ref is ZERO !!!
 	*/
 
 	template <class T> class shared_ptr // T must be public child of shared_object
@@ -17,7 +23,7 @@ namespace ptr
 
 		void unconnect()
 		{
-			if (object) T::dec_ref(object);
+			if (object) T::release(object);
 		}
 
 		void connect(T* p)
@@ -31,7 +37,7 @@ namespace ptr
 		//shared_ptr(const T &obj):object(new T (obj)) {object->ref = 1;}
 		shared_ptr(T* p) { connect(p); } // now safe todo: shared_ptr p1(obj), p2(obj);
 		shared_ptr(const shared_ptr& p) { connect(p.object); }
-		shared_ptr(shared_ptr&& p) :object(p.object) { p.object = nullptr; }
+		shared_ptr(shared_ptr&& p) noexcept :object(p.object) { p.object = nullptr; }
 
 		shared_ptr& operator=(T* p)
 		{
@@ -45,7 +51,7 @@ namespace ptr
 			return *this = p.object;
 		}
 
-		shared_ptr& operator=(shared_ptr&& p)
+		shared_ptr& operator=(shared_ptr&& p) noexcept
 		{
 			unconnect();
 			object = p.object;
@@ -67,10 +73,33 @@ namespace ptr
         T* _release() { T* rv = object; object = nullptr; return rv; }
         void _assign(T* t) { object = t; };
 
+		bool is_empty() const
+		{
+			return object == nullptr;
+		}
 	};
+
+	template<typename N> struct decrementor
+	{
+		using NTYPE = N;
+		N operator()(N& n)
+		{
+			return --n;
+		}
+	};
+    template<typename N> struct decrementor<std::atomic<N>>
+    {
+		using NTYPE = N;
+        N operator()(std::atomic<N>& n)
+        {
+            return n.fetch_sub(1) - 1; // return NEW value (after decrement)
+        }
+    };
+
 
 	template<typename N = int> struct intref
 	{
+		using NTYPE = decrementor<N>::NTYPE;
 		N value = 0;
 
 		intref& operator++()
@@ -84,11 +113,11 @@ namespace ptr
 			return *this;
 		}
 
-		bool operator()()
+		bool operator()(NTYPE cmp = 0)
 		{
-			auto nv = --value;
+			auto nv = decrementor<N>{}(value);
 			ASSERT(nv >= 0);
-			return nv == 0;
+			return nv == cmp;
 		}
 		bool is_multi() const
 		{
@@ -139,7 +168,8 @@ namespace ptr
 		bool is_multi_ref() const { return ref.is_multi(); }
 		void add_ref() const { ++ref; }
 		void dec_ref_no_check() const { --ref; }
-		template <class T> static void dec_ref(T* object)
+		bool dec_ref(typename REF::NTYPE cmp) const { return ref(cmp); }
+		template <class T> static void release(T* object)
 		{
 			if (object->ref())
 				OKILLER::kill(object);
@@ -288,3 +318,4 @@ namespace ptr
 	template<class OO1> void hook_connect( ptr::iweak_ptr<obj, OO1> * hook ) { _ptr_eyelet.connect(this, reinterpret_cast<ptr::iweak_ptr<obj>*>(hook)); } \
 	template<class OO1> void hook_unconnect( ptr::iweak_ptr<obj, OO1> * hook ) { _ptr_eyelet.unconnect(reinterpret_cast<ptr::iweak_ptr<obj>*>(hook)); } private:
 
+template<typename T> struct is_relocatable<ptr::shared_ptr<T>> { static constexpr bool value = true; };

@@ -7,6 +7,8 @@
 
 #ifndef BOTAN_DER_ENCODER_H_
 #define BOTAN_DER_ENCODER_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/asn1_obj.h>
 #include <functional>
@@ -225,4 +227,5 @@ class BOTAN_PUBLIC_API(2, 0) DER_Encoder final {
 
 }  // namespace Botan
 
+#endif
 #endif

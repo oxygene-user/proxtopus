@@ -4,21 +4,30 @@
 
 WORKDIR = `pwd`
 
-CC = gcc
-CXX = g++
+#CC = gcc
+#CXX = g++
+#LD = g++ -lpthread
+
+CC = clang
+CXX = clang++
+LD = clang++ -lpthread
+
 AR = ar
-LD = g++
 WINDRES = windres
 
 INC = -I.
-CFLAGS = -Wfatal-errors -Wall -m64 -mcx16 -fexceptions -std=c++20 -static-libstdc++
+CFLAGS = -Wfatal-errors -Wall -m64 -mcx16 -mavx2 -fexceptions -std=c++20
 RESINC = 
 LIBDIR = 
 LIB = 
-LDFLAGS = -m64 -static-libstdc++
+LDFLAGS = -m64
 
 INC_RELEASE = $(INC)
-CFLAGS_RELEASE = $(CFLAGS) -fomit-frame-pointer -fexpensive-optimizations -flto -O3
+# for gcc
+#CFLAGS_RELEASE = $(CFLAGS) -fomit-frame-pointer -fexpensive-optimizations -flto -O3
+# for clang
+CFLAGS_RELEASE = $(CFLAGS) -fomit-frame-pointer -flto -O3
+
 RESINC_RELEASE = $(RESINC)
 RCFLAGS_RELEASE = $(RCFLAGS)
 LIBDIR_RELEASE = $(LIBDIR)
@@ -28,13 +37,14 @@ OBJDIR_RELEASE = obj/Release
 DEP_RELEASE = 
 OUT_RELEASE = bin/proxtopus
 
-FILES_CPP_PROXTOPUS = botan cipher_ss cmdline connect dnsq engine fsys handler_http handler_ss handlers http_api icpt json known_oids listener loader logger macro main mem
-FILES_CPP_PROXTOPUS += netkit os_tools pch proxy proxy_ss rndgen sts tls tools transport transport_tls watchdog aead_chacha20poly1305 sodium_poly1305 chacha20
+FILES_CPP_PROXTOPUS = botan cipher_ss cmdline connect dnsq engine fsys handler_http handler_ss handlers http_api json known_oids listener loader logger macro main mem
+FILES_CPP_PROXTOPUS += netkit os_tools pch proxy proxy_ss rndgen sts tls tools transport transport_tls watchdog aead_chacha20poly1305 sodium_poly1305 chacha20 udp
+FILES_CPP_PROXTOPUS += ip_machine adapter upstream expression
 
-FILES_CPP_BOTAN = aes aes_ni aes_vaes aes_vperm alg_id alt_name asn1_obj asn1_oid asn1_str asn1_time ber_dec big_code big_ops2 big_ops3 big_rand bigint blake2b blinding buf_comp
-FILES_CPP_BOTAN += calendar cbc certstor charset cpuid cpuid_x86 credentials_manager crl_ent ct_utils ctr chacha20poly1305
+FILES_CPP_BOTAN = aes aes_ni aes_vaes aes_vperm alg_id alt_name asn1_obj asn1_oid asn1_str asn1_time ber_dec big_code big_ops2 big_ops3 big_rand bigint blake2b blinding
+FILES_CPP_BOTAN += calendar cbc certstor charset cpuid cpuid_x86 credentials_manager crl_ent ct_utils ctr chacha20poly1305 hex hkdf buf_comp
 FILES_CPP_BOTAN += curve448_gf curve448_scalar data_src der_enc dh divide dl_group dl_named dl_scheme donna ec_apoint ec_group ec_inner_data ec_inner_pc ec_key_data
-FILES_CPP_BOTAN += ec_named ec_scalar ecc_key ecdh ecdsa ed25519 ed25519_fe ed25519_key eme_pkcs emsa_pkcs1 exceptn filter gcm ge ghash ghash_cpu ghash_vperm hash_id hex hkdf
+FILES_CPP_BOTAN += ec_named ec_scalar ecc_key ecdh ecdsa ed25519 ed25519_fe ed25519_key eme_pkcs emsa_pkcs1 exceptn filter gcm ge ghash ghash_cpu ghash_vperm hash_id
 FILES_CPP_BOTAN += hmac keccak_perm keccak_perm_bmi2 keypair make_prm md5 mem_ops mem_utils mgf1 mod_inv monty monty_exp mp_comba mp_karat mp_monty mp_monty_n
 FILES_CPP_BOTAN += msg_cert_req msg_cert_status msg_cert_verify msg_certificate_12 msg_client_hello msg_client_kex msg_finished msg_hello_verify msg_server_hello msg_server_kex
 FILES_CPP_BOTAN += msg_session_ticket name_constraint numthry ocsp ocsp_types os_utils pcurves pcurves_generic pcurves_secp224r1 pcurves_secp256r1 pcurves_secp384r1

@@ -8,6 +8,8 @@
 
 #ifndef BOTAN_BIGINT_H_
 #define BOTAN_BIGINT_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/exceptn.h>
 #include <botan/types.h>
@@ -1162,4 +1164,5 @@ BOTAN_DEPRECATED("Use BigInt::from_string") BOTAN_PUBLIC_API(2, 0) std::istream&
 
 }  // namespace Botan
 
+#endif
 #endif

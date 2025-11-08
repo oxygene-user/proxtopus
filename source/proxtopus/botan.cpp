@@ -20,6 +20,7 @@
 #include <botan/internal/rounding.h>
 #include <botan/internal/hmac.h>
 
+#if FEATURE_TLS
 namespace str
 {
     void __append(std::string& sout, Botan::ALG alg) {
@@ -43,8 +44,8 @@ namespace str
     void __append(std::string& sout, const Botan::OID& oid) {
         sout.append(oid.to_string());
     }
-
 }
+#endif
 
 namespace Botan
 {
@@ -134,15 +135,18 @@ namespace Botan
             return std::make_unique<SHA_3_512>();
         case Botan::Hash_Algo::MD5:
             return std::make_unique<MD5>();
+#if FEATURE_TLS
         case Botan::Hash_Algo::RIPEMD_160:
             return std::make_unique<RIPEMD_160>();
         case Botan::Hash_Algo::SM3:
             return std::make_unique<SM3>();
+#endif
         }
 
 		return std::unique_ptr<HashFunction>();
 	}
 
+#if FEATURE_TLS
     std::unique_ptr<HashFunction> HashFunction::create_or_throw(Hash_Algo hasht)
     {
         if (auto hf = create(hasht))
@@ -150,6 +154,7 @@ namespace Botan
 
         throw Lookup_Error("Hash: " + hasht);
     }
+
 
     /// PROXTOPUS
     template <typename KDF_Type> std::unique_ptr<KDF> kdf_create_mac_or_hash(Hash_Algo h) {
@@ -454,7 +459,7 @@ namespace Botan
     }
     EME::~EME() = default;
 
-
+#endif
 
     std::unique_ptr<BlockCipher> BlockCipher::create(Cipher_Algo alg) {
 
@@ -757,6 +762,7 @@ namespace Botan
             break;
         case Botan::ALG::hash_end:
             break;
+#if FEATURE_TLS
         case Botan::ALG::kex_start:
             break;
         case Botan::ALG::STATIC_RSA:
@@ -889,6 +895,7 @@ namespace Botan
             break;
         case Botan::ALG::sign_end:
             break;
+#endif
         case Botan::ALG::cipher_start:
             break;
         case Botan::ALG::CHACHA20_POLY1305:
@@ -923,6 +930,7 @@ namespace Botan
             break;
         case Botan::ALG::cipher_end:
             break;
+#if FEATURE_TLS
         case Botan::ALG::curv_start:
             break;
         case Botan::ALG::secp256r1:
@@ -1009,6 +1017,7 @@ namespace Botan
             break;
         case Botan::ALG::na_end:
             break;
+#endif
         default:
             break;
         }
@@ -1016,7 +1025,8 @@ namespace Botan
 		return glb.emptys;
 	}
 
-	std::string Algo_Group::to_string() const
+#if FEATURE_TLS
+    std::string Algo_Group::to_string() const
     {
         if (a[1].a == ALG::Undefined)
         {
@@ -1026,6 +1036,7 @@ namespace Botan
         DEBUGBREAK();
         return glb.emptys;
 	}
+#endif
 
     std::optional<uint32_t> string_to_ipv4(std::string_view s)
     {
@@ -1142,6 +1153,7 @@ namespace Botan
 
     }
 
+#if FEATURE_TLS
     size_t X509_DN::lookup_ub(const OID& oid) {
 
         switch (oid.index())
@@ -1173,6 +1185,7 @@ namespace Botan
     const char* to_string(Certificate_Status_Code /*code*/) {
         return "fail";
     }
+#endif
 
 }
 

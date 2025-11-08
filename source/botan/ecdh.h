@@ -9,6 +9,8 @@
 
 #ifndef BOTAN_ECDH_KEY_H_
 #define BOTAN_ECDH_KEY_H_
+#include "../conf.h"
+#if FEATURE_TLS
 
 #include <botan/ecc_key.h>
 
@@ -126,4 +128,5 @@ BOTAN_DIAGNOSTIC_POP
 
 }  // namespace Botan
 
+#endif
 #endif

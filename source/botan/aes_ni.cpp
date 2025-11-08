@@ -4,9 +4,9 @@
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
-
 #include <botan/internal/aes.h>
 
+#ifdef ARCH_X86
 #include <botan/internal/loadstor.h>
 #include <botan/internal/simd_4x32.h>
 #include <wmmintrin.h>
@@ -693,3 +693,4 @@ BOTAN_FUNC_ISA("ssse3,aes") void AES_256::aesni_key_schedule(const uint8_t key[]
 }
 
 }  // namespace Botan
+#endif

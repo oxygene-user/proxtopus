@@ -9,6 +9,7 @@
 */
 
 #include "../proxtopus/pch.h"
+#if FEATURE_TLS
 
 #include <botan/tls_extensions.h>
 
@@ -174,3 +175,4 @@ std::vector<uint8_t> Certificate_Status_Request::serialize(Connection_Side) cons
 }
 
 }  // namespace Botan::TLS
+#endif
